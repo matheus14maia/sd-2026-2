@@ -1,0 +1,5 @@
+# Runtime e ferramentas do gRPC/Protobuf usados pelo servidor e pelo cliente.
+grpcio==1.68.1
+grpcio-tools==1.68.1
+grpcio-reflection==1.68.1
+protobuf==5.29.1

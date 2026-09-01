@@ -1,0 +1,11 @@
+.git/
+.claude/
+CLAUDE.md
+docs/
+markdown/
+__pycache__/
+*.pyc
+.venv/
+venv/
+src/gerado/*_pb2*.py
+src/gerado/*.pyi

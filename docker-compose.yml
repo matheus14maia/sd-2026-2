@@ -1,0 +1,25 @@
+services:
+  # Microsservico B - restaurante. E este que roda na VM do GCP.
+  servidor:
+    build: .
+    container_name: restaurante-servidor
+    command: python -m src.servidor.servidor
+    environment:
+      PORTA: "50051"
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+
+  # Microsservico A - cliente. Roda na maquina local:
+  #   docker compose run --rm cliente
+  # Para apontar para a VM:
+  #   SERVIDOR_HOST=<IP_EXTERNO_DA_VM> docker compose run --rm cliente
+  cliente:
+    build: .
+    profiles: ["cliente"]
+    command: python -m src.cliente.cliente
+    environment:
+      SERVIDOR_HOST: "${SERVIDOR_HOST:-servidor}"
+      SERVIDOR_PORTA: "${SERVIDOR_PORTA:-50051}"
+    stdin_open: true
+    tty: true
