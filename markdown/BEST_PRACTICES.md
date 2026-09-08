@@ -95,6 +95,12 @@ lados assume nada que nao esteja no contrato.
   (default de `PORTA`), `src/cliente/cliente.py` (`PORTA_PADRAO`), a regra de
   firewall do GCP e as docs `README.md`, `docs/01`, `docs/02`, `docs/03`,
   `docs/04` e `docs/05`.
+- **`UNAVAILABLE` e `DEADLINE_EXCEEDED` nao sao o mesmo problema.**
+  `UNAVAILABLE` com `Connection refused` significa que o pacote chegou na maquina
+  e nada escuta na porta (container parado, porta errada). `DEADLINE_EXCEEDED` ao
+  conectar significa que nada voltou: o trafego esta sendo descartado antes do
+  servidor, quase sempre firewall - regra que nao cobre a porta ou VM sem a tag
+  de rede.
 - **A tag de rede tem que estar na instancia, nao so na regra.** Uma regra de
   firewall com `targetTags` so vale para VMs marcadas com aquela tag. Regra
   correta + VM sem a tag produz exatamente o mesmo `UNAVAILABLE` de servidor

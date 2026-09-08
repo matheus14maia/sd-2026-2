@@ -22,6 +22,33 @@
 
 ## 2026-09-08
 
+### DEADLINE_EXCEEDED ao conectar na VM (e nao UNAVAILABLE)
+
+**Sintoma:**
+```text
+Conectando ao restaurante em 34.9.87.180:9090 ...
+
+ERRO gRPC: DEADLINE_EXCEEDED
+Detalhe: Deadline Exceeded
+```
+
+**Causa:** os dois erros de rede do gRPC apontam para lugares diferentes e a
+distincao economiza tempo de diagnostico:
+
+| Erro | O que aconteceu no TCP | Onde olhar |
+|---|---|---|
+| `UNAVAILABLE` (`Connection refused`) | o pacote **chegou** na maquina e o SO respondeu com RST porque ninguem escuta naquela porta | container parado, porta nao publicada, porta errada |
+| `DEADLINE_EXCEEDED` | o pacote saiu e **nada voltou** ate o timeout | firewall descartando o trafego (regra nao cobre a porta, VM sem a tag de rede, VM desligada) |
+
+Um firewall bem configurado descarta o pacote em silencio em vez de recusar a
+conexao - por isso o sintoma e o timeout, nao a recusa.
+
+**Solucao:** o cliente passou a tratar `DEADLINE_EXCEEDED` com o mesmo checklist
+de `UNAVAILABLE`, precedido de uma linha explicando que o pacote esta sendo
+descartado e mandando comecar pelos itens de firewall (regra e tag de rede).
+
+**Arquivos:** `src/cliente/cliente.py`.
+
 ### Servidor gRPC inalcancavel na VM: a porta 50051 nao estava liberada
 
 **Sintoma:** `UNAVAILABLE: failed to connect to all addresses` no cliente, com o

@@ -218,7 +218,7 @@ sudo ss -lntp | grep 9090   # LISTEN em 0.0.0.0:9090
 Saida esperada nos logs:
 
 ```text
-restaurante-servidor  |  Cantina do Maia - servidor gRPC
+restaurante-servidor  |  Hell's Kitchen - servidor gRPC
 restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:9090
 restaurante-servidor  |  Aguardando pedidos... (Ctrl+C encerra)
 ```

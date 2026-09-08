@@ -17,7 +17,7 @@ class Item:
     disponivel: bool = True
 
 
-NOME_RESTAURANTE = "Cantina do Maia"
+NOME_RESTAURANTE = "Hell's Kitchen"
 
 CARDAPIO = (
     Item("EN01", "Bruschetta", "Pao italiano, tomate, manjericao e azeite", "Entradas", 18.90),

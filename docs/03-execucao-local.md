@@ -15,7 +15,7 @@ Saida esperada:
 
 ```text
 restaurante-servidor  | ==============================================================
-restaurante-servidor  |  Cantina do Maia - servidor gRPC
+restaurante-servidor  |  Hell's Kitchen - servidor gRPC
 restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:9090
 restaurante-servidor  |  Servico: restaurante.RestauranteService
 restaurante-servidor  |  Aguardando pedidos... (Ctrl+C encerra)
@@ -66,7 +66,7 @@ python -m src.cliente.cliente
 
 ```text
 ==============================================================
-CARDAPIO - Cantina do Maia
+CARDAPIO - Hell's Kitchen
 ==============================================================
 
 PRATOS
@@ -110,7 +110,7 @@ Petit gateau                        1    R$ 27,90     R$ 27,90
 TOTAL                                                R$ 189,70
 
 Tempo estimado: 33 minutos
-Pedido recebido pela Cantina do Maia. Entrega estimada em 33 minutos.
+Pedido recebido pelo Hell's Kitchen. Entrega estimada em 33 minutos.
 ```
 
 4. Em seguida o stream de acompanhamento imprime cada status conforme chega:

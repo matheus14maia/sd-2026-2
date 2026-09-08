@@ -4,9 +4,9 @@ Comunicacao interna de backend entre dois microsservicos usando **gRPC** e
 **Protocol Buffers**, com o servidor rodando em uma VM do **Google Cloud
 Platform** e o cliente na maquina local.
 
-**Tema:** delivery de restaurante. O servidor e a *Cantina do Maia*, que publica
-um cardapio variado e processa pedidos; o cliente monta o pedido escolhendo os
-itens e a quantidade de cada um.
+**Tema:** delivery de restaurante. O servidor e o restaurante *Hell's Kitchen*,
+que publica um cardapio variado e processa pedidos; o cliente monta o pedido
+escolhendo os itens e a quantidade de cada um.
 
 ```text
   MAQUINA LOCAL                                VM DO GCP (9090/TCP)
