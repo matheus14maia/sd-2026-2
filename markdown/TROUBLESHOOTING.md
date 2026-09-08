@@ -20,6 +20,44 @@
 
 ---
 
+## 2026-09-08
+
+### Servidor gRPC inalcancavel na VM: a porta 50051 nao estava liberada
+
+**Sintoma:** `UNAVAILABLE: failed to connect to all addresses` no cliente, com o
+container `Up` na VM e `ss -lntp` mostrando `LISTEN` em `0.0.0.0:50051`.
+
+**Causa:** a regra de firewall da VPC do projeto (tag de rede `trabalho-sd`)
+libera `tcp:3000,5050,8000,9090-9292`. A `50051`, porta convencional do gRPC e
+padrao do projeto ate entao, nao esta em nenhuma dessas faixas. Tudo dentro da VM
+funcionava; o pacote morria antes de chegar nela.
+
+**Solucao:** mover o servidor para a porta `9090`, que ja esta dentro do range
+liberado, em vez de criar uma regra nova. Vale como padrao geral: conferir o que
+o firewall libera **antes** de escolher a porta do servico.
+
+**Arquivos:** `docker-compose.yml`, `Dockerfile`, `src/servidor/servidor.py`,
+`src/cliente/cliente.py`, `README.md`, `docs/01` a `docs/05`.
+
+### Container do servidor nao volta depois de religar a VM
+
+**Sintoma:** VM parada pelo Console e religada; `docker compose ps` vazio e
+`docker ps -a` sem o `restaurante-servidor`. O cliente recebe `UNAVAILABLE`.
+
+**Causa:** o `docker compose down` que a Etapa 9 antiga de `docs/04` mandava
+rodar antes de desligar a VM **remove** o container. Nenhuma politica de restart
+ressuscita um container removido - `unless-stopped` e `always` so agem sobre
+containers que ainda existem.
+
+**Solucao:** `restart: always` no servico `servidor` (em vez de
+`unless-stopped`, que tambem nao religa apos um `docker compose stop` manual) e
+`docker compose down` retirado do ciclo normal em `docs/04`. Pre-requisito do
+autostart: `sudo systemctl is-enabled docker` responder `enabled`.
+
+**Arquivos:** `docker-compose.yml`, `docs/04-deploy-gcp-vm.md`.
+
+---
+
 ## 2026-08-31
 
 ### Stubs gerados nao importam dentro do pacote
@@ -45,13 +83,14 @@ ERRO gRPC: UNAVAILABLE
 Detalhe: failed to connect to all addresses; last error: UNAVAILABLE: ipv4:...:50051: ConnectEx: Connection refused
 ```
 
-**Causa:** quatro causas produzem exatamente a mesma mensagem: servidor parado,
-IP externo desatualizado (muda quando a VM reinicia), regra de firewall VPC
-ausente/sem a tag `grpc-server` na VM, ou servidor escutando so em `127.0.0.1`.
+**Causa:** cinco causas diferentes produzem exatamente a mesma mensagem: servidor
+parado, IP externo desatualizado (muda quando a VM reinicia), porta do servidor
+fora do range que a regra de firewall VPC libera, VM sem a tag de rede exigida
+pela regra, ou servidor escutando so em `127.0.0.1`.
 
 **Solucao:** o servidor escuta em `0.0.0.0` por padrao (`ENDERECO_ESCUTA`) e o
-cliente passou a imprimir um checklist com as 4 causas na ordem de verificacao ao
-receber `UNAVAILABLE`. O diagnostico detalhado esta na Etapa 8 de
+cliente imprime um checklist com as 5 causas na ordem de verificacao ao receber
+`UNAVAILABLE`. O diagnostico detalhado esta na Etapa 10 de
 `docs/04-deploy-gcp-vm.md`.
 
 **Arquivos:** `src/cliente/cliente.py`, `src/servidor/servidor.py`, `docs/04-deploy-gcp-vm.md`.

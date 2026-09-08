@@ -14,6 +14,18 @@
 
 ---
 
+## 2026-09-08
+
+| Horario | Task | Detalhe |
+|---------|------|---------|
+| 19:23 | Porta padrao 50051 -> 9090 | A regra de firewall da VPC do projeto (tag de rede `trabalho-sd`) libera `tcp:3000,5050,8000,9090-9292`, e a `50051` nao esta em nenhuma dessas faixas: o cliente nunca alcancaria a VM. Em vez de criar regra nova, o servidor passou a escutar na `9090`, dentro do range ja liberado. Arquivos: `docker-compose.yml`, `Dockerfile`, `src/servidor/servidor.py`, `src/cliente/cliente.py`, `README.md`, `docs/01`, `docs/02`, `docs/03`, `docs/05`. |
+| 19:23 | Autostart do servidor na VM | `restart: unless-stopped` -> `restart: always` no servico `servidor`, para o container voltar sozinho a cada boot da VM (que sera parada e religada com frequencia ate a apresentacao, para nao gastar credito). `unless-stopped` nao religa apos um `docker compose stop` manual. Arquivo: `docker-compose.yml`. |
+| 19:23 | Reescrita do passo a passo do GCP | `docs/04-deploy-gcp-vm.md` alinhado a infraestrutura real: tag de rede `trabalho-sd` no lugar de `grpc-server`, firewall como etapa de **conferencia** (a regra ja cobre a 9090) em vez de criacao, etapa dedicada a descobrir o IP externo efemero a cada boot, fluxo de `git pull` + rebuild na VM, secao de ciclo do dia a dia e nota sobre swap na `e2-micro`. O `docker compose down` saiu do fluxo de desligar a VM: ele remove o container e quebra o autostart. |
+| 19:26 | Fuso horario do container | `TZ: "America/Sao_Paulo"` no servico `servidor`. Sem isso o container roda em UTC e os horarios do log da VM e do stream de acompanhamento saem 3h a frente do relogio do notebook - na apresentacao as duas telas ficam lado a lado e a diferenca confunde. Arquivo: `docker-compose.yml`. |
+| 19:23 | Checklist de `UNAVAILABLE` com 5 causas | O cliente passou a listar tambem "a VM tem a tag de rede exigida pela regra de firewall?" - regra correta com a VM sem a tag da exatamente o mesmo erro de servidor desligado. Arquivo: `src/cliente/cliente.py`. |
+
+---
+
 ## 2026-08-31
 
 | Horario | Task | Detalhe |

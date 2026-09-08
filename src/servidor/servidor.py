@@ -19,7 +19,7 @@ from ..gerado import restaurante_pb2_grpc as pb_grpc
 from .cardapio import NOME_RESTAURANTE
 from .servico import RestauranteService
 
-PORTA = int(os.getenv("PORTA", "50051"))
+PORTA = int(os.getenv("PORTA", "9090"))
 ENDERECO_ESCUTA = os.getenv("ENDERECO_ESCUTA", "0.0.0.0")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "10"))
 ENCERRAMENTO_SEGUNDOS = 5

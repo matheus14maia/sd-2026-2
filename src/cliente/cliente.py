@@ -18,7 +18,7 @@ from ..gerado import restaurante_pb2 as pb
 from ..gerado import restaurante_pb2_grpc as pb_grpc
 
 HOST_PADRAO = os.getenv("SERVIDOR_HOST", "localhost")
-PORTA_PADRAO = os.getenv("SERVIDOR_PORTA", "50051")
+PORTA_PADRAO = os.getenv("SERVIDOR_PORTA", "9090")
 TIMEOUT_SEGUNDOS = 10
 
 
@@ -209,7 +209,8 @@ def main() -> int:
                 f"  1. o servidor esta rodando em {args.host}:{args.porta}?\n"
                 "  2. o IP externo da VM esta correto (ele muda se a VM reiniciar)?\n"
                 f"  3. existe regra de firewall VPC liberando tcp:{args.porta}?\n"
-                "  4. o container esta com a porta publicada (docker compose ps)?",
+                "  4. a VM tem a tag de rede exigida pela regra de firewall?\n"
+                "  5. o container esta com a porta publicada (docker compose ps)?",
                 file=sys.stderr,
             )
         return 1

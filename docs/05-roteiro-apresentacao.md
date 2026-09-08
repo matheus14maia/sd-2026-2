@@ -5,8 +5,8 @@ cabe em 4:30, deixando folga.
 
 ## Antes de comecar (fazer 15 minutos antes)
 
-- [ ] VM ligada, IP externo anotado
-- [ ] Na VM: `docker compose up -d servidor` e `docker compose logs -f servidor` na tela
+- [ ] VM ligada; **IP externo do dia** anotado (ele muda a cada boot - ver `docs/04`, Etapa 3)
+- [ ] Na VM: `docker compose ps` mostrando `Up` (o container sobe sozinho com `restart: always`) e `docker compose logs -f servidor` na tela
 - [ ] No notebook: dois terminais abertos, um com o log da VM (SSH), outro na pasta do projeto
 - [ ] Um pedido de teste ja feito e funcionando (confirma firewall e IP)
 - [ ] Fontes do terminal aumentadas para o projetor
@@ -18,7 +18,7 @@ cabe em 4:30, deixando folga.
 |---|---|---|
 | 0:00 - 0:40 | Slide/tela do `docs/01` com o diagrama | "Tema: delivery. Microsservico A e o cliente, na minha maquina; Microsservico B e o restaurante, numa VM do GCP. Eles conversam por gRPC sobre HTTP/2 com mensagens serializadas em Protobuf." |
 | 0:40 - 1:30 | Mostrar `proto/restaurante.proto` | "Este e o contrato. Tres RPCs: ObterCardapio e CriarPedido sao unarios; AcompanharPedido e streaming do servidor. O CriarPedidoRequest tem um `repeated ItemPedido`, que e como o cliente manda varios itens com a quantidade de cada um. Os stubs de Python dos dois lados sao gerados deste arquivo." |
-| 1:30 - 2:00 | Mostrar a VM: `docker compose ps` e o log do servidor + a regra de firewall no Console | "O servidor esta em um container na VM, escutando na 50051, e essa e a regra de firewall da VPC que libera a porta." |
+| 1:30 - 2:00 | Mostrar a VM: `docker compose ps` e o log do servidor + a regra de firewall no Console | "O servidor esta em um container na VM, escutando na 9090. Essa e a regra de firewall da VPC: ela libera `tcp:9090-9292` so para as instancias com a tag de rede `trabalho-sd`, e a porta do servidor foi escolhida dentro desse range." |
 | 2:00 - 3:30 | **Rodar o cliente ao vivo**: `python -m src.cliente.cliente --host IP` | Cardapio aparece -> escolher 2 ou 3 itens com quantidades diferentes -> confirmar. Apontar para o log da VM: "cada chamada aparece aqui, em outra maquina." Mostrar o total calculado pelo servidor. |
 | 3:30 - 4:00 | Deixar o streaming rolar | "Aqui a conexao continua aberta: o servidor empurra cada mudanca de status pela mesma chamada, ate a entrega." |
 | 4:00 - 4:30 | Um erro proposital: `--itens XX99:1` | "Se o item nao existe, o servidor responde com INVALID_ARGUMENT e a lista de codigos validos. Erro tratado pelo status code do gRPC, nao por texto solto." |
@@ -46,9 +46,10 @@ python -m src.cliente.cliente --host 34.123.45.67 --itens XX99:1 --cliente Teste
 
 ## Frases-chave para os criterios de avaliacao
 
-- **Conexao gRPC estabelecida:** "o canal e aberto contra `IP:50051`; o log do
+- **Conexao gRPC estabelecida:** "o canal e aberto contra `IP:9090`; o log do
   servidor mostra a chamada chegando de outra maquina."
 - **Serializacao:** "as mensagens nao trafegam como JSON: sao serializadas em
   binario pelo Protobuf, a partir das tags de campo definidas no `.proto`."
-- **Firewall VPC:** "a regra `permitir-grpc-50051` libera `tcp:50051` para as VMs
-  com a tag `grpc-server`."
+- **Firewall VPC:** "a regra `trabalho-sd` libera `tcp:9090-9292` para as VMs
+  marcadas com a tag de rede `trabalho-sd`; o servidor escuta na 9090, dentro
+  desse range."

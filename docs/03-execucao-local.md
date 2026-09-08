@@ -16,7 +16,7 @@ Saida esperada:
 ```text
 restaurante-servidor  | ==============================================================
 restaurante-servidor  |  Cantina do Maia - servidor gRPC
-restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:50051
+restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:9090
 restaurante-servidor  |  Servico: restaurante.RestauranteService
 restaurante-servidor  |  Aguardando pedidos... (Ctrl+C encerra)
 restaurante-servidor  | ==============================================================
@@ -149,7 +149,7 @@ Outras opcoes do cliente:
 
 | Opcao | Efeito |
 |---|---|
-| `--host` / `--porta` | endereco do servidor (padrao `localhost:50051`) |
+| `--host` / `--porta` | endereco do servidor (padrao `localhost:9090`) |
 | `--cliente` / `--endereco` | preenche os dados sem perguntar |
 | `--categoria Pratos` | pede so uma categoria do cardapio |
 | `--itens PR01:2,BE01:1` | monta o pedido sem interacao |

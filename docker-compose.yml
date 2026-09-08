@@ -5,10 +5,13 @@ services:
     container_name: restaurante-servidor
     command: python -m src.servidor.servidor
     environment:
-      PORTA: "50051"
+      PORTA: "9090"
+      # Sem isso o container usa UTC e os horarios do log ficam 3h a frente do
+      # relogio do notebook durante a demonstracao.
+      TZ: "America/Sao_Paulo"
     ports:
-      - "50051:50051"
-    restart: unless-stopped
+      - "9090:9090"
+    restart: always
 
   # Microsservico A - cliente. Roda na maquina local:
   #   docker compose run --rm cliente
@@ -20,6 +23,6 @@ services:
     command: python -m src.cliente.cliente
     environment:
       SERVIDOR_HOST: "${SERVIDOR_HOST:-servidor}"
-      SERVIDOR_PORTA: "${SERVIDOR_PORTA:-50051}"
+      SERVIDOR_PORTA: "${SERVIDOR_PORTA:-9090}"
     stdin_open: true
     tty: true
