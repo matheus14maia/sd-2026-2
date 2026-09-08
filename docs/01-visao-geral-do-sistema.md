@@ -6,9 +6,9 @@ situacao.
 
 ## 1.1 O dominio: delivery de restaurante
 
-O tema escolhido e um sistema de **delivery**. A **Cantina do Maia** publica um
-cardapio variado (entradas, pratos, bebidas e sobremesas) e recebe pedidos com
-varios itens e quantidades diferentes de cada item.
+O tema escolhido e um sistema de **delivery**. O restaurante **Hell's Kitchen**
+publica um cardapio variado (entradas, pratos, bebidas e sobremesas) e recebe
+pedidos com varios itens e quantidades diferentes de cada item.
 
 A comunicacao interna de backend entre os dois microsservicos e feita por
 **gRPC** sobre **HTTP/2**, com as mensagens serializadas em **Protocol Buffers**

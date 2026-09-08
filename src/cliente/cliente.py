@@ -203,7 +203,22 @@ def main() -> int:
         codigo = erro.code()
         print(f"\nERRO gRPC: {codigo.name}", file=sys.stderr)
         print(f"Detalhe: {erro.details()}", file=sys.stderr)
-        if codigo == grpc.StatusCode.UNAVAILABLE:
+        # UNAVAILABLE e DEADLINE_EXCEEDED tem a mesma familia de causas, mas
+        # apontam para lugares diferentes: UNAVAILABLE e a conexao recusada
+        # (chegou na maquina e ninguem escuta na porta); DEADLINE_EXCEEDED e o
+        # pacote sumindo sem resposta, tipico de firewall descartando o trafego.
+        if codigo in (
+            grpc.StatusCode.UNAVAILABLE,
+            grpc.StatusCode.DEADLINE_EXCEEDED,
+        ):
+            if codigo == grpc.StatusCode.DEADLINE_EXCEEDED:
+                print(
+                    f"\nA conexao com {args.host}:{args.porta} ficou sem resposta"
+                    f" por {TIMEOUT_SEGUNDOS}s, em vez de ser recusada. Isso"
+                    " normalmente significa que o pacote esta sendo descartado"
+                    " antes de chegar ao servidor - comece pelos itens 3 e 4.",
+                    file=sys.stderr,
+                )
             print(
                 "\nO cliente nao conseguiu falar com o servidor. Verifique:\n"
                 f"  1. o servidor esta rodando em {args.host}:{args.porta}?\n"

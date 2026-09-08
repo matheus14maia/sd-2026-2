@@ -149,7 +149,7 @@ class RestauranteService(pb_grpc.RestauranteServiceServicer):
             itens=[pb.ItemConfirmado(**linha) for linha in confirmados],
             total=total,
             tempo_estimado_minutos=tempo,
-            mensagem="Pedido recebido pela %s. Entrega estimada em %d minutos."
+            mensagem="Pedido recebido pelo %s. Entrega estimada em %d minutos."
             % (cardapio.NOME_RESTAURANTE, tempo),
         )
 
