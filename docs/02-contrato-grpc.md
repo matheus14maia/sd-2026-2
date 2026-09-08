@@ -172,7 +172,7 @@ O servidor habilita *server reflection*, entao da para inspecionar o contrato do
 processo em execucao sem ter o `.proto` na maquina:
 
 ```bash
-grpcurl -plaintext localhost:50051 list
-grpcurl -plaintext localhost:50051 describe restaurante.RestauranteService
-grpcurl -plaintext -d '{}' localhost:50051 restaurante.RestauranteService/ObterCardapio
+grpcurl -plaintext localhost:9090 list
+grpcurl -plaintext localhost:9090 describe restaurante.RestauranteService
+grpcurl -plaintext -d '{}' localhost:9090 restaurante.RestauranteService/ObterCardapio
 ```

@@ -30,7 +30,7 @@ Essa separacao e o que caracteriza a comunicacao interna entre servicos.
 ## 1.3 Fluxo de comunicacao
 
 ```text
-  MAQUINA LOCAL                              VM DO GCP (porta 50051/TCP)
+  MAQUINA LOCAL                              VM DO GCP (porta 9090/TCP)
 +----------------------+                  +------------------------------+
 |  Microsservico A     |                  |  Microsservico B             |
 |  cliente.py          |                  |  servidor.py                 |
@@ -102,7 +102,7 @@ markdown/                   manual, prontuario de problemas e changelog
 | Decisao | Motivo |
 |---|---|
 | gRPC + Protobuf | exigencia do trabalho; binario e mais compacto e rapido que JSON |
-| Porta 50051/TCP | porta convencional do gRPC; configuravel por `PORTA` |
+| Porta 9090/TCP | esta dentro do range que a regra de firewall da VPC ja libera para a VM; configuravel por `PORTA` e `--porta` |
 | Canal `insecure` (plaintext) | o objetivo e demonstrar o fluxo de comunicacao; TLS exigiria certificado e sairia do escopo |
 | Armazenamento em memoria | o dominio do trabalho e a comunicacao entre servicos, nao persistencia |
 | Docker | mesma execucao no notebook e na VM; nao depende de Python instalado na VM |

@@ -17,6 +17,6 @@ COPY src/ ./src/
 # Os stubs sao gerados no build a partir do contrato .proto, nunca versionados.
 RUN python scripts/gerar_stubs.py
 
-EXPOSE 50051
+EXPOSE 9090
 
 CMD ["python", "-m", "src.servidor.servidor"]

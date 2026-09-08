@@ -9,7 +9,7 @@ um cardapio variado e processa pedidos; o cliente monta o pedido escolhendo os
 itens e a quantidade de cada um.
 
 ```text
-  MAQUINA LOCAL                                VM DO GCP (50051/TCP)
+  MAQUINA LOCAL                                VM DO GCP (9090/TCP)
 +---------------------+                     +--------------------------+
 | Microsservico A     |  gRPC / HTTP2       | Microsservico B          |
 | cliente.py          | <-----------------> | servidor.py              |

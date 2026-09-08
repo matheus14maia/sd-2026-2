@@ -24,7 +24,7 @@ lados assume nada que nao esteja no contrato.
 | Comunicacao | gRPC (grpcio 1.68.1) sobre HTTP/2 |
 | Serializacao | Protocol Buffers proto3 (protobuf 5.29.1) |
 | Empacotamento | Docker + Docker Compose (imagem unica para os dois papeis) |
-| Infraestrutura | Google Compute Engine, Debian 12, firewall VPC `tcp:50051` |
+| Infraestrutura | Google Compute Engine, Debian 12, firewall VPC (tag de rede `trabalho-sd`, range `tcp:9090-9292`) |
 
 ## Padroes de codigo
 
@@ -84,8 +84,30 @@ lados assume nada que nao esteja no contrato.
 - Os pedidos ficam **em memoria**: reiniciou o servidor, perdeu os pedidos. E
   proposital (o escopo do trabalho e comunicacao, nao persistencia), mas explica
   o `NOT_FOUND` ao acompanhar um pedido antigo.
-- A porta padrao e `50051`. Mudou a porta? Atualize junto: `docker-compose.yml`,
-  a regra de firewall do GCP e `docs/03` e `docs/04`.
+- **A porta do servico e escolhida a partir do que o firewall da VPC ja libera,
+  nao o contrario.** A regra `trabalho-sd` do projeto libera
+  `tcp:3000,5050,8000,9090-9292`; por isso a porta padrao e `9090` e nao a `50051`
+  convencional do gRPC. Descobrir isso so na hora de conectar custa uma sessao de
+  depuracao de `UNAVAILABLE` que parece problema de codigo e nao e.
+- Mudou a porta? Ela aparece em seis lugares que precisam andar juntos:
+  `docker-compose.yml` (env `PORTA`, mapeamento `ports`, default de
+  `SERVIDOR_PORTA`), `Dockerfile` (`EXPOSE`), `src/servidor/servidor.py`
+  (default de `PORTA`), `src/cliente/cliente.py` (`PORTA_PADRAO`), a regra de
+  firewall do GCP e as docs `README.md`, `docs/01`, `docs/02`, `docs/03`,
+  `docs/04` e `docs/05`.
+- **A tag de rede tem que estar na instancia, nao so na regra.** Uma regra de
+  firewall com `targetTags` so vale para VMs marcadas com aquela tag. Regra
+  correta + VM sem a tag produz exatamente o mesmo `UNAVAILABLE` de servidor
+  desligado.
+- **O container roda com `TZ=America/Sao_Paulo`.** A imagem `python:3.12-slim`
+  usa UTC por padrao; sem a variavel, os horarios impressos pelo servidor (log e
+  campo `horario` do stream) saem 3h a frente do relogio do notebook. Na
+  demonstracao as duas telas aparecem juntas.
+- **O container do servidor sobe sozinho** (`restart: always` +
+  `systemctl is-enabled docker` = `enabled`). Isso permite parar e religar a VM
+  pelo Console sem nenhum comando Docker. `docker compose down` **remove** o
+  container e derruba esse comportamento - por isso ele nao aparece no ciclo
+  normal de `docs/04`.
 - O canal e `insecure` (plaintext) de proposito: TLS exigiria certificado e sai
   do escopo da disciplina.
 - O log do servidor e parte da demonstracao. Toda chamada recebida deve imprimir
