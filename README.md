@@ -69,7 +69,6 @@ python -m src.cliente.cliente       # terminal 2
 | [docs/02-contrato-grpc.md](docs/02-contrato-grpc.md) | o `.proto` explicado campo a campo e a geracao dos stubs |
 | [docs/03-execucao-local.md](docs/03-execucao-local.md) | rodar nos dois terminais, com e sem Docker, e as saidas esperadas |
 | [docs/04-deploy-gcp-vm.md](docs/04-deploy-gcp-vm.md) | passo a passo completo na VM do GCP, incluindo o firewall da VPC |
-| [docs/05-roteiro-apresentacao.md](docs/05-roteiro-apresentacao.md) | roteiro cronometrado da demonstracao |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
 [markdown/](markdown/).
