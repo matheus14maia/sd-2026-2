@@ -1,0 +1,78 @@
+// Contrato do microsservico de Pedidos do delivery.
+//
+// Pedidos e dono das tabelas pedidos e itens_pedido do PostgreSQL. Para criar
+// um pedido ele consulta o microsservico de Catalogo por gRPC: e o Catalogo
+// quem diz se o item existe, se esta disponivel e quanto custa.
+syntax = "proto3";
+
+package pedidos;
+
+service PedidoService {
+  rpc CriarPedido(CriarPedidoRequest) returns (Pedido);
+  rpc ObterPedido(ObterPedidoRequest) returns (Pedido);
+  rpc ListarPedidos(ListarPedidosRequest) returns (ListarPedidosResponse);
+
+  // Avanca o pedido para a proxima etapa. Pular etapa ou voltar e recusado
+  // com FAILED_PRECONDITION.
+  rpc AtualizarStatus(AtualizarStatusRequest) returns (Pedido);
+}
+
+// Em proto3 todo enum precisa do valor 0.
+enum StatusPedido {
+  STATUS_DESCONHECIDO = 0;
+  RECEBIDO = 1;
+  EM_PREPARO = 2;
+  PRONTO = 3;
+  SAIU_PARA_ENTREGA = 4;
+  ENTREGUE = 5;
+}
+
+message ItemPedido {
+  string codigo = 1;
+  int32 quantidade = 2;
+}
+
+message CriarPedidoRequest {
+  string cliente = 1;
+  string endereco = 2;
+  repeated ItemPedido itens = 3;
+}
+
+// Linha do pedido ja precificada. Nome e preco sao gravados no momento da
+// compra (snapshot): mudar o preco no Catalogo depois nao altera pedidos antigos.
+message ItemConfirmado {
+  string codigo = 1;
+  string nome = 2;
+  int32 quantidade = 3;
+  double preco_unitario = 4;
+  double subtotal = 5;
+}
+
+message Pedido {
+  string pedido_id = 1;
+  string cliente = 2;
+  string endereco = 3;
+  StatusPedido status = 4;
+  repeated ItemConfirmado itens = 5;
+  double total = 6;
+  int32 tempo_estimado_minutos = 7;
+  string criado_em = 8;        // ISO 8601
+  string atualizado_em = 9;    // ISO 8601
+}
+
+message ObterPedidoRequest {
+  string pedido_id = 1;
+}
+
+message ListarPedidosRequest {
+  int32 limite = 1;            // 0 = padrao do servico
+}
+
+message ListarPedidosResponse {
+  repeated Pedido pedidos = 1;
+}
+
+message AtualizarStatusRequest {
+  string pedido_id = 1;
+  StatusPedido status = 2;
+}

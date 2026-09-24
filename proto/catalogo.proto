@@ -1,0 +1,53 @@
+// Contrato do microsservico de Catalogo do delivery.
+//
+// O Catalogo e o dono do cardapio: os itens ficam na tabela itens_cardapio do
+// PostgreSQL e so este servico le ou altera essa tabela. O Gateway usa o
+// Catalogo para listar e alterar itens; o microsservico de Pedidos usa o
+// ConsultarItens para validar e precificar um pedido.
+syntax = "proto3";
+
+package catalogo;
+
+service CatalogoService {
+  // Lista os itens do cardapio, opcionalmente filtrados por categoria.
+  rpc ListarItens(ListarItensRequest) returns (ListarItensResponse);
+
+  // Busca varios itens pelo codigo de uma vez. Codigos inexistentes
+  // simplesmente nao aparecem na resposta: quem chama decide o que fazer.
+  rpc ConsultarItens(ConsultarItensRequest) returns (ConsultarItensResponse);
+
+  // Altera a disponibilidade e, opcionalmente, o preco de um item.
+  rpc AtualizarItem(AtualizarItemRequest) returns (ItemCardapio);
+}
+
+message ItemCardapio {
+  string codigo = 1;       // ex.: "PR01"
+  string nome = 2;
+  string descricao = 3;
+  string categoria = 4;    // Entradas, Pratos, Bebidas, Sobremesas
+  double preco = 5;        // em reais
+  bool disponivel = 6;
+}
+
+message ListarItensRequest {
+  string categoria = 1;    // vazio = cardapio completo
+}
+
+message ListarItensResponse {
+  string restaurante = 1;
+  repeated ItemCardapio itens = 2;
+}
+
+message ConsultarItensRequest {
+  repeated string codigos = 1;
+}
+
+message ConsultarItensResponse {
+  repeated ItemCardapio itens = 1;
+}
+
+message AtualizarItemRequest {
+  string codigo = 1;
+  bool disponivel = 2;
+  optional double preco = 3;   // ausente = mantem o preco atual
+}

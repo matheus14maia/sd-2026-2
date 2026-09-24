@@ -1,5 +1,5 @@
-# Imagem unica usada pelos dois microsservicos. O papel (servidor ou cliente)
-# e escolhido pelo comando passado no docker compose.
+# Imagem unica para os tres papeis (gateway, pedidos, catalogo) e o migrador:
+# o docker-compose.yml escolhe o papel pelo `command`.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -12,11 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY proto/ ./proto/
 COPY scripts/ ./scripts/
+COPY db/ ./db/
 COPY src/ ./src/
-
-# Os stubs sao gerados no build a partir do contrato .proto, nunca versionados.
 RUN python scripts/gerar_stubs.py
 
-EXPOSE 9090
-
-CMD ["python", "-m", "src.servidor.servidor"]
+EXPOSE 8000 9090 9091
+CMD ["uvicorn", "src.gateway.app:app", "--host", "0.0.0.0", "--port", "8000"]

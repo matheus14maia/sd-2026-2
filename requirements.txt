@@ -1,5 +1,14 @@
-# Runtime e ferramentas do gRPC/Protobuf usados pelo servidor e pelo cliente.
+# gRPC/Protobuf: comunicacao entre o Gateway e os microsservicos.
 grpcio==1.68.1
 grpcio-tools==1.68.1
 grpcio-reflection==1.68.1
 protobuf==5.29.1
+
+# API Gateway HTTP/JSON (FastAPI + validacao com Pydantic).
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+
+# Acesso ao PostgreSQL pelos microsservicos.
+psycopg[binary,pool]==3.3.6
+psycopg-pool==3.3.3
