@@ -1,28 +1,87 @@
+# Delivery Hell's Kitchen - Gateway HTTP + 2 microsservicos gRPC + PostgreSQL.
+#
+#   Local (com banco em container):  docker compose --profile banco-local up -d --build
+#   GCP (banco no Cloud SQL):        docker compose up -d --build
+#
+# Configuracao do banco vem do arquivo .env (ver .env.exemplo). So o gateway
+# publica porta; catalogo, pedidos e postgres ficam na rede interna do compose.
+
+x-banco: &banco
+  DB_HOST: "${DB_HOST:-postgres}"
+  DB_PORT: "${DB_PORT:-5432}"
+  DB_NAME: "${DB_NAME:-delivery}"
+  DB_USER: "${DB_USER:-postgres}"
+  DB_PASSWORD: "${DB_PASSWORD:-postgres}"
+  DB_SSLMODE: "${DB_SSLMODE:-disable}"
+  TZ: "America/Sao_Paulo"
+
 services:
-  # Microsservico B - restaurante. E este que roda na VM do GCP.
-  servidor:
-    build: .
-    container_name: restaurante-servidor
-    command: python -m src.servidor.servidor
+  postgres:
+    image: postgres:16
+    profiles: ["banco-local"]
+    container_name: delivery-postgres
     environment:
-      PORTA: "9090"
-      # Sem isso o container usa UTC e os horarios do log ficam 3h a frente do
-      # relogio do notebook durante a demonstracao.
+      POSTGRES_DB: "${DB_NAME:-delivery}"
+      POSTGRES_USER: "${DB_USER:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
       TZ: "America/Sao_Paulo"
-    ports:
-      - "9090:9090"
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
     restart: always
 
-  # Microsservico A - cliente. Roda na maquina local:
-  #   docker compose run --rm cliente
-  # Para apontar para a VM:
-  #   SERVIDOR_HOST=<IP_EXTERNO_DA_VM> docker compose run --rm cliente
-  cliente:
+  migrador:
     build: .
-    profiles: ["cliente"]
-    command: python -m src.cliente.cliente
+    container_name: delivery-migrador
+    command: python scripts/migrar_banco.py
     environment:
-      SERVIDOR_HOST: "${SERVIDOR_HOST:-servidor}"
-      SERVIDOR_PORTA: "${SERVIDOR_PORTA:-9090}"
-    stdin_open: true
-    tty: true
+      <<: *banco
+      NOME_SERVICO: migrador
+    restart: on-failure
+
+  catalogo:
+    build: .
+    container_name: delivery-catalogo
+    command: python -m src.catalogo.servidor
+    environment:
+      <<: *banco
+      NOME_SERVICO: catalogo
+      PORTA: "9091"
+    depends_on:
+      migrador:
+        condition: service_completed_successfully
+    restart: always
+
+  pedidos:
+    build: .
+    container_name: delivery-pedidos
+    command: python -m src.pedidos.servidor
+    environment:
+      <<: *banco
+      NOME_SERVICO: pedidos
+      PORTA: "9090"
+      CATALOGO_HOST: catalogo
+      CATALOGO_PORTA: "9091"
+    depends_on:
+      migrador:
+        condition: service_completed_successfully
+    restart: always
+
+  gateway:
+    build: .
+    container_name: delivery-gateway
+    command: uvicorn src.gateway.app:app --host 0.0.0.0 --port 8000
+    environment:
+      CATALOGO_HOST: catalogo
+      CATALOGO_PORTA: "9091"
+      PEDIDOS_HOST: pedidos
+      PEDIDOS_PORTA: "9090"
+      TZ: "America/Sao_Paulo"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - catalogo
+      - pedidos
+    restart: always
+
+volumes:
+  dados-postgres:

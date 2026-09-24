@@ -9,3 +9,4 @@ __pycache__/
 venv/
 src/gerado/*_pb2*.py
 src/gerado/*.pyi
+.env
