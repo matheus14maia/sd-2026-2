@@ -1,178 +1,85 @@
-# 2. O contrato gRPC explicado
+# 2. Contratos gRPC
 
-O arquivo `proto/restaurante.proto` e a **fonte da verdade** do sistema. Ele
-define o que pode ser chamado, o que trafega na rede e como os bytes sao
-serializados. Servidor e cliente sao gerados a partir dele: se o contrato muda,
-os dois lados precisam ser regerados.
+Cada microsservico tem o proprio contrato em `proto/`. Os contratos sao a fonte
+da verdade: o Gateway, o Catalogo e o Pedidos usam os stubs gerados a partir
+deles, e mudar um `.proto` obriga a regerar os stubs e ajustar quem usa aquele
+servico na mesma alteracao.
 
-## 2.1 Cabecalho
+## `proto/catalogo.proto` - `catalogo.CatalogoService`
 
-```proto
-syntax = "proto3";
-package restaurante;
-```
+| RPC | Request | Response | Quem chama | O que faz no banco |
+|---|---|---|---|---|
+| `ListarItens` | `ListarItensRequest{categoria}` | `ListarItensResponse{restaurante, itens[]}` | Gateway (`GET /cardapio`) | `SELECT` em `itens_cardapio`, com filtro de categoria sem diferenciar maiusculas |
+| `ConsultarItens` | `ConsultarItensRequest{codigos[]}` | `ConsultarItensResponse{itens[]}` | Pedidos (ao criar pedido) | `SELECT ... WHERE codigo = ANY(...)`: busca todos os itens do pedido numa consulta so |
+| `AtualizarItem` | `AtualizarItemRequest{codigo, disponivel, optional preco}` | `ItemCardapio` | Gateway (`PATCH /cardapio/{codigo}`) | `UPDATE ... RETURNING`, que devolve a linha ja alterada |
 
-- `proto3` e a versao da linguagem Protocol Buffers.
-- `package restaurante` e o namespace: o nome totalmente qualificado do servico
-  fica `restaurante.RestauranteService` (e assim que o `grpcurl` o enxerga).
+`ItemCardapio`:
 
-## 2.2 O servico
+| Campo | Tipo | Tag | Observacao |
+|---|---|---|---|
+| `codigo` | string | 1 | 2 letras + 2 digitos (`PR01`) |
+| `nome` | string | 2 | |
+| `descricao` | string | 3 | |
+| `categoria` | string | 4 | Entradas, Pratos, Bebidas, Sobremesas |
+| `preco` | double | 5 | em reais; `NUMERIC(10,2)` no banco |
+| `disponivel` | bool | 6 | `false` = fora do cardapio do dia |
 
-```proto
-service RestauranteService {
-  rpc ObterCardapio(ObterCardapioRequest) returns (ObterCardapioResponse);
-  rpc CriarPedido(CriarPedidoRequest) returns (CriarPedidoResponse);
-  rpc AcompanharPedido(AcompanharPedidoRequest) returns (stream StatusPedido);
-}
-```
+- **`ConsultarItens` nao falha por codigo inexistente.** O codigo simplesmente
+  nao aparece na resposta, e quem chama decide o que fazer: o Pedidos responde
+  `INVALID_ARGUMENT`.
+- **`preco` em `AtualizarItemRequest` e `optional`.** Em proto3 isso da
+  *presenca* ao campo (`HasField("preco")`), o que diferencia "nao mexer no
+  preco" de "preco = 0".
 
-| RPC | Tipo | Para que serve |
-|---|---|---|
-| `ObterCardapio` | unario (1 request, 1 response) | listar os itens a venda |
-| `CriarPedido` | unario | registrar o pedido e devolver a confirmacao precificada |
-| `AcompanharPedido` | **server streaming** (1 request, N responses) | enviar cada mudanca de status pela mesma conexao |
+## `proto/pedidos.proto` - `pedidos.PedidoService`
 
-A palavra `stream` antes do tipo de retorno e o unico ponto que transforma um
-RPC unario em streaming. Do lado Python isso vira um metodo com `yield` no
-servidor e um `for` no cliente.
+| RPC | Request | Response | O que faz no banco | Erros |
+|---|---|---|---|---|
+| `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[]}` | `Pedido` | `INSERT` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE` |
+| `ObterPedido` | `ObterPedidoRequest{pedido_id}` | `Pedido` | `SELECT` do pedido e das linhas | `INVALID_ARGUMENT`, `NOT_FOUND` |
+| `ListarPedidos` | `ListarPedidosRequest{limite}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... ORDER BY criado_em DESC LIMIT` | - |
+| `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |
 
-## 2.3 As mensagens, campo a campo
+`Pedido`:
 
-### Cardapio
+| Campo | Tipo | Tag | Observacao |
+|---|---|---|---|
+| `pedido_id` | string | 1 | UUID4 gerado pelo servico |
+| `cliente` | string | 2 | |
+| `endereco` | string | 3 | |
+| `status` | `StatusPedido` | 4 | enum |
+| `itens` | repeated `ItemConfirmado` | 5 | `codigo, nome, quantidade, preco_unitario, subtotal` |
+| `total` | double | 6 | soma dos subtotais, arredondada |
+| `tempo_estimado_minutos` | int32 | 7 | `15 + 3 x unidades` |
+| `criado_em` | string | 8 | ISO 8601 com fuso (`2026-09-24T20:43:57-03:00`) |
+| `atualizado_em` | string | 9 | muda a cada `AtualizarStatus` |
 
-```proto
-message ObterCardapioRequest { string categoria = 1; }
-```
+`StatusPedido`: `STATUS_DESCONHECIDO = 0` (obrigatorio em proto3),
+`RECEBIDO`, `EM_PREPARO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `ENTREGUE`. O pedido so
+avanca para a etapa seguinte. Pular ou voltar responde `FAILED_PRECONDITION`.
 
-`categoria` vazia significa "cardapio completo". Os numeros (`= 1`, `= 2`, ...)
-nao sao valores: sao as **tags de campo**, o identificador que vai no binario no
-lugar do nome do campo. Por isso o Protobuf e menor que JSON. Uma tag nunca deve
-ser reaproveitada para outro campo depois que o contrato foi publicado.
-
-```proto
-message ItemCardapio {
-  string codigo = 1;      // codigo digitado pelo cliente, ex: "PR01"
-  string nome = 2;
-  string descricao = 3;
-  string categoria = 4;   // Entradas, Pratos, Bebidas, Sobremesas
-  double preco = 5;       // em reais
-  bool disponivel = 6;    // false = existe no cardapio, mas esgotou hoje
-}
-
-message ObterCardapioResponse {
-  string restaurante = 1;
-  repeated ItemCardapio itens = 2;
-}
-```
-
-`repeated` e uma lista: cada elemento e serializado repetindo a mesma tag de
-campo. Em Python vira uma lista comum.
-
-### Pedido
-
-```proto
-message ItemPedido {
-  string codigo = 1;
-  int32 quantidade = 2;
-}
-
-message CriarPedidoRequest {
-  string cliente = 1;
-  string endereco = 2;
-  repeated ItemPedido itens = 3;      // <- varios itens, cada um com quantidade
-}
-```
-
-`repeated ItemPedido itens` e exatamente o requisito do trabalho: o cliente
-escolhe **quais itens** e **quantas unidades de cada um** em um unico pedido.
-
-```proto
-message ItemConfirmado {
-  string codigo = 1;
-  string nome = 2;              // o servidor devolve o nome, o cliente so mandou o codigo
-  int32 quantidade = 3;
-  double preco_unitario = 4;    // preco vigente no servidor
-  double subtotal = 5;          // preco_unitario x quantidade
-}
-
-message CriarPedidoResponse {
-  string pedido_id = 1;                // UUID gerado pelo servidor
-  StatusPedidoEnum status = 2;
-  repeated ItemConfirmado itens = 3;
-  double total = 4;
-  int32 tempo_estimado_minutos = 5;
-  string mensagem = 6;
-}
-```
-
-A resposta e mais rica que a requisicao de proposito: o cliente envia o minimo
-(codigo + quantidade) e recebe do servidor tudo o que foi resolvido do lado do
-restaurante.
-
-### Acompanhamento
-
-```proto
-enum StatusPedidoEnum {
-  STATUS_DESCONHECIDO = 0;
-  RECEBIDO = 1;
-  EM_PREPARO = 2;
-  PRONTO = 3;
-  SAIU_PARA_ENTREGA = 4;
-  ENTREGUE = 5;
-}
-
-message AcompanharPedidoRequest { string pedido_id = 1; }
-
-message StatusPedido {
-  string pedido_id = 1;
-  StatusPedidoEnum status = 2;
-  string descricao = 3;
-  string horario = 4;
-}
-```
-
-Em proto3 todo `enum` **precisa** ter o valor `0`, que representa "nao
-informado". Por isso existe `STATUS_DESCONHECIDO = 0`.
-
-## 2.4 Como os stubs sao gerados
+## Gerar os stubs
 
 ```bash
 python scripts/gerar_stubs.py
 ```
 
-O script chama o compilador do Protobuf:
+- O script compila todos os `proto/*.proto` para `src/gerado/`.
+- Depois reescreve `import catalogo_pb2` para `from . import catalogo_pb2` nos
+  `*_pb2_grpc.py`, porque os stubs vivem dentro do pacote `src.gerado`.
+- O `docker build` roda o mesmo script, entao a imagem sempre sai com os stubs
+  do contrato atual.
+
+## Inspecionar os servicos com grpcurl
+
+Os dois servidores tem *reflection* habilitado. De dentro da rede do compose
+(ou da VM, com as portas temporariamente publicadas):
 
 ```bash
-python -m grpc_tools.protoc \
-  --proto_path=proto \
-  --python_out=src/gerado \
-  --pyi_out=src/gerado \
-  --grpc_python_out=src/gerado \
-  proto/restaurante.proto
+grpcurl -plaintext localhost:9091 list
+grpcurl -plaintext -d '{"codigos":["PR01","BE02"]}' localhost:9091 catalogo.CatalogoService/ConsultarItens
+grpcurl -plaintext -d '{"limite":3}' localhost:9090 pedidos.PedidoService/ListarPedidos
 ```
 
-e produz tres arquivos em `src/gerado/`:
-
-| Arquivo | Conteudo |
-|---|---|
-| `restaurante_pb2.py` | as classes de mensagem (serializacao/desserializacao) |
-| `restaurante_pb2.pyi` | tipagem, ajuda o editor a completar os campos |
-| `restaurante_pb2_grpc.py` | `RestauranteServiceStub` (cliente) e `RestauranteServiceServicer` (servidor) |
-
-Depois de gerar, o script corrige o import de `restaurante_pb2` para import
-relativo, porque os stubs vivem dentro do pacote `src.gerado` (o `protoc` gera
-import absoluto por padrao).
-
-**Os arquivos gerados nao sao versionados e nunca devem ser editados a mao.**
-Eles sao regerados no `docker build` e por quem clona o projeto.
-
-## 2.5 Conferindo o contrato com o servico no ar
-
-O servidor habilita *server reflection*, entao da para inspecionar o contrato do
-processo em execucao sem ter o `.proto` na maquina:
-
-```bash
-grpcurl -plaintext localhost:9090 list
-grpcurl -plaintext localhost:9090 describe restaurante.RestauranteService
-grpcurl -plaintext -d '{}' localhost:9090 restaurante.RestauranteService/ObterCardapio
-```
+Na configuracao padrao as portas 9090 e 9091 **nao** sao publicadas: so o
+Gateway e acessivel de fora.

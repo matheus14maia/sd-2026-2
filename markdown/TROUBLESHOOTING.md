@@ -20,7 +20,160 @@
 
 ---
 
+## 2026-09-24
+
+### 503 "Deadline Exceeded" em vez de "Catalogo indisponivel"
+
+**Sintoma:** com o container `catalogo` parado, o `POST /pedidos` respondia:
+
+```text
+{"mensagem":"Deadline Exceeded","codigo_grpc":"DEADLINE_EXCEEDED"} -> 503
+```
+
+A mensagem nao dizia qual servico estava fora.
+
+**Causa:** o Gateway chama o Pedidos com prazo de 5 s, e o Pedidos chamava o
+Catalogo tambem com 5 s. Os dois prazos venciam juntos e o Gateway desistia
+antes de o Pedidos conseguir devolver o `UNAVAILABLE` com a mensagem propria.
+
+**Solucao:** prazo menor a cada salto. `CATALOGO_TIMEOUT` passou a 3 s, e agora
+a resposta e `503 {"mensagem":"Catalogo indisponivel no momento (UNAVAILABLE). Tente novamente."}`.
+
+**Arquivos:** `src/pedidos/cliente_catalogo.py`.
+
+### `to_upper` do Pydantic nao evita erro de `pattern`
+
+**Sintoma:** `{"codigo":"be02","quantidade":1}` respondia 400 com
+`"itens.0.codigo": "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)"`.
+O campo estava declarado com `StringConstraints(to_upper=True, pattern=r"^[A-Z]{2}[0-9]{2}$")`.
+
+**Causa:** o Pydantic confere o `pattern` sobre o valor recebido, antes de
+aplicar o `to_upper`.
+
+**Solucao:** regex que aceita as duas caixas (`^[A-Za-z]{2}[0-9]{2}$`); o
+`to_upper` continua normalizando o valor que segue para o gRPC.
+
+**Arquivos:** `src/gateway/esquemas.py`.
+
+### `gcloud compute ssh` nao enxerga o repositorio da VM
+
+**Sintoma:** pelo `gcloud compute ssh` a partir do notebook (Windows):
+
+```text
+bash: line 1: cd: /home/maia_matheus/sd-2026-2: Permission denied
+```
+
+Antes disso, a primeira conexao parou no prompt do Plink
+`Store key in cache? (y/n, Return cancels connection, i for more info)` e o
+comando nao prosseguiu.
+
+**Causa:** o `gcloud` entra na VM com o nome de usuario do notebook (`mathe`).
+O repositorio foi clonado pelo SSH do Console, que usa o usuario da conta
+(`maia_matheus`), e o home desse usuario nao e legivel pelos outros. O prompt
+do Plink e a confirmacao da chave do host, que num comando nao interativo nunca
+e respondida.
+
+**Solucao:** `--strict-host-key-checking=no` na primeira conexao e rodar os
+comandos como o dono do repositorio:
+
+```bash
+gcloud compute ssh servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422 \
+  --strict-host-key-checking=no \
+  --command "sudo -iu maia_matheus bash -c 'cd ~/sd-2026-2 && docker compose ps'"
+```
+
+**Arquivos:** nenhum (acesso a infraestrutura).
+
+---
+
+## 2026-09-10
+
+### Reescrever o historico nao apaga o que ja passou por um Pull Request
+
+**Sintoma:** depois de reescrever a `main`, dar force push e apagar as branches
+antigas, a lista de contribuidores do repositorio continuava trazendo um autor
+que nao existe mais em nenhum commit da branch padrao:
+
+```text
+$ gh api repos/OWNER/REPO/contributors --jq '.[] | "\(.login) - \(.contributions)"'
+matheus14maia - 7
+<autor-antigo> - 1        <- nao existe mais no historico da main
+```
+
+**Causa:** dois mecanismos independentes, os dois fora do alcance de um force push.
+
+1. O GitHub guarda **para sempre** os commits que passaram por um Pull Request,
+   em `refs/pull/N/head`. Nem o force push na `main` nem o
+   `git push origin --delete` da branch de origem tocam nessa ref: o commit
+   original continua acessivel pelo SHA, e a pagina do PR continua exibindo o
+   nome da branch de origem e o autor original na aba *Commits*. Nao existe API
+   para apagar um Pull Request.
+2. A lista de contribuidores nao e calculada a cada request - e um agregado em
+   cache, que o GitHub recalcula de forma assincrona. Logo apos o push ela ainda
+   responde com o valor antigo, mesmo com o historico ja correto.
+
+**Solucao:** conferir pela fonte real, que e o historico da branch, e nao pelo
+agregado em cache:
+
+```bash
+gh api "repos/OWNER/REPO/commits?per_page=20" --jq '.[] | "\(.sha[0:7]) | \(.commit.author.name) | \(.author.login)"'
+```
+
+Se todas as linhas trazem o autor correto, o historico esta certo e a lista de
+contribuidores se ajusta sozinha quando o cache expira. Para zerar tambem o que
+ficou preso na pagina do PR, a unica saida e recriar o repositorio - o que custa
+todos os PRs, issues e stars.
+
+**Arquivos:** nenhum (operacao sobre o historico do Git, sem mudanca de conteudo:
+`git diff` entre o estado antigo e o reescrito saiu vazio).
+
+---
+
 ## 2026-09-08
+
+### Firewall aparentemente correto, mas todo o trafego era descartado
+
+**Sintoma:** `DEADLINE_EXCEEDED` ao conectar em `34.9.87.180:9090`, com a VM
+ligada, o container no ar e a regra de firewall criada. A VM tinha uma tag de
+rede chamada `trabalho-sd` e a regra de firewall tambem se chamava `trabalho-sd`.
+
+**Causa:** o **nome** da regra e a **tag alvo** da regra sao campos diferentes, e
+estavam diferentes:
+
+```text
+REGRA          TARGET_TAGS
+trabalho-sd    portas-trabalho-sd     <- a regra so vale para esta tag
+
+VM servidor-delivery, tags: http-server, https-server, trabalho-sd
+                                                       ^ o NOME da regra
+```
+
+Nenhuma instancia tinha `portas-trabalho-sd`, entao a regra nao se aplicava a
+ninguem e as portas continuavam fechadas apesar de tudo parecer certo no Console.
+
+**Solucao:** adicionar a tag `portas-trabalho-sd` na VM. Vale imediatamente, sem
+reiniciar a instancia.
+
+**Como diagnosticar sem acesso ao Console:** sondar varias portas por TCP e
+comparar o tipo de falha. O contraste isola a camada:
+
+```powershell
+$c = New-Object System.Net.Sockets.TcpClient
+$c.BeginConnect('IP_DA_VM', PORTA, $null, $null).AsyncWaitHandle.WaitOne(6000, $false)
+```
+
+| Resultado | Significado |
+|---|---|
+| porta 22 conecta, portas da regra em timeout | VM viva e roteavel; a regra de firewall nao esta valendo |
+| porta sem servico responde "recusada" | o firewall liberou; o pacote chega na VM |
+| todas em timeout, inclusive a 22 | VM desligada ou IP errado |
+
+A porta 22 serve de controle: ela e liberada pela `default-allow-ssh`, que
+independe da regra do trabalho. Portas liberadas pela regra mas sem nada
+escutando (`3000`, `8000`) devem responder "recusada" - se derem timeout, o
+problema e firewall, nao container.
+
+**Arquivos:** nenhum (configuracao de infraestrutura no GCP).
 
 ### DEADLINE_EXCEEDED ao conectar na VM (e nao UNAVAILABLE)
 

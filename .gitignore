@@ -1,5 +1,7 @@
 # Enunciados e material pessoal da disciplina (nao versionados)
 docs/Trabalho*
+docs/Tutorial*
+docs/*.pdf
 
 # Configuracao local de ferramentas do desenvolvedor
 .claude/

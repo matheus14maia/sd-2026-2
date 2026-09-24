@@ -1,349 +1,259 @@
-# 4. Passo a passo: rodar o servidor numa VM do GCP
+# 4. Deploy no GCP: VM + Cloud SQL
 
-Este e o roteiro completo, do zero ate o cliente local fazendo pedido para a VM.
-Reserve ~20 minutos na primeira vez. Faca isso **antes** do dia da apresentacao.
+Infraestrutura do projeto `sistemas-distribuidos-505422`, regiao `us-central1`:
 
-Ao final:
+| Recurso | Nome | Detalhe |
+|---|---|---|
+| VM (Compute Engine) | `servidor-delivery` | zona `us-central1-a`, `e2-small`, Debian, tags `http-server`, `https-server`, `portas-trabalho-sd` |
+| IP externo da VM | `ip-servidor-delivery` | **estatico** `34.60.57.59` (nao muda ao religar) |
+| Banco (Cloud SQL) | `delivery-postgres` | PostgreSQL 16, edicao Enterprise, `db-f1-micro`, zona unica, IP publico `34.63.128.138`, banco `delivery`, usuario `postgres` |
+| Rede autorizada no Cloud SQL | - | `34.60.57.59/32` (so a VM conecta no banco) |
+| Firewall VPC | `trabalho-sd` | INGRESS `0.0.0.0/0`, `tcp:3000,5050,8000,9090-9292`, alvo `portas-trabalho-sd` |
 
-- o **servidor** (Microsservico B) roda em um container na VM do GCP;
-- o **cliente** (Microsservico A) roda no seu notebook e conecta no IP externo da VM;
-- a porta `9090/TCP` esta liberada por uma regra de firewall da VPC;
-- o container sobe **sozinho** toda vez que a VM e religada, sem precisar de SSH.
+Na VM rodam os containers `gateway` (porta 8000 publicada), `pedidos`,
+`catalogo` e o one-shot `migrador`. O banco fica fora da VM, no Cloud SQL.
 
-> **Por que a porta 9090?** A regra de firewall do projeto (`trabalho-sd`) libera
-> um conjunto fixo de portas, entre elas o range `9090-9292`. Em vez de criar uma
-> regra nova, o servidor foi configurado para escutar dentro do range que ja
-> existe. A porta continua configuravel: `PORTA` no servidor, `--porta` ou
-> `SERVIDOR_PORTA` no cliente.
-
----
-
-## Etapa 0 - Pre-requisitos
-
-- Conta no Google Cloud com faturamento ativo.
-- Projeto criado no GCP. Anote o **ID do projeto** (nao o nome).
-- A **Compute Engine API** habilitada: Console > APIs e servicos > Ativar APIs >
-  "Compute Engine API" > **Ativar**.
-- Opcional, mas recomendado: `gcloud` instalado na sua maquina
-  (<https://cloud.google.com/sdk/docs/install>), autenticado com:
-
-```bash
-gcloud auth login
-gcloud config set project SEU_PROJETO_ID
-```
-
-Ao longo do documento, substitua `NOME_DA_VM` e `ZONA` pelos valores da sua
-instancia (ex: `restaurante-grpc` e `southamerica-east1-a`).
+Os comandos `gcloud` abaixo rodam no notebook, com `gcloud auth login` feito na
+conta do projeto. Se o projeto padrao do `gcloud` for outro, acrescente
+`--project sistemas-distribuidos-505422` a cada comando (como abaixo) ou rode
+`gcloud config set project sistemas-distribuidos-505422`.
 
 ---
 
-## Etapa 1 - Criar a VM
+## Etapa 1 - VM e IP estatico
 
-### Pelo Console
+A VM ja existe. Para criar do zero, veja a secao "Criar a VM do zero" no fim.
 
-1. Menu > **Compute Engine** > **Instancias de VM** > **Criar instancia**.
-2. **Nome:** `restaurante-grpc`
-3. **Regiao/Zona:** `southamerica-east1` / `southamerica-east1-a` (Sao Paulo -
-   menor latencia; qualquer zona funciona).
-4. **Tipo de maquina:** `e2-micro` (serie E2, uso geral) - suficiente.
-5. **Disco de inicializacao:** Debian GNU/Linux 12 (bookworm), 10 GB.
-6. **Rede > Tags de rede:** digite `trabalho-sd` e pressione ENTER.
-   Essa tag e o que liga a regra de firewall a esta VM. **Nao pule este passo** -
-   e a causa numero um de `UNAVAILABLE` mesmo com o container no ar.
-7. **Criar**.
-
-### Ou por linha de comando
+O IP externo foi promovido de efemero para estatico, porque o Cloud SQL so
+aceita conexao das **redes autorizadas**. Com IP efemero, cada religada da VM
+trocaria o IP e o banco passaria a recusar a conexao.
 
 ```bash
-gcloud compute instances create restaurante-grpc \
-  --zone=southamerica-east1-a \
-  --machine-type=e2-micro \
-  --image-family=debian-12 \
-  --image-project=debian-cloud \
-  --boot-disk-size=10GB \
-  --tags=trabalho-sd
+gcloud compute addresses create ip-servidor-delivery \
+  --addresses=34.60.57.59 --region=us-central1 --project sistemas-distribuidos-505422
 ```
 
----
+Um IP estatico reservado cobra um valor pequeno por hora tambem com a VM parada.
 
-## Etapa 2 - Conferir o firewall da VPC
+## Etapa 2 - Firewall
 
-Esta e a parte de "configuracao de regras de firewall VPC" exigida no trabalho.
-A regra `trabalho-sd` libera `tcp:3000,5050,8000,9090-9292` para as instancias
-marcadas com a tag de rede `trabalho-sd`. Como o servidor escuta na `9090`,
-**nao ha regra nova a criar** - so conferir tres coisas.
-
-### 2.1 A VM tem a tag de rede?
+A regra `trabalho-sd` ja libera a `8000`, que e a porta do Gateway. Conferir:
 
 ```bash
-gcloud compute instances describe NOME_DA_VM --zone=ZONA \
-  --format="yaml(name,status,tags,networkInterfaces[0].accessConfigs[0].natIP)"
+gcloud compute firewall-rules describe trabalho-sd --project sistemas-distribuidos-505422 \
+  --format="yaml(allowed,sourceRanges,targetTags)"
+gcloud compute instances describe servidor-delivery --zone us-central1-a \
+  --project sistemas-distribuidos-505422 --format="get(tags.items)"
 ```
 
-O campo `tags.items` precisa listar `trabalho-sd`. Se faltar:
+A VM precisa ter a tag **alvo** da regra (`portas-trabalho-sd`), nao o nome da
+regra. Ver `markdown/TROUBLESHOOTING.md` (2026-09-08).
+
+As portas 9090 e 9091 dos microsservicos nao sao publicadas pelo compose: mesmo
+com o firewall liberando o range, nada escuta nelas do lado de fora.
+
+## Etapa 3 - Cloud SQL (PostgreSQL)
+
+Pelo Console: **Cloud SQL > Criar instancia > PostgreSQL**. Escolha:
+
+- edicao **Enterprise**;
+- regiao **us-central1** (a mesma da VM);
+- **zona unica**;
+- em **Conexoes > Rede**, **IP publico** marcado e a rede autorizada `34.60.57.59/32`.
+
+Pela linha de comando, que foi como a instancia foi criada:
 
 ```bash
-gcloud compute instances add-tags NOME_DA_VM --zone=ZONA --tags=trabalho-sd
+gcloud services enable sqladmin.googleapis.com --project sistemas-distribuidos-505422
+
+gcloud sql instances create delivery-postgres \
+  --database-version=POSTGRES_16 --edition=ENTERPRISE --tier=db-f1-micro \
+  --region=us-central1 --availability-type=zonal \
+  --storage-size=10 --storage-type=HDD --no-backup \
+  --authorized-networks=34.60.57.59/32 \
+  --project sistemas-distribuidos-505422
+
+gcloud sql databases create delivery --instance=delivery-postgres --project sistemas-distribuidos-505422
+gcloud sql users set-password postgres --instance=delivery-postgres \
+  --password='SENHA_DO_BANCO' --project sistemas-distribuidos-505422
 ```
 
-Pelo Console: Compute Engine > a VM > **Editar** > Rede > Tags de rede.
+- `db-f1-micro` (compartilhada, 0,6 GB) e a menor maquina da edicao Enterprise
+  e basta para o trabalho.
+- A senha nunca vai para o repositorio. Ela so fica no `.env` da VM (Etapa 5).
 
-### 2.2 A regra cobre a porta 9090 e aceita origem externa?
+IP publico do banco:
 
 ```bash
-gcloud compute firewall-rules list \
-  --format="table(name,direction,sourceRanges.list(),allowed[].map().firewall_rule().list(),targetTags.list())"
+gcloud sql instances describe delivery-postgres --project sistemas-distribuidos-505422 \
+  --format="value(ipAddresses[0].ipAddress)"
 ```
-
-Na linha `trabalho-sd`, confira:
-
-| Campo | Valor esperado |
-|---|---|
-| direction | `INGRESS` |
-| allowed | inclui `tcp:9090-9292` (ou outra faixa que cubra a 9090) |
-| sourceRanges | `0.0.0.0/0` |
-| targetTags | `trabalho-sd` |
-
-Pelo Console: **Rede VPC > Firewall >** clicar na regra.
-
-> **Sobre `0.0.0.0/0`:** libera a porta para qualquer origem, que e o mais simples
-> para a demonstracao em sala (onde o IP da rede da faculdade pode ser
-> desconhecido). Em producao restringiria ao IP de origem. Se quiser restringir,
-> descubra seu IP com `curl ifconfig.me` e use `SEU_IP/32` em `--source-ranges`.
-
-### 2.3 Se a porta nao estivesse liberada
-
-Para referencia (nao e necessario neste projeto), o comando que criaria uma regra
-dedicada seria:
-
-```bash
-gcloud compute firewall-rules create permitir-grpc-9090 \
-  --direction=INGRESS --action=ALLOW \
-  --rules=tcp:9090 \
-  --target-tags=trabalho-sd \
-  --source-ranges=0.0.0.0/0
-```
-
----
-
-## Etapa 3 - Descobrir o IP externo (repetir a cada boot da VM)
-
-O IP externo desta VM e **efemero**: muda toda vez que a instancia e parada e
-religada. Pegue o IP atual **sempre** antes de rodar o cliente.
-
-```bash
-gcloud compute instances describe NOME_DA_VM --zone=ZONA \
-  --format="get(networkInterfaces[0].accessConfigs[0].natIP)"
-```
-
-Pelo Console: Compute Engine > Instancias de VM > coluna **IP externo**.
-
-> Para fixar o IP, reserve um endereco estatico em Rede VPC > Enderecos IP
-> externos. Tem um custo pequeno por hora enquanto a VM esta parada, por isso o
-> projeto ficou com o IP efemero.
-
----
 
 ## Etapa 4 - Acessar a VM
 
-Console > Compute Engine > Instancias de VM > botao **SSH** na linha da VM
-(abre um terminal no navegador, sem configurar chave).
-
-Ou pelo terminal:
-
 ```bash
-gcloud compute ssh NOME_DA_VM --zone=ZONA
+gcloud compute ssh servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422
 ```
 
-Os comandos das etapas 5 e 6 rodam **dentro da VM**.
+Ou pelo botao **SSH** no Console. Docker e Git ja estao instalados. A instalacao
+do zero esta na secao "Criar a VM do zero".
 
----
+## Etapa 5 - Configurar o banco e subir os containers
 
-## Etapa 5 - Instalar o Docker na VM (uma vez so)
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl git
-
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg \
-  -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# permite usar docker sem sudo
-sudo usermod -aG docker $USER
-newgrp docker
-
-docker --version
-docker compose version
-```
-
-Confirme que o Docker sobe junto com a VM - e o pre-requisito para o container
-voltar sozinho depois de religar a instancia:
+Dentro da VM, na pasta do repositorio:
 
 ```bash
-sudo systemctl is-enabled docker    # deve responder: enabled
+cd ~/sd-2026-2
+git checkout main && git pull
+
+cat > .env <<'EOF'
+DB_HOST=34.63.128.138
+DB_PORT=5432
+DB_NAME=delivery
+DB_USER=postgres
+DB_PASSWORD=SENHA_DO_BANCO
+DB_SSLMODE=require
+EOF
+chmod 600 .env
+
+docker compose up -d --build --remove-orphans
 ```
 
-Se responder `disabled`: `sudo systemctl enable --now docker`.
+- **Sem `--profile banco-local`**, o container `postgres` nao sobe e os
+  servicos usam o Cloud SQL indicado no `.env`.
+- O `--remove-orphans` remove containers de servicos que sairam do compose,
+  como o `restaurante-servidor` do trabalho anterior.
+- O `.env` fica na VM e esta no `.gitignore`. O `git pull` nao mexe nele.
 
----
-
-## Etapa 6 - Levar o codigo e subir o servidor (uma vez so)
-
-O repositorio e publico, entao o `git clone` nao pede credencial:
+Conferir:
 
 ```bash
-git clone https://github.com/matheus14maia/sd-2026-2.git
-cd sd-2026-2
-
-docker compose up -d --build servidor
+docker compose ps
+docker compose logs migrador catalogo pedidos
 ```
 
-Conferir que subiu:
-
-```bash
-docker compose ps           # Up, 0.0.0.0:9090->9090/tcp
-docker compose logs servidor
-sudo ss -lntp | grep 9090   # LISTEN em 0.0.0.0:9090
-```
-
-Saida esperada nos logs:
+Saida esperada:
 
 ```text
-restaurante-servidor  |  Hell's Kitchen - servidor gRPC
-restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:9090
-restaurante-servidor  |  Aguardando pedidos... (Ctrl+C encerra)
+delivery-migrador  | Migrando banco em 34.63.128.138:5432/delivery (sslmode=require)
+delivery-migrador  |   aplicando db/schema.sql
+delivery-migrador  |   aplicando db/seed.sql
+delivery-migrador  | Banco pronto: 13 itens no cardapio, 0 pedidos.
+delivery-catalogo  |  Servidor gRPC ouvindo em 0.0.0.0:9091
+delivery-pedidos   |  Servidor gRPC ouvindo em 0.0.0.0:9090
 ```
 
-O build leva ~3 minutos na primeira vez em uma `e2-micro` (1 GB de RAM). Se o
-`pip install` for encerrado por falta de memoria, adicione swap e repita:
-
-```bash
-sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
-sudo mkswap /swapfile && sudo swapon /swapfile
-```
+e `delivery-gateway` com `0.0.0.0:8000->8000/tcp`.
 
 ### Atualizar o codigo depois
-
-Sempre que a `main` mudar:
 
 ```bash
 cd ~/sd-2026-2
 git pull
-docker compose up -d --build servidor   # recria o container com o codigo novo
+docker compose up -d --build --remove-orphans
 ```
 
----
-
-## Etapa 7 - Rodar o cliente na maquina local
-
-Na **sua maquina** (nao na VM), com o IP externo atual em maos (Etapa 3):
+## Etapa 6 - Testar a partir do notebook
 
 ```bash
-# com Docker
-SERVIDOR_HOST=34.123.45.67 docker compose run --rm cliente
-
-# ou com Python direto
-python -m src.cliente.cliente --host 34.123.45.67
+python scripts/testar_gateway.py --url http://34.60.57.59:8000
 ```
 
-No Windows (PowerShell):
+- Deve terminar com `Todos os cenarios passaram.`
+- Swagger: `http://34.60.57.59:8000/docs`.
 
-```powershell
-python -m src.cliente.cliente --host 34.123.45.67
+## Etapa 7 - Ver os dados no Cloud SQL Studio
+
+Console > **Cloud SQL** > `delivery-postgres` > **Cloud SQL Studio**. Faca login
+com banco `delivery`, usuario `postgres` e a senha do banco. Depois consulte:
+
+```sql
+SELECT id, cliente, status, total, criado_em, atualizado_em FROM pedidos ORDER BY criado_em DESC;
+SELECT * FROM itens_pedido;
+SELECT codigo, nome, preco, disponivel, atualizado_em FROM itens_cardapio ORDER BY codigo;
 ```
 
-> `34.123.45.67` e so um exemplo. Use o IP externo obtido na Etapa 3.
+Escolha o banco **`delivery`**, nao o `postgres` padrao. As tabelas do projeto
+estao no `delivery`.
 
-O cardapio deve aparecer no seu terminal e cada chamada deve aparecer no log da
-VM. Esse e o fluxo completo pedido no trabalho: dois microsservicos, maquinas
-diferentes, comunicacao gRPC com Protobuf.
+## Etapa 8 - Ciclo liga/desliga (para economizar credito)
 
-Deixe uma janela SSH aberta com `docker compose logs -f servidor` durante a
-apresentacao: e o "terminal do restaurante". `Ctrl+C` sai do `logs -f` sem parar
-o container.
+Os containers tem `restart: always` e o Docker sobe com a VM. Ao religar,
+tudo volta sozinho, sem SSH.
 
----
-
-## Etapa 8 - Ciclo do dia a dia (parar e religar a VM)
-
-O servico `servidor` esta declarado com `restart: always` no
-`docker-compose.yml`. Combinado com o Docker habilitado no boot (Etapa 5), o
-container volta sozinho toda vez que a VM e religada - **sem SSH e sem rodar
-nenhum comando Docker**.
-
-| Quando | O que fazer |
-|---|---|
-| Terminar de usar | Console > selecionar a VM > **Parar**. Nada mais. |
-| Voltar a usar | Console > **Iniciar**. O container sobe sozinho. |
-| Antes de testar | Pegar o IP externo atual (Etapa 3) - ele mudou |
-| Conferir que voltou | SSH + `docker compose ps` (opcional), ou so rodar o cliente |
-| So se o codigo mudou | SSH + `git pull` + `docker compose up -d --build servidor` |
-
-Por linha de comando:
+Ligar, **banco primeiro**:
 
 ```bash
-gcloud compute instances stop NOME_DA_VM --zone=ZONA
-gcloud compute instances start NOME_DA_VM --zone=ZONA
+gcloud sql instances patch delivery-postgres --activation-policy=ALWAYS --project sistemas-distribuidos-505422
+gcloud compute instances start servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422
 ```
 
-> **Nao use `docker compose down` no ciclo normal.** Esse comando **remove** o
-> container, e um container removido nao volta sozinho no proximo boot - seria
-> preciso rodar `docker compose up -d servidor` de novo por SSH. Para desligar,
-> basta parar a VM.
+Desligar:
 
-Uma VM parada nao cobra CPU, mas o disco continua sendo cobrado.
+```bash
+gcloud compute instances stop servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422
+gcloud sql instances patch delivery-postgres --activation-policy=NEVER --project sistemas-distribuidos-505422
+```
 
----
+- **Ordem ao ligar.** Se a VM subir antes do banco, o migrador e os
+  microsservicos tentam conectar por cerca de 1 minuto (`Banco indisponivel
+  (tentativa N/30)`) e o `restart` do Docker tenta de novo depois. Ligar o banco
+  primeiro evita a espera.
+- **Nao use `docker compose down`** no ciclo normal: ele remove os containers,
+  e container removido nao volta no boot.
 
 ## Etapa 9 - Checklist antes da apresentacao
 
-| Verificacao | Comando | Resultado esperado |
+| Verificacao | Comando | Esperado |
 |---|---|---|
-| VM ligada | Console > Instancias de VM | status "Em execucao" |
-| Tag de rede na VM | `gcloud compute instances describe NOME_DA_VM --zone=ZONA --format="get(tags.items)"` | inclui `trabalho-sd` |
-| Regra de firewall | `gcloud compute firewall-rules list` | `trabalho-sd` cobrindo `tcp:9090-9292` |
-| IP externo atual | `gcloud compute instances describe NOME_DA_VM --zone=ZONA --format="get(networkInterfaces[0].accessConfigs[0].natIP)"` | o mesmo IP usado no `--host` |
-| Container no ar | `docker compose ps` (na VM) | `Up`, porta `0.0.0.0:9090->9090/tcp` |
-| Porta escutando | `sudo ss -lntp` (na VM) | linha `LISTEN` em `0.0.0.0:9090` |
-| Conectividade ponta a ponta | no notebook: `python -m src.cliente.cliente --host IP --itens PR01:1 --cliente Teste --sem-acompanhar` | pedido confirmado |
+| Banco ligado | `gcloud sql instances describe delivery-postgres --project sistemas-distribuidos-505422 --format="value(state)"` | `RUNNABLE` |
+| VM ligada | `gcloud compute instances describe servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422 --format="value(status)"` | `RUNNING` |
+| Gateway no ar | `curl http://34.60.57.59:8000/saude` | `{"status":"ok"}` |
+| Fluxo completo | `python scripts/testar_gateway.py --url http://34.60.57.59:8000 --resumido` | `Todos os cenarios passaram.` |
 
----
+## Problemas comuns
 
-## Etapa 10 - Problemas comuns
-
-| Sintoma | Como identificar | Acao |
+| Sintoma | Causa provavel | Acao |
 |---|---|---|
-| `UNAVAILABLE: failed to connect to all addresses` | o cliente nao chega no servidor | siga as verificacoes abaixo, nesta ordem |
-| 1. IP errado | o IP externo mudou depois de parar/iniciar a VM | pegue o IP atual (Etapa 3) e refaca a chamada |
-| 2. VM sem a tag | o `describe` nao lista `trabalho-sd` em `tags.items` | `gcloud compute instances add-tags NOME_DA_VM --zone=ZONA --tags=trabalho-sd` |
-| 3. Porta fora do range liberado | o servidor escuta numa porta que a regra nao cobre | use uma porta dentro de `9090-9292` (padrao do projeto: `9090`) ou crie a regra da secao 2.3 |
-| 4. Container parado | `docker compose ps` sem linha `Up` | `docker compose up -d servidor` e depois `docker compose logs servidor` |
-| 5. Porta so no localhost | `ss -lntp` mostra `127.0.0.1:9090` | o servidor precisa escutar em `0.0.0.0` (padrao do projeto); nao sobrescreva `ENDERECO_ESCUTA` |
-| Container sumiu depois de religar a VM | `docker ps -a` sem o `restaurante-servidor` | foi rodado `docker compose down` antes de parar a VM; suba com `docker compose up -d servidor` e nao use `down` no ciclo normal (Etapa 8) |
-| Container existe mas nao volta no boot | `sudo systemctl is-enabled docker` responde `disabled` | `sudo systemctl enable --now docker` |
-| `permission denied` ao usar docker | `docker ps` reclama do socket | `sudo usermod -aG docker $USER` e depois `newgrp docker` |
-| `NOT_FOUND: Pedido ... nao encontrado` | o servidor reiniciou entre o pedido e o acompanhamento | os pedidos ficam em memoria; refaca o pedido |
-| Build morto por falta de memoria | `Killed` durante o `pip install` na `e2-micro` | adicione swap (Etapa 6) e repita o build |
-| `docker compose` nao encontrado | foi instalado o `docker.io` do Debian | instale o `docker-compose-plugin` como na Etapa 5 |
+| `Banco indisponivel (tentativa N/30): ... timeout` no log | Cloud SQL parado, ou IP da VM fora das redes autorizadas | ligar a instancia (Etapa 8); conferir `settings.ipConfiguration.authorizedNetworks` |
+| `password authentication failed for user "postgres"` | senha do `.env` diferente da do Cloud SQL | corrigir o `.env` e rodar `docker compose up -d` |
+| `database "delivery" does not exist` | banco nao criado na instancia | `gcloud sql databases create delivery --instance=delivery-postgres ...` |
+| `curl` na 8000 da timeout | firewall/tag (Etapa 2) ou VM parada | conferir a tag `portas-trabalho-sd` |
+| `503 Catalogo indisponivel` | container `catalogo` parado | `docker compose ps` e `docker compose up -d` |
+| containers sumiram apos religar | foi usado `docker compose down` | `docker compose up -d` |
 
----
-
-## Etapa 11 - Encerrar de vez
-
-Apenas quando o trabalho estiver entregue e a VM nao for mais usada:
+## Criar a VM do zero (referencia)
 
 ```bash
-gcloud compute instances delete NOME_DA_VM --zone=ZONA
+gcloud compute instances create servidor-delivery \
+  --zone=us-central1-a --machine-type=e2-small \
+  --image-family=debian-12 --image-project=debian-cloud --boot-disk-size=10GB \
+  --tags=portas-trabalho-sd,http-server,https-server \
+  --project sistemas-distribuidos-505422
 ```
 
-A regra de firewall `trabalho-sd` nao gera custo e pode ser mantida, ou removida
-com `gcloud compute firewall-rules delete trabalho-sd`.
+Instalar Docker e Git na VM:
+
+```bash
+sudo apt-get update && sudo apt-get install -y ca-certificates curl git
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo usermod -aG docker $USER && newgrp docker
+sudo systemctl is-enabled docker     # enabled
+git clone https://github.com/matheus14maia/sd-2026-2.git
+```
+
+Depois siga a partir da Etapa 5.
+
+## Encerrar de vez (depois da entrega)
+
+```bash
+gcloud sql instances delete delivery-postgres --project sistemas-distribuidos-505422
+gcloud compute instances delete servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422
+gcloud compute addresses delete ip-servidor-delivery --region us-central1 --project sistemas-distribuidos-505422
+```

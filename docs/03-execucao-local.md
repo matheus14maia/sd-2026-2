@@ -1,176 +1,118 @@
-# 3. Execucao local (dois terminais)
+# 3. Execucao local
 
-Antes de subir na nuvem, rode tudo no proprio notebook. O terminal 1 e o
-restaurante (servidor), o terminal 2 e o cliente.
+No ambiente local o PostgreSQL roda em container (profile `banco-local`), no
+papel que o Cloud SQL cumpre no GCP. O codigo e o mesmo nos dois casos: so
+mudam as variaveis `DB_*`.
 
-## 3.1 Caminho recomendado: Docker
-
-### Terminal 1 - servidor
+## Com Docker (recomendado)
 
 ```bash
-docker compose up --build servidor
+docker compose --profile banco-local up -d --build
+docker compose ps
 ```
 
-Saida esperada:
+Servicos esperados:
+
+| Container | Estado | Porta |
+|---|---|---|
+| `delivery-postgres` | Up | interna 5432 |
+| `delivery-migrador` | Exited (0) | roda o schema e o seed e termina |
+| `delivery-catalogo` | Up | interna 9091 |
+| `delivery-pedidos` | Up | interna 9090 |
+| `delivery-gateway` | Up | `0.0.0.0:8000->8000/tcp` |
+
+Log do migrador (`docker compose logs migrador`):
 
 ```text
-restaurante-servidor  | ==============================================================
-restaurante-servidor  |  Hell's Kitchen - servidor gRPC
-restaurante-servidor  |  Servidor gRPC ouvindo em 0.0.0.0:9090
-restaurante-servidor  |  Servico: restaurante.RestauranteService
-restaurante-servidor  |  Aguardando pedidos... (Ctrl+C encerra)
-restaurante-servidor  | ==============================================================
+Migrando banco em postgres:5432/delivery (sslmode=disable)
+  aplicando db/schema.sql
+  aplicando db/seed.sql
+Banco pronto: 13 itens no cardapio, 0 pedidos.
 ```
 
-Deixe esse terminal aberto: e nele que aparece cada chamada recebida.
+Uma linha `Banco indisponivel (tentativa 1/30)` antes disso e normal: o
+PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
-### Terminal 2 - cliente
+## Testar
 
 ```bash
-docker compose run --rm cliente
+python scripts/testar_gateway.py --url http://localhost:8000
 ```
 
-O `docker compose run` ja conecta o cliente ao servico `servidor` pela rede
-interna do Compose.
+O script so usa a biblioteca padrao do Python, entao roda sem instalar nada.
+Saida resumida (`--resumido`):
 
-## 3.2 Caminho alternativo: Python direto (sem Docker)
+```text
+OK  Gateway no ar  (esperado 200, recebido 200)
+OK  Cardapio de bebidas  (esperado 200, recebido 200)
+OK  Pedido valido e gravado no banco  (esperado 201, recebido 201)
+OK  Sem o campo cliente  (esperado 400, recebido 400)
+OK  Quantidade zero e itens vazios  (esperado 400, recebido 400)
+OK  Lista de itens vazia  (esperado 400, recebido 400)
+OK  JSON malformado  (esperado 400, recebido 400)
+OK  Item que nao existe no banco  (esperado 400, recebido 400)
+OK  Item indisponivel (PR05)  (esperado 409, recebido 409)
+OK  Consulta do pedido criado  (esperado 200, recebido 200)
+OK  Pedido inexistente  (esperado 404, recebido 404)
+OK  Avanca status RECEBIDO -> EM_PREPARO  (esperado 200, recebido 200)
+OK  Pula etapa EM_PREPARO -> ENTREGUE  (esperado 409, recebido 409)
+OK  Status fora da lista  (esperado 400, recebido 400)
+OK  Lista os pedidos  (esperado 200, recebido 200)
+
+Todos os cenarios passaram.
+```
+
+O Swagger (`http://localhost:8000/docs`) permite testar cada rota pelo navegador.
+
+## Conferir no banco
 
 ```bash
-python -m venv .venv
+docker compose exec postgres psql -U postgres -d delivery \
+  -c "select id, cliente, status, total, criado_em, atualizado_em from pedidos order by criado_em;" \
+  -c "select pedido_id, linha, codigo, quantidade, subtotal from itens_pedido;" \
+  -c "select codigo, preco, disponivel, atualizado_em from itens_cardapio where codigo = 'PR05';"
+```
 
-# Linux/macOS
-source .venv/bin/activate
-# Windows (PowerShell)
-.venv\Scripts\Activate.ps1
+Persistencia: `docker compose restart catalogo pedidos gateway` e o
+`GET /pedidos/{id}` de um pedido anterior continua respondendo 200.
 
+## Logs (uma linha por chamada)
+
+```bash
+docker compose logs -f gateway pedidos catalogo
+```
+
+```text
+delivery-pedidos   | [20:43:57] CriarPedido: cliente='Maria' itens=[('PR01', 2)]
+delivery-catalogo  | [20:43:57] ConsultarItens: ['PR01'] -> 1 encontrados
+delivery-pedidos   | [20:43:57] Pedido 4bb080f4-... gravado: 1 itens, 2 unidades, total R$ 125.80
+delivery-gateway   | [20:43:57] POST /pedidos -> 201 (41 ms)
+```
+
+## Sem Docker (desenvolvimento)
+
+Precisa de um PostgreSQL acessivel. O mais simples e subir so o container do
+banco e publicar a porta:
+
+```bash
+docker run -d --name pg-dev -e POSTGRES_DB=delivery -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+python -m venv .venv          # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python scripts/gerar_stubs.py
+export DB_PASSWORD=postgres   # PowerShell: $env:DB_PASSWORD="postgres"
+python scripts/migrar_banco.py
+python -m src.catalogo.servidor                          # terminal 1
+python -m src.pedidos.servidor                           # terminal 2
+uvicorn src.gateway.app:app --host 0.0.0.0 --port 8000   # terminal 3
 ```
 
-Terminal 1:
+Os padroes das variaveis ja apontam para `localhost` (banco em 5432, Catalogo
+em 9091, Pedidos em 9090).
+
+## Desligar
 
 ```bash
-python -m src.servidor.servidor
-```
-
-Terminal 2:
-
-```bash
-python -m src.cliente.cliente
-```
-
-## 3.3 O que acontece no terminal do cliente
-
-1. O cardapio completo e listado por categoria, com preco e itens esgotados
-   marcados como `[INDISPONIVEL HOJE]`:
-
-```text
-==============================================================
-CARDAPIO - Hell's Kitchen
-==============================================================
-
-PRATOS
---------------------------------------------------------------
-  PR01  File a parmegiana                R$ 62,90
-        File empanado, molho de tomate e queijo, com arroz
-  PR05  Moqueca de peixe                 R$ 79,90   [INDISPONIVEL HOJE]
-        Peixe branco, leite de coco e dende
-```
-
-2. O cliente informa nome e endereco, e monta o pedido item a item:
-
-```text
-==============================================================
-MONTE O SEU PEDIDO
-==============================================================
-Digite o codigo do item (ex: PR01) e a quantidade.
-Deixe o codigo em branco para finalizar.
-
-Codigo do item (ENTER para finalizar): PR01
-  Quantidade de 'File a parmegiana': 2
-  > Adicionado: 2x File a parmegiana
-  > Carrinho: 2 unidade(s), parcial R$ 125,80
-```
-
-3. Ao dar ENTER com o campo vazio, o pedido e enviado e o servidor responde:
-
-```text
-==============================================================
-PEDIDO CONFIRMADO
-==============================================================
-ID do pedido : dbcabd4b-6287-46cb-ad37-421ec092f8d7
-Status       : RECEBIDO
-
-Item                              Qtd       Unit.     Subtotal
---------------------------------------------------------------
-File a parmegiana                   2    R$ 62,90    R$ 125,80
-Suco natural de laranja             3    R$ 12,00     R$ 36,00
-Petit gateau                        1    R$ 27,90     R$ 27,90
---------------------------------------------------------------
-TOTAL                                                R$ 189,70
-
-Tempo estimado: 33 minutos
-Pedido recebido pelo Hell's Kitchen. Entrega estimada em 33 minutos.
-```
-
-4. Em seguida o stream de acompanhamento imprime cada status conforme chega:
-
-```text
-==============================================================
-ACOMPANHAMENTO EM TEMPO REAL (streaming gRPC)
-==============================================================
-[22:24:11] RECEBIDO           Pedido confirmado pela cozinha.
-[22:24:13] EM_PREPARO         A cozinha comecou a preparar o seu pedido.
-[22:24:15] PRONTO             Pedido pronto, aguardando o entregador.
-[22:24:17] SAIU_PARA_ENTREGA  Entregador a caminho do endereco informado.
-[22:24:19] ENTREGUE           Pedido entregue. Bom apetite!
-
-Acompanhamento encerrado pelo servidor.
-```
-
-## 3.4 O que aparece no terminal do servidor
-
-```text
-[22:24:10] ObterCardapio: categoria='todas' -> 13 itens
-[22:24:11] CriarPedido: cliente='Matheus' itens=[('PR01', 2), ('BE02', 3), ('SO02', 1)]
-[22:24:11] Pedido dbcabd4b-6287-46cb-ad37-421ec092f8d7 aceito: 3 itens, 6 unidades, total R$ 189.70
-[22:24:11] AcompanharPedido: pedido_id='dbcabd4b-6287-46cb-ad37-421ec092f8d7'
-[22:24:13] Pedido dbcabd4b-6287-46cb-ad37-421ec092f8d7 -> EM_PREPARO
-```
-
-## 3.5 Modo nao interativo (util para ensaiar a apresentacao)
-
-```bash
-python -m src.cliente.cliente --itens PR01:2,BE02:3,SO02:1 \
-  --cliente "Matheus" --endereco "Rua das Flores, 100"
-```
-
-Outras opcoes do cliente:
-
-| Opcao | Efeito |
-|---|---|
-| `--host` / `--porta` | endereco do servidor (padrao `localhost:9090`) |
-| `--cliente` / `--endereco` | preenche os dados sem perguntar |
-| `--categoria Pratos` | pede so uma categoria do cardapio |
-| `--itens PR01:2,BE01:1` | monta o pedido sem interacao |
-| `--sem-acompanhar` | encerra apos a confirmacao, sem abrir o stream |
-
-Tambem funcionam as variaveis de ambiente `SERVIDOR_HOST` e `SERVIDOR_PORTA`.
-
-## 3.6 Testando os erros
-
-```bash
-python -m src.cliente.cliente --itens XX99:1 --cliente Teste   # INVALID_ARGUMENT
-python -m src.cliente.cliente --itens PR01:0 --cliente Teste   # INVALID_ARGUMENT
-python -m src.cliente.cliente --itens PR05:1 --cliente Teste   # FAILED_PRECONDITION
-python -m src.cliente.cliente --categoria Pizzas --itens PR01:1 --cliente Teste  # NOT_FOUND
-```
-
-Com o servidor parado, qualquer chamada devolve `UNAVAILABLE` e o cliente
-imprime o checklist de causas provaveis.
-
-## 3.7 Encerrando
-
-```bash
-docker compose down
+docker compose --profile banco-local stop    # para, mantem os dados
+docker compose --profile banco-local down    # remove os containers, o volume com os dados fica
+docker compose --profile banco-local down -v # remove tambem o volume (zera o banco)
 ```
