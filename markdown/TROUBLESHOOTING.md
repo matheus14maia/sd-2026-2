@@ -22,6 +22,27 @@
 
 ## 2026-09-24
 
+### Cloud SQL Studio: `relation "itens_pedido" does not exist`
+
+**Sintoma:** no Cloud SQL Studio da instancia `delivery-postgres`:
+
+```text
+Execution failed. All statements are aborted. Details: pq: relation "itens_pedido" does not exist
+```
+
+O Explorador mostra `postgres > public` sem as tabelas do projeto.
+
+**Causa:** o login do Studio foi feito no banco padrao `postgres`. As tabelas
+do projeto ficam no banco `delivery` (`DB_NAME` do `.env`), que e outro banco
+na mesma instancia. No PostgreSQL um banco nao enxerga as tabelas de outro.
+
+**Solucao:** trocar a sessao do Studio para o banco `delivery` (icone de
+usuario ao lado de "Explorador", ou sair e entrar de novo), com usuario
+`postgres` e a senha do banco. O Explorador passa a mostrar
+`delivery > public > Tabelas 3`.
+
+**Arquivos:** nenhum (acesso pelo Console).
+
 ### 503 "Deadline Exceeded" em vez de "Catalogo indisponivel"
 
 **Sintoma:** com o container `catalogo` parado, o `POST /pedidos` respondia:
