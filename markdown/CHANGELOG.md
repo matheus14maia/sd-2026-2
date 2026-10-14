@@ -14,6 +14,18 @@
 
 ---
 
+## 2026-10-14
+
+| Horario | Task | Detalhe |
+|---------|------|---------|
+| 19:00 | Testes ponta a ponta do Trabalho 2 | `scripts/testar_gateway.py` agora faz login com o usuario `professor` e manda o Bearer nas rotas protegidas; cenarios novos: 401 sem token, sem `Bearer`, token que nao e JWT, assinatura adulterada e senha errada; 400 no login e no cadastro; 201 no cadastro; 409 em login repetido; 200 em `/auth/eu`. Os 26 cenarios passaram com a pilha local completa (`COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`). Jornada no navegador (Edge headless): todas as chamadas `fetch` foram para `localhost:8000`. |
+| 18:58 | Frontend React | Novo `frontend/` (Vite 5 + React 18, sem roteador): login/cadastro, cardapio com filtro no servidor, sacola e `POST /pedidos`, pedidos com etapas (avancar 200 / pular 409), cozinha (`PATCH /cardapio`), tela de testes de seguranca (401/400/409) e trilho de comandas no rodape com o status de cada chamada ao Gateway. `src/api.js` e o unico modulo que fala com o backend. Imagem propria: build com `node:20-alpine` e entrega pelo `nginx:1.27-alpine`; a URL do Gateway vem da variavel `API_URL`, entregue ao navegador em `/config.js` pelo template do nginx. |
+| 18:55 | Compose por profile (uma VM por papel) | `docker-compose.yml` dividido nos profiles `servicos` (migrador, usuarios, catalogo, pedidos), `gateway`, `frontend` e `banco-local`. Cada maquina escolhe o que sobe pelo `COMPOSE_PROFILES` do seu `.env`. Portas gRPC 9090-9092 publicadas no host porque o Gateway passa a rodar em outra VM; sem `depends_on` entre profiles. `.env.exemplo` documenta o `.env` de cada VM. |
+| 18:50 | JWT no Gateway | `src/gateway/autenticacao.py`: `MiddlewareJWT` barra com 401 (e `WWW-Authenticate: Bearer`) toda rota fora de `ROTAS_PUBLICAS` sem token HS256 valido, antes de qualquer chamada gRPC; `emitir_token` assina `sub/login/nome/iat/exp` com `JWT_SEGREDO`. Rotas novas `POST /auth/cadastro` (201), `POST /auth/login` (200) e `GET /auth/eu`. `UNAUTHENTICATED` -> 401 no mapa de erros. `CORSMiddleware` como camada mais externa. Mensagens de 400 por regex (`FORMATOS`) e por tamanho minimo. |
+| 18:45 | Microsservico de Usuarios | `proto/usuarios.proto` (`CadastrarUsuario`, `VerificarCredenciais`), `src/usuarios/` na porta 9092, tabela `usuarios` com hash bcrypt e usuario de demonstracao no `db/seed.sql`. Login repetido -> `ALREADY_EXISTS`; credencial errada -> `UNAUTHENTICATED` com a mesma mensagem para login inexistente e senha errada. Dependencias `bcrypt` e `PyJWT`. |
+
+---
+
 ## 2026-09-24
 
 | Horario | Task | Detalhe |

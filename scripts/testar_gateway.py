@@ -7,6 +7,9 @@ sem instalar nada:
     python scripts/testar_gateway.py --url http://localhost:8000
     python scripts/testar_gateway.py --url http://IP_DA_VM:8000
 
+Primeiro faz login com o usuario de demonstracao e usa o token JWT em todas as
+rotas protegidas; os cenarios de 401 mandam token ausente, adulterado ou errado.
+
 Cada cenario imprime o metodo, a rota, o status esperado, o status recebido e o
 corpo da resposta. Sai com codigo 1 se algum status vier diferente do esperado.
 """
@@ -14,17 +17,21 @@ corpo da resposta. Sai com codigo 1 se algum status vier diferente do esperado.
 import argparse
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 
 ID_INEXISTENTE = "00000000-0000-0000-0000-000000000000"
+SEM_TOKEN = ""
 
 
-def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = None):
+def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = None, autorizacao: str = SEM_TOKEN):
     dados = bruto if bruto is not None else (json.dumps(corpo).encode() if corpo is not None else None)
     requisicao = urllib.request.Request(base + rota, data=dados, method=metodo)
     if dados is not None:
         requisicao.add_header("Content-Type", "application/json")
+    if autorizacao:
+        requisicao.add_header("Authorization", autorizacao)
     try:
         with urllib.request.urlopen(requisicao, timeout=15) as resposta:
             return resposta.status, json.loads(resposta.read() or b"null")
@@ -40,13 +47,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default="http://localhost:8000")
     parser.add_argument("--resumido", action="store_true", help="nao imprime o corpo das respostas")
+    parser.add_argument("--login", default="professor")
+    parser.add_argument("--senha", default="delivery2026")
     args = parser.parse_args()
     base = args.url.rstrip("/")
     falhas = 0
+    bearer = SEM_TOKEN
 
-    def cenario(titulo, esperado, metodo, rota, corpo=None, bruto=None):
+    def cenario(titulo, esperado, metodo, rota, corpo=None, bruto=None, autorizacao=None):
         nonlocal falhas
-        status, resposta = chamar(base, metodo, rota, corpo, bruto)
+        status, resposta = chamar(base, metodo, rota, corpo, bruto, bearer if autorizacao is None else autorizacao)
         ok = status == esperado
         falhas += 0 if ok else 1
         print("\n%s %s  (esperado %d, recebido %d)  %s" % ("OK " if ok else "ERRO", titulo, esperado, status, ""))
@@ -61,7 +71,32 @@ def main() -> int:
         return resposta
 
     print("Gateway:", base)
-    cenario("Gateway no ar", 200, "GET", "/saude")
+    cenario("Gateway no ar (rota publica)", 200, "GET", "/saude")
+
+    # Autenticacao ---------------------------------------------------------
+    cenario("Sem token", 401, "GET", "/cardapio")
+    cenario("Cabecalho sem Bearer", 401, "GET", "/pedidos", autorizacao="Token abc")
+    cenario("Token que nao e JWT", 401, "GET", "/pedidos", autorizacao="Bearer abc.def.ghi")
+    cenario("Login sem senha", 400, "POST", "/auth/login", {"login": args.login})
+    cenario("Senha errada", 401, "POST", "/auth/login", {"login": args.login, "senha": "chute-errado"})
+
+    novo_login = "teste%d" % int(time.time())
+    cenario("Cadastro com dados invalidos", 400, "POST", "/auth/cadastro", {"login": "a b", "nome": "", "senha": "123"})
+    cenario("Cadastro de usuario novo", 201, "POST", "/auth/cadastro",
+            {"login": novo_login, "nome": "Usuario de Teste", "senha": "senha-teste"})
+    cenario("Cadastro com login repetido", 409, "POST", "/auth/cadastro",
+            {"login": novo_login, "nome": "Outro", "senha": "senha-teste"})
+
+    sessao = cenario("Login valido devolve o token", 200, "POST", "/auth/login", {"login": args.login, "senha": args.senha})
+    token = (sessao or {}).get("access_token", "") if isinstance(sessao, dict) else ""
+    bearer = "Bearer " + token
+    cabecalho, _, resto = token.partition(".")
+    carga = resto.partition(".")[0]
+    cenario("Token com assinatura adulterada", 401, "GET", "/pedidos",
+            autorizacao="Bearer %s.%s.assinatura-falsa" % (cabecalho, carga))
+    cenario("Dono do token", 200, "GET", "/auth/eu")
+
+    # Rotas de negocio (com token) -----------------------------------------
     cenario("Cardapio de bebidas", 200, "GET", "/cardapio?categoria=Bebidas")
 
     criado = cenario(
