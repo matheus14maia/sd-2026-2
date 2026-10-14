@@ -1,10 +1,11 @@
 """Rotas HTTP de pedidos, despachadas para o microsservico de Pedidos."""
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
+from ..autenticacao import esquema_bearer
 from ..esquemas import PedidoEntrada, StatusEntrada
 
-router = APIRouter(prefix="/pedidos", tags=["pedidos"])
+router = APIRouter(prefix="/pedidos", tags=["pedidos"], dependencies=[Depends(esquema_bearer)])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, summary="Cria um pedido (201)")

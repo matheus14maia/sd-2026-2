@@ -7,6 +7,9 @@ Dois tipos de erro chegam aqui:
    400 Bad Request, por isso o handler e sobrescrito.
 2. Erro devolvido por um microsservico (grpc.RpcError) -> o status HTTP
    equivalente ao status code do gRPC.
+
+O 401 de token ausente/invalido nao passa por aqui: o MiddlewareJWT
+(autenticacao.py) responde antes de a requisicao chegar nas rotas.
 """
 
 import grpc
@@ -14,13 +17,22 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN
+
 GRPC_PARA_HTTP = {
     grpc.StatusCode.INVALID_ARGUMENT: 400,
+    grpc.StatusCode.UNAUTHENTICATED: 401,
     grpc.StatusCode.NOT_FOUND: 404,
     grpc.StatusCode.FAILED_PRECONDITION: 409,
     grpc.StatusCode.ALREADY_EXISTS: 409,
     grpc.StatusCode.UNAVAILABLE: 503,
     grpc.StatusCode.DEADLINE_EXCEEDED: 503,
+}
+
+# Formato esperado por regex, para o erro string_pattern_mismatch.
+FORMATOS = {
+    PADRAO_CODIGO: "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)",
+    PADRAO_LOGIN: "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)",
 }
 
 # Mensagens em portugues por tipo de erro do Pydantic.
@@ -29,7 +41,7 @@ MENSAGENS = {
     "string_too_short": "nao deve estar vazio",
     "string_too_long": "texto muito longo",
     "string_type": "deve ser um texto",
-    "string_pattern_mismatch": "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)",
+    "string_pattern_mismatch": "formato invalido",
     "int_type": "deve ser um numero inteiro",
     "int_parsing": "deve ser um numero inteiro",
     "float_type": "deve ser um numero",
@@ -62,6 +74,10 @@ def _mensagem(erro: dict) -> str:
         return "valor nao permitido; use um de: %s" % esperado.replace("'", "")
     if tipo == "less_than_equal":
         return "deve ser no maximo %s" % (erro.get("ctx") or {}).get("le")
+    if tipo == "string_pattern_mismatch":
+        return FORMATOS.get((erro.get("ctx") or {}).get("pattern"), MENSAGENS[tipo])
+    if tipo == "string_too_short" and (erro.get("ctx") or {}).get("min_length", 1) > 1:
+        return "deve ter pelo menos %s caracteres" % erro["ctx"]["min_length"]
     return MENSAGENS.get(tipo, erro.get("msg", "valor invalido"))
 
 

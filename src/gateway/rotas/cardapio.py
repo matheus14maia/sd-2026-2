@@ -1,10 +1,11 @@
 """Rotas HTTP do cardapio, despachadas para o microsservico de Catalogo."""
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 
-from ..esquemas import ItemAtualizacao
+from ..autenticacao import esquema_bearer
+from ..esquemas import PADRAO_CODIGO, ItemAtualizacao
 
-router = APIRouter(prefix="/cardapio", tags=["cardapio"])
+router = APIRouter(prefix="/cardapio", tags=["cardapio"], dependencies=[Depends(esquema_bearer)])
 
 
 @router.get("", summary="Lista o cardapio (200)")
@@ -16,6 +17,6 @@ def listar(request: Request, categoria: str = Query(default="", max_length=50)):
 def atualizar(
     request: Request,
     corpo: ItemAtualizacao,
-    codigo: str = Path(pattern=r"^[A-Za-z]{2}[0-9]{2}$"),
+    codigo: str = Path(pattern=PADRAO_CODIGO),
 ):
     return request.app.state.grpc.atualizar_item(codigo.upper(), corpo.disponivel, corpo.preco)

@@ -10,10 +10,18 @@ import os
 import grpc
 from google.protobuf.json_format import MessageToDict
 
-from ..gerado import catalogo_pb2, catalogo_pb2_grpc, pedidos_pb2, pedidos_pb2_grpc
+from ..gerado import (
+    catalogo_pb2,
+    catalogo_pb2_grpc,
+    pedidos_pb2,
+    pedidos_pb2_grpc,
+    usuarios_pb2,
+    usuarios_pb2_grpc,
+)
 
 CATALOGO_ENDERECO = "%s:%s" % (os.getenv("CATALOGO_HOST", "localhost"), os.getenv("CATALOGO_PORTA", "9091"))
 PEDIDOS_ENDERECO = "%s:%s" % (os.getenv("PEDIDOS_HOST", "localhost"), os.getenv("PEDIDOS_PORTA", "9090"))
+USUARIOS_ENDERECO = "%s:%s" % (os.getenv("USUARIOS_HOST", "localhost"), os.getenv("USUARIOS_PORTA", "9092"))
 TIMEOUT_SEGUNDOS = float(os.getenv("GRPC_TIMEOUT", "5"))
 
 
@@ -30,12 +38,24 @@ class ClientesGrpc:
     def __init__(self) -> None:
         self._canal_catalogo = grpc.insecure_channel(CATALOGO_ENDERECO)
         self._canal_pedidos = grpc.insecure_channel(PEDIDOS_ENDERECO)
+        self._canal_usuarios = grpc.insecure_channel(USUARIOS_ENDERECO)
         self.catalogo = catalogo_pb2_grpc.CatalogoServiceStub(self._canal_catalogo)
         self.pedidos = pedidos_pb2_grpc.PedidoServiceStub(self._canal_pedidos)
+        self.usuarios = usuarios_pb2_grpc.UsuarioServiceStub(self._canal_usuarios)
 
     def fechar(self) -> None:
         self._canal_catalogo.close()
         self._canal_pedidos.close()
+        self._canal_usuarios.close()
+
+    # Usuarios ---------------------------------------------------------------
+    def cadastrar_usuario(self, login: str, nome: str, senha: str) -> dict:
+        requisicao = usuarios_pb2.CadastrarUsuarioRequest(login=login, nome=nome, senha=senha)
+        return para_dict(self.usuarios.CadastrarUsuario(requisicao, timeout=TIMEOUT_SEGUNDOS))
+
+    def verificar_credenciais(self, login: str, senha: str) -> dict:
+        requisicao = usuarios_pb2.VerificarCredenciaisRequest(login=login, senha=senha)
+        return para_dict(self.usuarios.VerificarCredenciais(requisicao, timeout=TIMEOUT_SEGUNDOS))
 
     # Catalogo ---------------------------------------------------------------
     def listar_cardapio(self, categoria: str) -> dict:
