@@ -1,9 +1,39 @@
 # 2. Contratos gRPC
 
 Cada microsservico tem o proprio contrato em `proto/`. Os contratos sao a fonte
-da verdade: o Gateway, o Catalogo e o Pedidos usam os stubs gerados a partir
-deles, e mudar um `.proto` obriga a regerar os stubs e ajustar quem usa aquele
-servico na mesma alteracao.
+da verdade: o Gateway, o Usuarios, o Catalogo e o Pedidos usam os stubs gerados
+a partir deles, e mudar um `.proto` obriga a regerar os stubs e ajustar quem usa
+aquele servico na mesma alteracao.
+
+| Contrato | Servico | Porta | Quem chama |
+|---|---|---|---|
+| `proto/usuarios.proto` | `usuarios.UsuarioService` | 9092 | Gateway |
+| `proto/catalogo.proto` | `catalogo.CatalogoService` | 9091 | Gateway e Pedidos |
+| `proto/pedidos.proto` | `pedidos.PedidoService` | 9090 | Gateway |
+
+## `proto/usuarios.proto` - `usuarios.UsuarioService`
+
+| RPC | Request | Response | Quem chama | O que faz no banco | Erros |
+|---|---|---|---|---|---|
+| `CadastrarUsuario` | `CadastrarUsuarioRequest{login, nome, senha}` | `Usuario` | Gateway (`POST /auth/cadastro`) | `INSERT` em `usuarios` com o hash bcrypt da senha | `INVALID_ARGUMENT`, `ALREADY_EXISTS` |
+| `VerificarCredenciais` | `VerificarCredenciaisRequest{login, senha}` | `Usuario` | Gateway (`POST /auth/login`) | `SELECT` pelo login e `bcrypt.checkpw` | `UNAUTHENTICATED` |
+
+`Usuario`:
+
+| Campo | Tipo | Tag | Observacao |
+|---|---|---|---|
+| `id` | string | 1 | UUID4 gerado pelo servico |
+| `login` | string | 2 | normalizado para minusculo |
+| `nome` | string | 3 | |
+| `criado_em` | string | 4 | ISO 8601 com fuso |
+| `papel` | string | 5 | `cliente` (cadastro pela API) ou `cozinha` |
+
+- **A senha nunca volta.** Nenhuma mensagem de resposta tem senha nem hash, e o
+  log do servico nao imprime a senha.
+- **Mesma mensagem para login inexistente e senha errada** (`Login ou senha
+  invalidos.`): a resposta nao revela quais logins existem.
+- **Quem emite o token e o Gateway.** O servico so confirma as credenciais e
+  devolve o `Usuario`; o Gateway monta o JWT com `id`, `login`, `nome` e `papel`.
 
 ## `proto/catalogo.proto` - `catalogo.CatalogoService`
 
@@ -72,14 +102,17 @@ python scripts/gerar_stubs.py
 
 ## Inspecionar os servicos com grpcurl
 
-Os dois servidores tem *reflection* habilitado. De dentro da rede do compose
-(ou da VM, com as portas temporariamente publicadas):
+Os tres servidores tem *reflection* habilitado. As portas sao publicadas so em
+`127.0.0.1` da maquina onde rodam (na VM `servidor-delivery`, em `0.0.0.0`, mas o
+firewall so aceita a VM do Gateway). Na maquina local ou dentro da VM:
 
 ```bash
+grpcurl -plaintext localhost:9092 list
+grpcurl -plaintext -d '{"login":"professor","senha":"delivery2026"}' localhost:9092 usuarios.UsuarioService/VerificarCredenciais
 grpcurl -plaintext localhost:9091 list
 grpcurl -plaintext -d '{"codigos":["PR01","BE02"]}' localhost:9091 catalogo.CatalogoService/ConsultarItens
 grpcurl -plaintext -d '{"limite":3}' localhost:9090 pedidos.PedidoService/ListarPedidos
 ```
 
-Na configuracao padrao as portas 9090 e 9091 **nao** sao publicadas: so o
-Gateway e acessivel de fora.
+De fora (internet) as portas 9090-9092 nao respondem: so o Gateway e o frontend
+sao publicos.

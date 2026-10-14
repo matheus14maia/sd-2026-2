@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Arquitetura do delivery: o navegador baixa o frontend da VM delivery-frontend e chama direto o API Gateway na VM delivery-gateway, que valida o JWT e o payload e fala gRPC pela rede interna da VPC com os microsservicos Usuarios, Catalogo e Pedidos na VM servidor-delivery; Pedidos consulta o Catalogo por gRPC e os tres gravam no PostgreSQL do Cloud SQL." font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d2329"/>
+    </marker>
+    <marker id="seta-vermelha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b42318"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="720" fill="#ffffff"/>
+
+  <!-- titulo -->
+  <text x="40" y="44" font-size="24" font-weight="700" fill="#1d2329">Hell's Kitchen Delivery: arquitetura de microsservicos no GCP</text>
+  <text x="40" y="68" font-size="14" fill="#4a5560">Frontend React -> API Gateway FastAPI (JWT, validacao, JSON -> Protobuf) -> 3 microsservicos gRPC -> PostgreSQL no Cloud SQL</text>
+
+  <!-- VPC -->
+  <rect x="236" y="92" width="694" height="596" rx="14" fill="#f4f6f8" stroke="#8a96a2" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="256" y="118" font-size="13" font-weight="700" fill="#4a5560">Projeto GCP, rede VPC default, zona us-central1-a</text>
+
+  <!-- Navegador -->
+  <rect x="34" y="300" width="166" height="132" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <rect x="34" y="300" width="166" height="26" rx="10" fill="#1d2329"/>
+  <rect x="34" y="314" width="166" height="12" fill="#1d2329"/>
+  <circle cx="50" cy="313" r="4" fill="#e8ecef"/><circle cx="64" cy="313" r="4" fill="#e8ecef"/><circle cx="78" cy="313" r="4" fill="#e8ecef"/>
+  <text x="117" y="358" font-size="17" font-weight="700" fill="#1d2329" text-anchor="middle">Navegador</text>
+  <text x="117" y="380" font-size="12.5" fill="#4a5560" text-anchor="middle">notebook / celular</text>
+  <text x="117" y="400" font-size="12.5" fill="#4a5560" text-anchor="middle">token JWT na sessao</text>
+
+  <!-- VM frontend -->
+  <rect x="270" y="138" width="250" height="112" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <text x="286" y="162" font-size="12" font-weight="700" fill="#4a5560">VM delivery-frontend</text>
+  <text x="286" y="190" font-size="18" font-weight="700" fill="#1d2329">Frontend React</text>
+  <text x="286" y="212" font-size="12.5" fill="#4a5560">nginx :80, build do Vite</text>
+  <text x="286" y="232" font-size="12.5" fill="#4a5560">/config.js = URL do Gateway</text>
+
+  <!-- VM gateway -->
+  <rect x="270" y="296" width="250" height="372" rx="10" fill="#ffffff" stroke="#b42318" stroke-width="2.5"/>
+  <text x="286" y="320" font-size="12" font-weight="700" fill="#4a5560">VM delivery-gateway</text>
+  <text x="286" y="348" font-size="18" font-weight="700" fill="#1d2329">API Gateway (FastAPI)</text>
+  <!-- camadas -->
+  <g font-size="12.5">
+    <rect x="286" y="362" width="218" height="34" rx="5" fill="#e8ecef"/>
+    <text x="298" y="384" fill="#1d2329">CORS</text>
+    <rect x="286" y="402" width="218" height="34" rx="5" fill="#e8ecef"/>
+    <text x="298" y="424" fill="#1d2329">Log da requisicao</text>
+    <rect x="286" y="442" width="218" height="34" rx="5" fill="#fbe4e1"/>
+    <text x="298" y="464" fill="#1d2329">MiddlewareJWT</text>
+    <text x="492" y="464" fill="#b42318" font-weight="700" text-anchor="end">401</text>
+    <rect x="286" y="482" width="218" height="34" rx="5" fill="#fbe4e1"/>
+    <text x="298" y="504" fill="#1d2329">Papel cozinha</text>
+    <text x="492" y="504" fill="#b42318" font-weight="700" text-anchor="end">403</text>
+    <rect x="286" y="522" width="218" height="34" rx="5" fill="#fdf0d8"/>
+    <text x="298" y="544" fill="#1d2329">Validacao Pydantic</text>
+    <text x="492" y="544" fill="#8a5200" font-weight="700" text-anchor="end">400</text>
+    <rect x="286" y="562" width="218" height="34" rx="5" fill="#e3f1e8"/>
+    <text x="298" y="584" fill="#1d2329">Rota: JSON -> Protobuf</text>
+    <text x="492" y="584" fill="#2f7a4d" font-weight="700" text-anchor="end">200/201</text>
+    <text x="286" y="620" fill="#4a5560">emite o JWT (HS256) no</text>
+    <text x="286" y="638" fill="#4a5560">POST /auth/login</text>
+  </g>
+  <!-- seta entre camadas -->
+  <line x1="276" y1="372" x2="276" y2="590" stroke="#4a5560" stroke-width="1.5" marker-end="url(#seta)"/>
+
+  <!-- VM servicos -->
+  <rect x="618" y="138" width="292" height="530" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <text x="634" y="162" font-size="12" font-weight="700" fill="#4a5560">VM servidor-delivery (34.60.57.59)</text>
+  <text x="634" y="186" font-size="12.5" fill="#4a5560">microsservicos gRPC, sem porta publica</text>
+
+  <rect x="640" y="208" width="214" height="96" rx="8" fill="#f4f6f8" stroke="#1d2329" stroke-width="1.5"/>
+  <text x="656" y="236" font-size="17" font-weight="700" fill="#1d2329">Usuarios :9092</text>
+  <text x="656" y="258" font-size="12.5" fill="#4a5560">CadastrarUsuario</text>
+  <text x="656" y="278" font-size="12.5" fill="#4a5560">VerificarCredenciais (bcrypt)</text>
+
+  <rect x="640" y="356" width="214" height="96" rx="8" fill="#f4f6f8" stroke="#1d2329" stroke-width="1.5"/>
+  <text x="656" y="384" font-size="17" font-weight="700" fill="#1d2329">Catalogo :9091</text>
+  <text x="656" y="406" font-size="12.5" fill="#4a5560">ListarItens, ConsultarItens</text>
+  <text x="656" y="426" font-size="12.5" fill="#4a5560">AtualizarItem</text>
+
+  <rect x="640" y="530" width="214" height="110" rx="8" fill="#f4f6f8" stroke="#1d2329" stroke-width="1.5"/>
+  <text x="656" y="558" font-size="17" font-weight="700" fill="#1d2329">Pedidos :9090</text>
+  <text x="656" y="580" font-size="12.5" fill="#4a5560">CriarPedido, ObterPedido</text>
+  <text x="656" y="600" font-size="12.5" fill="#4a5560">ListarPedidos</text>
+  <text x="656" y="620" font-size="12.5" fill="#4a5560">AtualizarStatus</text>
+
+  <!-- Pedidos -> Catalogo -->
+  <line x1="820" y1="530" x2="820" y2="454" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="828" y="488" font-size="12" font-weight="700" fill="#1d2329">gRPC</text>
+  <text x="828" y="504" font-size="12" fill="#4a5560">Consultar-</text>
+  <text x="828" y="518" font-size="12" fill="#4a5560">Itens</text>
+
+  <!-- Cloud SQL -->
+  <rect x="980" y="138" width="262" height="502" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <text x="996" y="162" font-size="12" font-weight="700" fill="#4a5560">Cloud SQL (gerenciado)</text>
+  <text x="996" y="188" font-size="18" font-weight="700" fill="#1d2329">PostgreSQL 16</text>
+  <text x="996" y="208" font-size="12.5" fill="#4a5560">delivery-postgres, banco delivery</text>
+  <g font-size="13">
+    <rect x="996" y="234" width="230" height="44" rx="6" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="1010" y="261" fill="#1d2329">usuarios (hash bcrypt, papel)</text>
+    <rect x="996" y="382" width="230" height="44" rx="6" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="1010" y="409" fill="#1d2329">itens_cardapio</text>
+    <rect x="996" y="553" width="230" height="64" rx="6" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="1010" y="580" fill="#1d2329">pedidos</text>
+    <text x="1010" y="602" fill="#1d2329">itens_pedido</text>
+  </g>
+  <text x="996" y="634" font-size="12" fill="#4a5560">aceita so o IP 34.60.57.59/32</text>
+
+  <!-- 1. navegador -> frontend -->
+  <polyline points="186,300 186,194 266,194" fill="none" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="44" y="232" font-size="12.5" font-weight="700" fill="#1d2329">1. GET /  (HTTP :80)</text>
+  <text x="44" y="250" font-size="12" fill="#4a5560">HTML, JS, config.js</text>
+
+  <!-- 2. navegador -> gateway -->
+  <line x1="200" y1="372" x2="266" y2="372" stroke="#b42318" stroke-width="3" marker-end="url(#seta-vermelha)"/>
+  <text x="44" y="462" font-size="12.5" font-weight="700" fill="#b42318">2. HTTP/JSON :8000</text>
+  <text x="44" y="480" font-size="12" fill="#b42318">Authorization: Bearer</text>
+  <text x="44" y="498" font-size="12" fill="#4a5560">o navegador nunca fala</text>
+  <text x="44" y="514" font-size="12" fill="#4a5560">com os microsservicos</text>
+
+  <!-- gateway -> servicos (gRPC) -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <polyline points="520,585 572,585 572,256 636,256" marker-end="url(#seta)"/>
+    <polyline points="572,404 636,404" marker-end="url(#seta)"/>
+    <polyline points="572,585 636,585" marker-end="url(#seta)"/>
+  </g>
+  <circle cx="572" cy="585" r="4" fill="#1d2329"/>
+  <circle cx="572" cy="404" r="4" fill="#1d2329"/>
+  <rect x="530" y="466" width="84" height="64" fill="#f4f6f8"/>
+  <text x="572" y="484" font-size="12.5" font-weight="700" fill="#1d2329" text-anchor="middle">gRPC</text>
+  <text x="572" y="500" font-size="12" fill="#4a5560" text-anchor="middle">Protobuf</text>
+  <text x="572" y="516" font-size="12" fill="#4a5560" text-anchor="middle">rede interna</text>
+
+  <!-- servicos -> banco (SQL) -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <line x1="854" y1="256" x2="992" y2="256" marker-end="url(#seta)"/>
+    <line x1="854" y1="404" x2="992" y2="404" marker-end="url(#seta)"/>
+    <line x1="854" y1="585" x2="992" y2="585" marker-end="url(#seta)"/>
+  </g>
+    <text x="945" y="330" font-size="12.5" font-weight="700" fill="#1d2329" text-anchor="middle">SQL</text>
+  <text x="945" y="346" font-size="12" fill="#4a5560" text-anchor="middle">TLS</text>
+
+  <!-- firewall -->
+  <g font-size="12">
+    <text x="40" y="700" font-weight="700" fill="#1d2329">Firewall:</text>
+    <text x="104" y="700" fill="#4a5560">tcp:80 aberta para o frontend; tcp:8000 aberta para o Gateway; tcp:9090-9092 aceita so a VM com a tag delivery-gateway.</text>
+  </g>
+</svg>
