@@ -72,7 +72,7 @@ SSH como `maia_matheus` e roda `scripts/gcp/preparar_vm.sh` com o papel da VM:
 
 | VM | Papel | O que o `preparar_vm.sh` grava no `.env` |
 |---|---|---|
-| `servidor-delivery` | `servicos` | `COMPOSE_PROFILES=servicos`, `GRPC_BIND=0.0.0.0` (mantem os `DB_*` que ja estao la) e remove o container `delivery-gateway` antigo |
+| `servidor-delivery` | `servicos` | `COMPOSE_PROFILES=servicos`, `GRPC_BIND=0.0.0.0`, `DEMO_LOGIN=professor` e um `DEMO_SENHA` gerado na primeira vez (mantem os `DB_*` que ja estao la) e remove o container `delivery-gateway` antigo |
 | `delivery-gateway` | `gateway` | `COMPOSE_PROFILES=gateway`, `USUARIOS_HOST`/`CATALOGO_HOST`/`PEDIDOS_HOST` = DNS interno do `servidor-delivery`, `CORS_ORIGENS=http://<IP do frontend>` e um `JWT_SEGREDO` gerado na primeira vez |
 | `delivery-frontend` | `frontend` | `COMPOSE_PROFILES=frontend`, `API_URL=http://<IP do Gateway>:8000` |
 
@@ -83,8 +83,17 @@ rodar de novo a cada atualizacao do codigo; para uma VM so:
 powershell -ExecutionPolicy Bypass -File scripts\gcp\implantar.ps1 -Somente gateway
 ```
 
-- O `.env` de cada VM fica so na VM (esta no `.gitignore`). A senha do banco esta
-  so no `.env` do `servidor-delivery`, e o `JWT_SEGREDO` so no do Gateway.
+- O `.env` de cada VM fica so na VM (esta no `.gitignore`). A senha do banco e a
+  do usuario `professor` (papel `cozinha`) estao so no `.env` do
+  `servidor-delivery`, e o `JWT_SEGREDO` so no do Gateway. Para ver a senha da
+  cozinha:
+
+  ```powershell
+  gcloud compute ssh maia_matheus@servidor-delivery --zone us-central1-a --project sistemas-distribuidos-505422 --command "grep DEMO_SENHA ~/sd-2026-2/.env"
+  ```
+
+  Os scripts `ligar.ps1` e `status.ps1` fazem essa leitura sozinhos e guardam a
+  senha em `$env:DEMO_SENHA` na sessao do PowerShell.
 - A branch padrao e `trabalho-parte2`; depois do merge, use `-Branch main`.
 
 ## Etapa 3 - Conferir
@@ -108,7 +117,7 @@ Saida esperada (os IPs das VMs novas aparecem na tabela de recursos):
 Teste completo a partir do notebook:
 
 ```powershell
-python scripts\testar_gateway.py --url http://IP_GATEWAY:8000 --resumido
+python scripts\testar_gateway.py --url http://IP_GATEWAY:8000 --resumido   # usa $env:DEMO_SENHA
 ```
 
 Deve terminar com `Todos os cenarios passaram.`
@@ -197,6 +206,8 @@ DB_NAME=delivery
 DB_USER=postgres
 DB_PASSWORD=SENHA_DO_BANCO
 DB_SSLMODE=require
+DEMO_LOGIN=professor
+DEMO_SENHA=gerada-pelo-preparar_vm
 ```
 
 ## Encerrar de vez (depois da entrega)

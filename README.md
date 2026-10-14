@@ -50,15 +50,16 @@ roda em uma VM propria.
 Sem `Authorization: Bearer <token>` valido, toda rota marcada com token responde
 **401** antes de qualquer chamada gRPC. Swagger em `http://HOST:8000/docs`.
 
-Conta de demonstracao (papel `cozinha`): login **`professor`**, senha
-**`delivery2026`**. Quem se cadastra pela API entra com papel `cliente`.
+Quem se cadastra pela API entra com papel `cliente`. O usuario com papel
+`cozinha` (login `professor`) e criado pelo migrador com a senha de `DEMO_SENHA`,
+que fica so no `.env` da maquina: nenhuma senha esta no repositorio.
 
 ## Comecando rapido (local, tudo em containers)
 
 ```bash
-cp .env.exemplo .env
+cp .env.exemplo .env          # troque DEMO_SENHA
 docker compose up -d --build
-python scripts/testar_gateway.py --url http://localhost:8000
+DEMO_SENHA=<a senha do .env> python scripts/testar_gateway.py --url http://localhost:8000
 ```
 
 - O `.env.exemplo` ja vem com `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`.

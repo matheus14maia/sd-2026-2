@@ -48,6 +48,9 @@ case "$PAPEL" in
     grep -q '^DB_HOST=' .env || { echo "ERRO: .env sem DB_HOST (ver .env.exemplo)"; exit 1; }
     definir COMPOSE_PROFILES servicos
     definir GRPC_BIND 0.0.0.0
+    # Senha do usuario da cozinha: gerada uma vez e guardada so nesta VM.
+    grep -q '^DEMO_LOGIN=.' .env || definir DEMO_LOGIN professor
+    grep -q '^DEMO_SENHA=.' .env || definir DEMO_SENHA "$(openssl rand -hex 8)"
     # O Gateway saiu desta VM: remove o container antigo, se ainda existir.
     sudo docker rm -f delivery-gateway >/dev/null 2>&1 || true
     ;;

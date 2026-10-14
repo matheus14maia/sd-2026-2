@@ -47,6 +47,9 @@ services:
     environment:
       <<: *banco
       NOME_SERVICO: migrador
+      # Usuario da cozinha: senha so no .env da maquina, nunca no repositorio.
+      DEMO_LOGIN: "${DEMO_LOGIN:-professor}"
+      DEMO_SENHA: "${DEMO_SENHA:-}"
     restart: on-failure
 
   usuarios:

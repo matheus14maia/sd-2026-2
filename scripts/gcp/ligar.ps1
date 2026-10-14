@@ -24,8 +24,9 @@ Etapa "3/4 Gateway -> gRPC -> banco"
 $null = Aguardar "Gateway em $urlGateway/saude" {
     (Invoke-WebRequest "$urlGateway/saude" -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200
 }
+$senha = SenhaCozinha
 $null = Aguardar "login (Usuarios) e cardapio (Catalogo) lendo o Cloud SQL" {
-    $corpo = '{"login":"professor","senha":"delivery2026"}'
+    $corpo = @{ login = "professor"; senha = $senha } | ConvertTo-Json -Compress
     $sessao = Invoke-RestMethod "$urlGateway/auth/login" -Method Post -Body $corpo -ContentType "application/json" -TimeoutSec 8
     $cardapio = Invoke-RestMethod "$urlGateway/cardapio" -Headers @{ Authorization = "Bearer $($sessao.access_token)" } -TimeoutSec 8
     Write-Host "   $($cardapio.itens.Count) itens no cardapio"
@@ -40,3 +41,5 @@ $null = Aguardar "frontend em $urlFrontend" {
 Etapa "Tudo no ar em $([int]((Get-Date) - $inicio).TotalSeconds) s"
 Write-Host "   Frontend: $urlFrontend" -ForegroundColor Green
 Write-Host "   Gateway:  $urlGateway/docs" -ForegroundColor Green
+# A senha da cozinha nao e impressa: esta tela pode estar no projetor.
+Write-Host "   Senha da cozinha nesta sessao: `$env:DEMO_SENHA" -ForegroundColor Green

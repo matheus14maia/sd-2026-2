@@ -108,7 +108,7 @@ firewall so aceita a VM do Gateway). Na maquina local ou dentro da VM:
 
 ```bash
 grpcurl -plaintext localhost:9092 list
-grpcurl -plaintext -d '{"login":"professor","senha":"delivery2026"}' localhost:9092 usuarios.UsuarioService/VerificarCredenciais
+grpcurl -plaintext -d '{"login":"professor","senha":"SENHA_DO_ENV"}' localhost:9092 usuarios.UsuarioService/VerificarCredenciais
 grpcurl -plaintext localhost:9091 list
 grpcurl -plaintext -d '{"codigos":["PR01","BE02"]}' localhost:9091 catalogo.CatalogoService/ConsultarItens
 grpcurl -plaintext -d '{"limite":3}' localhost:9090 pedidos.PedidoService/ListarPedidos

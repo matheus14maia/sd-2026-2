@@ -19,10 +19,7 @@ INSERT INTO itens_cardapio (codigo, nome, descricao, categoria, preco, disponive
     ('SO02', 'Petit gateau',            'Com sorvete de creme',                               'Sobremesas', 27.90, TRUE)
 ON CONFLICT (codigo) DO NOTHING;
 
--- Usuario de demonstracao (login professor, senha delivery2026), com papel
--- cozinha. Vai so o hash bcrypt. Quem se cadastra por POST /auth/cadastro entra
--- como cliente.
-INSERT INTO usuarios (id, login, nome, senha_hash, papel) VALUES
-    ('6b1f6c2e-3f4a-4d8e-9c1a-2b7d5e8f0a11', 'professor', 'Professor',
-     '$2b$12$w2cRun.CAPFEXckU4b4ZGOxrTDwfhrao694Uqsh39x3fTVfo94gvG', 'cozinha')
-ON CONFLICT (login) DO UPDATE SET papel = EXCLUDED.papel;
+-- Nenhum usuario e criado aqui: o repositorio e publico, e um usuario com senha
+-- conhecida daria a qualquer um o papel cozinha no sistema no ar. O usuario da
+-- cozinha e criado pelo migrador a partir de DEMO_LOGIN/DEMO_SENHA do .env
+-- (scripts/migrar_banco.py). Quem se cadastra por POST /auth/cadastro e cliente.

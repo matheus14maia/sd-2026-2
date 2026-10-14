@@ -66,7 +66,8 @@ CORSMiddleware -> log -> MiddlewareJWT (401) -> exigir_papel (403) -> Pydantic (
 ## Papeis (403)
 
 Quem se cadastra por `POST /auth/cadastro` entra com papel `cliente`. O usuario
-de demonstracao `professor` tem papel `cozinha`. As rotas que alteram dados da
+`professor`, com papel `cozinha`, e criado pelo migrador com a senha de
+`DEMO_SENHA` do `.env` (no GCP, gerada na VM dos microsservicos). As rotas que alteram dados da
 operacao (`PATCH /cardapio/{codigo}` e `PATCH /pedidos/{id}/status`) usam a
 dependencia `exigir_papel("cozinha")`. Token valido de outro papel responde
 **403**:
@@ -164,7 +165,7 @@ curl -i "$URL/cardapio"
 
 # login e token
 TOKEN=$(curl -s -X POST "$URL/auth/login" -H "Content-Type: application/json" \
-  -d '{"login":"professor","senha":"delivery2026"}' | jq -r .access_token)
+  -d "{\"login\":\"professor\",\"senha\":\"$DEMO_SENHA\"}" | jq -r .access_token)
 AUTH="Authorization: Bearer $TOKEN"
 
 curl -i "$URL/cardapio?categoria=Pratos" -H "$AUTH"
@@ -188,7 +189,7 @@ para ver o status):
 ```powershell
 $URL = "http://localhost:8000"
 $sessao = Invoke-RestMethod "$URL/auth/login" -Method Post -ContentType "application/json" `
-  -Body '{"login":"professor","senha":"delivery2026"}'
+  -Body (@{ login = "professor"; senha = $env:DEMO_SENHA } | ConvertTo-Json)
 $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```

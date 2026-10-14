@@ -29,6 +29,15 @@ function Existe([scriptblock]$Comando) {
     return ($LASTEXITCODE -eq 0)
 }
 
+function SenhaCozinha {
+    # A senha do usuario da cozinha so existe no .env da VM dos microsservicos.
+    if (-not $env:DEMO_SENHA) {
+        $linha = G compute ssh "$Usuario@$VmServicos" --zone $Zona --command "grep '^DEMO_SENHA=' ~/sd-2026-2/.env" 2>$null
+        $env:DEMO_SENHA = ("$linha" -replace '^DEMO_SENHA=', '').Trim()
+    }
+    return $env:DEMO_SENHA
+}
+
 function EnderecoDe([string]$NomeIp) {
     (G compute addresses describe $NomeIp --region $Regiao --format="value(address)" 2>$null)
 }

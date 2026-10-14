@@ -64,4 +64,4 @@ class LoginEntrada(Entrada):
     login: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)] = Field(
         examples=["professor"]
     )
-    senha: Annotated[str, StringConstraints(min_length=1, max_length=72)] = Field(examples=["delivery2026"])
+    senha: Annotated[str, StringConstraints(min_length=1, max_length=72)] = Field(examples=["sua-senha"])

@@ -13,6 +13,9 @@ docker compose up -d --build
 docker compose ps
 ```
 
+Antes de subir, troque `DEMO_SENHA` no `.env`: e a senha do usuario `professor`
+(papel `cozinha`), que o migrador cria. Nenhuma senha fica no repositorio.
+
 O `.env.exemplo` ja traz `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`,
 entao o `docker compose up` sobe todos os papeis. Sem o `.env`, passe os
 profiles na linha de comando:
@@ -30,7 +33,7 @@ Servicos esperados:
 | `delivery-gateway` | Up | `0.0.0.0:8000->8000/tcp` |
 | `delivery-frontend` | Up | `0.0.0.0:80->80/tcp` |
 
-- **Frontend:** `http://localhost` (conta `professor` / `delivery2026`).
+- **Frontend:** `http://localhost` (login `professor` com a `DEMO_SENHA` do `.env`, ou crie uma conta).
 - **Gateway:** `http://localhost:8000`, Swagger em `http://localhost:8000/docs`.
 - A porta 80 ocupada na maquina? Troque `FRONTEND_PORTA=3000` no `.env` e use
   `http://localhost:3000`.
@@ -43,6 +46,7 @@ Log do migrador (`docker compose logs migrador`):
 Migrando banco em postgres:5432/delivery (sslmode=disable)
   aplicando db/schema.sql
   aplicando db/seed.sql
+  usuario da cozinha: professor
 Banco pronto: 13 itens no cardapio, 0 pedidos, 1 usuarios.
 ```
 
@@ -52,12 +56,13 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 ## Testar
 
 ```bash
+export DEMO_SENHA=a-senha-do-.env      # PowerShell: $env:DEMO_SENHA="a-senha-do-.env"
 python scripts/testar_gateway.py --url http://localhost:8000 --resumido
 ```
 
 O script so usa a biblioteca padrao do Python, entao roda sem instalar nada. Ele
-faz login com o usuario de demonstracao, cria um usuario novo e passa por todos
-os status:
+faz login com o usuario da cozinha (senha em `DEMO_SENHA` ou `--senha`), cria um
+usuario novo e passa por todos os status:
 
 ```text
 OK  Gateway no ar (rota publica)  (esperado 200, recebido 200)

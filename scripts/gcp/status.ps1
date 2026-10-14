@@ -30,7 +30,7 @@ Testar "Sem token -> 401" {
     catch [System.Net.WebException] { [int]$_.Exception.Response.StatusCode }
 }
 Testar "Login + cardapio (gRPC + banco)" {
-    $corpo = '{"login":"professor","senha":"delivery2026"}'
+    $corpo = @{ login = "professor"; senha = (SenhaCozinha) } | ConvertTo-Json -Compress
     $sessao = Invoke-RestMethod "$urlGateway/auth/login" -Method Post -Body $corpo -ContentType "application/json" -TimeoutSec 8
     $c = Invoke-RestMethod "$urlGateway/cardapio" -Headers @{ Authorization = "Bearer $($sessao.access_token)" } -TimeoutSec 8
     "$($c.itens.Count) itens"

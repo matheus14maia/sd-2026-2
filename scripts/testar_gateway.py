@@ -7,8 +7,8 @@ sem instalar nada:
     python scripts/testar_gateway.py --url http://localhost:8000
     python scripts/testar_gateway.py --url http://IP_DA_VM:8000
 
-Primeiro faz login com o usuario de demonstracao e usa o token JWT em todas as
-rotas protegidas; os cenarios de 401 mandam token ausente, adulterado ou errado.
+Primeiro faz login com o usuario da cozinha (senha em DEMO_SENHA ou --senha) e
+usa o token JWT em todas as rotas protegidas; os cenarios de 401 mandam token ausente, adulterado ou errado.
 
 Cada cenario imprime o metodo, a rota, o status esperado, o status recebido e o
 corpo da resposta. Sai com codigo 1 se algum status vier diferente do esperado.
@@ -16,6 +16,7 @@ corpo da resposta. Sai com codigo 1 se algum status vier diferente do esperado.
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -47,9 +48,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default="http://localhost:8000")
     parser.add_argument("--resumido", action="store_true", help="nao imprime o corpo das respostas")
-    parser.add_argument("--login", default="professor")
-    parser.add_argument("--senha", default="delivery2026")
+    parser.add_argument("--login", default=os.getenv("DEMO_LOGIN", "professor"))
+    parser.add_argument("--senha", default=os.getenv("DEMO_SENHA", ""),
+                        help="senha do usuario da cozinha (padrao: variavel DEMO_SENHA)")
     args = parser.parse_args()
+    if not args.senha:
+        parser.error("informe a senha da cozinha com --senha ou na variavel DEMO_SENHA")
     base = args.url.rstrip("/")
     falhas = 0
     bearer = SEM_TOKEN

@@ -43,7 +43,7 @@ export default function Login() {
           sessão usa um token JWT emitido pelo Gateway.
         </p>
         <p className="login-dica">
-          Conta de demonstração: <strong>professor</strong> / <strong>delivery2026</strong>
+          Ainda não tem conta? Use <strong>Criar conta</strong>: leva menos de um minuto.
         </p>
       </div>
 

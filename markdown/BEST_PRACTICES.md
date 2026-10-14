@@ -148,9 +148,14 @@ nada que nao esteja no contrato.
   como valor padrao permitiria a qualquer leitor do GitHub assinar tokens.
 - **Senha so como hash bcrypt, e so no Usuarios.** Nenhuma resposta nem log leva
   a senha; a mesma mensagem cobre login inexistente e senha errada.
-- **Quem se cadastra pela API e `cliente`.** O papel `cozinha` so vem do seed
-  (`professor`). O seed usa `ON CONFLICT (login) DO UPDATE SET papel` para
-  garantir o papel mesmo em banco que ja tinha o usuario.
+- **Quem se cadastra pela API e `cliente`.** O papel `cozinha` so existe para o
+  usuario que o migrador cria a partir de `DEMO_LOGIN`/`DEMO_SENHA` do `.env`
+  (`garantir_usuario_cozinha` em `scripts/migrar_banco.py`). **Nunca ponha
+  usuario com senha conhecida no `db/seed.sql`:** o repositorio e publico e o
+  sistema fica no ar, entao qualquer leitor teria o papel `cozinha`. No GCP a
+  senha e gerada pelo `preparar_vm.sh` (`openssl rand`) e fica so no `.env` do
+  `servidor-delivery`; os scripts do notebook a leem por SSH (`SenhaCozinha`).
+  A senha nao aparece na tela de login, nos slides nem na saida do `ligar.ps1`.
 - **Coluna nova em tabela existente vai em `ALTER TABLE ... ADD COLUMN IF NOT
   EXISTS`**, separado do `CREATE TABLE IF NOT EXISTS`: o `CREATE` nao faz nada
   quando a tabela ja existe, e o Cloud SQL ja tinha `usuarios` sem `papel`.
