@@ -63,7 +63,9 @@ Etapa "Tags da VM $VmServicos (so microsservicos, sem portas publicas)"
 # delivery-servicos: recebe gRPC so do Gateway. Sai a portas-trabalho-sd (regra
 # trabalho-sd, aberta para a internet) e as de HTTP/HTTPS, que ela nao usa mais.
 G compute instances add-tags $VmServicos --zone $Zona --tags delivery-servicos
-G compute instances remove-tags $VmServicos --zone $Zona --tags portas-trabalho-sd,http-server,https-server
+# Lista entre aspas: sem elas o PowerShell transforma a,b,c em array e o gcloud
+# recebe as tags como argumentos separados ("No change requested").
+G compute instances remove-tags $VmServicos --zone $Zona --tags "portas-trabalho-sd,http-server,https-server"
 
 Etapa "Resumo"
 G compute instances list --filter="name~'delivery'" `

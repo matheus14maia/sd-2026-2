@@ -9,8 +9,8 @@ cada VM escolhe o que ela sobe.
 
 | Recurso | Nome | Detalhe |
 |---|---|---|
-| VM do frontend | `delivery-frontend` | `e2-small`, Debian 12, tag `delivery-frontend`, IP estatico `ip-delivery-frontend`, profile `frontend` (nginx na 80) |
-| VM do Gateway | `delivery-gateway` | `e2-small`, Debian 12, tag `delivery-gateway`, IP estatico `ip-delivery-gateway`, profile `gateway` (FastAPI na 8000) |
+| VM do frontend | `delivery-frontend` | `e2-small`, Debian 12, tag `delivery-frontend`, IP estatico `ip-delivery-frontend` = `34.72.228.145`, profile `frontend` (nginx na 80) |
+| VM do Gateway | `delivery-gateway` | `e2-small`, Debian 12, tag `delivery-gateway`, IP estatico `ip-delivery-gateway` = `34.132.172.125`, profile `gateway` (FastAPI na 8000) |
 | VM dos microsservicos | `servidor-delivery` | `e2-small`, Debian, tag `delivery-servicos`, IP estatico `ip-servidor-delivery` = `34.60.57.59`, profile `servicos` (usuarios 9092, catalogo 9091, pedidos 9090, migrador) |
 | Banco | `delivery-postgres` (Cloud SQL) | PostgreSQL 16, Enterprise, `db-f1-micro`, IP publico `34.63.128.138`, banco `delivery`, rede autorizada `34.60.57.59/32` |
 
@@ -110,8 +110,8 @@ Saida esperada (os IPs das VMs novas aparecem na tabela de recursos):
 
 ```text
 == Camadas
-   Frontend (http://IP_FRONTEND)       OK  200
-   config.js do frontend               OK  window.API_URL = 'http://IP_GATEWAY:8000';
+   Frontend (http://34.72.228.145)       OK  200
+   config.js do frontend               OK  window.API_URL = 'http://34.132.172.125:8000';
    Gateway /saude                      OK  ok
    Sem token -> 401                    OK  401
    Login + cardapio (gRPC + banco)     OK  13 itens
@@ -121,7 +121,7 @@ Saida esperada (os IPs das VMs novas aparecem na tabela de recursos):
 Teste completo a partir do notebook:
 
 ```powershell
-python scripts\testar_gateway.py --url http://IP_GATEWAY:8000 --resumido   # usa $env:DEMO_SENHA
+python scripts\testar_gateway.py --url http://34.132.172.125:8000 --resumido   # usa $env:DEMO_SENHA
 ```
 
 Deve terminar com `Todos os cenarios passaram.`
@@ -174,7 +174,7 @@ Ou pelo botao **SSH** do Console (entra como `maia_matheus`) e
 |---|---|---|
 | `503` com `UNAVAILABLE` em toda rota com token | Gateway nao alcanca o `servidor-delivery` | VM parada, `GRPC_BIND` sem `0.0.0.0` no `.env` dela, ou firewall `delivery-grpc-interno` / tags faltando (`status.ps1` e `gcloud compute instances list --format="table(name,tags.items.list())"`) |
 | `Banco indisponivel (tentativa N/30)` nos logs do `servidor-delivery` | Cloud SQL ainda ligando | esperar `RUNNABLE`; o `ligar.ps1` ja espera |
-| Frontend abre, mas toda acao da "Gateway fora do ar" | `API_URL` errado no `.env` do frontend, ou Gateway parado | `curl http://IP_FRONTEND/config.js` e `curl http://IP_GATEWAY:8000/saude` |
+| Frontend abre, mas toda acao da "Gateway fora do ar" | `API_URL` errado no `.env` do frontend, ou Gateway parado | `curl http://34.72.228.145/config.js` e `curl http://34.132.172.125:8000/saude` |
 | No navegador: erro de CORS no console | `CORS_ORIGENS` do Gateway nao tem a URL exata do frontend | `implantar.ps1 -Somente gateway` regrava com o IP do frontend |
 | Todo mundo deslogado depois de religar | `JWT_SEGREDO` saiu do `.env` do Gateway | conferir o `.env`; o `preparar_vm.sh` so gera o segredo se ele nao existir |
 | `curl` na 8000 ou na 80 da timeout | VM parada ou sem a tag da regra | `gcloud compute instances describe NOME --zone us-central1-a --format="get(tags.items)"` |

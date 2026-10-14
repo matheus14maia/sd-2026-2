@@ -21,6 +21,13 @@ roda em uma VM propria.
                               [Cloud SQL delivery-postgres]  usuarios, itens_cardapio, pedidos, itens_pedido
 ```
 
+No GCP (ligado so para demonstracao, com `scripts/gcp/ligar.ps1`):
+
+| O que | Endereco |
+|---|---|
+| Frontend | `http://34.72.228.145` |
+| API Gateway (Swagger) | `http://34.132.172.125:8000/docs` |
+
 ## Stack
 
 | Camada | Tecnologia |
