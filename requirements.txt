@@ -12,3 +12,7 @@ pydantic==2.13.5
 # Acesso ao PostgreSQL pelos microsservicos.
 psycopg[binary,pool]==3.3.6
 psycopg-pool==3.3.3
+
+# Autenticacao: hash de senha (Usuarios) e token JWT (Gateway).
+bcrypt==4.2.1
+PyJWT==2.10.1

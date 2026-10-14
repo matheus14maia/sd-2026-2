@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cria as tabelas e carrega o cardapio inicial no PostgreSQL.
+"""Cria as tabelas e carrega o cardapio e o usuario de demonstracao no PostgreSQL.
 
 Aplica db/schema.sql e db/seed.sql, nessa ordem, numa unica transacao. Os dois
 arquivos sao idempotentes, entao o script pode rodar a cada deploy: no compose
@@ -33,8 +33,12 @@ def main() -> int:
 
         itens = conexao.execute("SELECT count(*) FROM itens_cardapio").fetchone()[0]
         pedidos = conexao.execute("SELECT count(*) FROM pedidos").fetchone()[0]
+        usuarios = conexao.execute("SELECT count(*) FROM usuarios").fetchone()[0]
 
-    print("Banco pronto: %d itens no cardapio, %d pedidos." % (itens, pedidos), flush=True)
+    print(
+        "Banco pronto: %d itens no cardapio, %d pedidos, %d usuarios." % (itens, pedidos, usuarios),
+        flush=True,
+    )
     return 0
 
 

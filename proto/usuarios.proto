@@ -1,0 +1,35 @@
+// Contrato do microsservico de Usuarios do delivery.
+//
+// Usuarios e dono da tabela usuarios do PostgreSQL: guarda o login, o nome e o
+// hash bcrypt da senha. A senha nunca volta em nenhuma resposta. Quem emite o
+// token JWT e o Gateway, depois que este servico confirma as credenciais.
+syntax = "proto3";
+
+package usuarios;
+
+service UsuarioService {
+  // Cria um usuario. Login repetido e recusado com ALREADY_EXISTS.
+  rpc CadastrarUsuario(CadastrarUsuarioRequest) returns (Usuario);
+
+  // Confere login e senha. Credencial errada responde UNAUTHENTICATED, com a
+  // mesma mensagem para login inexistente e senha errada.
+  rpc VerificarCredenciais(VerificarCredenciaisRequest) returns (Usuario);
+}
+
+message Usuario {
+  string id = 1;           // UUID
+  string login = 2;
+  string nome = 3;
+  string criado_em = 4;    // ISO 8601
+}
+
+message CadastrarUsuarioRequest {
+  string login = 1;
+  string nome = 2;
+  string senha = 3;
+}
+
+message VerificarCredenciaisRequest {
+  string login = 1;
+  string senha = 2;
+}
