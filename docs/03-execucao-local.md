@@ -13,8 +13,10 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Antes de subir, troque `DEMO_SENHA` no `.env`: e a senha do usuario `professor`
-(papel `cozinha`), que o migrador cria. Nenhuma senha fica no repositorio.
+Antes de subir, defina `DEMO_SENHA` no `.env` (vem vazia): e a senha do usuario
+`professor` (papel `cozinha`), que o migrador cria. Vazia ou igual a um valor que
+ja apareceu no repositorio, o migrador nao cria o usuario. Nenhuma senha fica no
+repositorio.
 
 O `.env.exemplo` ja traz `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`,
 entao o `docker compose up` sobe todos os papeis. Sem o `.env`, passe os

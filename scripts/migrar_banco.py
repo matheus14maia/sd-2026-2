@@ -28,12 +28,18 @@ from src.comum.banco import aguardar_banco, descricao_destino, parametros_conexa
 
 ARQUIVOS = (RAIZ / "db" / "schema.sql", RAIZ / "db" / "seed.sql")
 
+# Valores que ja apareceram no repositorio publico: nunca viram senha da cozinha.
+SENHAS_PUBLICAS = {"troque-esta-senha", "delivery2026", "senha-local-teste"}
+
 
 def garantir_usuario_cozinha(conexao: psycopg.Connection) -> None:
     login = os.getenv("DEMO_LOGIN", "professor").strip().lower()
     senha = os.getenv("DEMO_SENHA", "")
     if len(senha) < 6:
         print("  DEMO_SENHA ausente ou curta: usuario da cozinha nao criado.", flush=True)
+        return
+    if senha in SENHAS_PUBLICAS:
+        print("  DEMO_SENHA e um valor de exemplo publico: usuario da cozinha nao criado.", flush=True)
         return
 
     linha = conexao.execute("SELECT senha_hash FROM usuarios WHERE login = %s", (login,)).fetchone()
