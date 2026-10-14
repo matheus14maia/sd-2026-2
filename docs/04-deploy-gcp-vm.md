@@ -14,15 +14,19 @@ cada VM escolhe o que ela sobe.
 | VM dos microsservicos | `servidor-delivery` | `e2-small`, Debian, tag `delivery-servicos`, IP estatico `ip-servidor-delivery` = `34.60.57.59`, profile `servicos` (usuarios 9092, catalogo 9091, pedidos 9090, migrador) |
 | Banco | `delivery-postgres` (Cloud SQL) | PostgreSQL 16, Enterprise, `db-f1-micro`, IP publico `34.63.128.138`, banco `delivery`, rede autorizada `34.60.57.59/32` |
 
-| Regra de firewall | Libera | Origem | Alvo (tag) |
-|---|---|---|---|
-| `delivery-frontend-http` | `tcp:80` | `0.0.0.0/0` | `delivery-frontend` |
-| `delivery-gateway-http` | `tcp:8000` | `0.0.0.0/0` | `delivery-gateway` |
-| `delivery-grpc-interno` | `tcp:9090-9092` | **tag** `delivery-gateway` | `delivery-servicos` |
+| Regra de firewall | Acao | Prioridade | Portas | Origem | Alvo (tag) |
+|---|---|---|---|---|---|
+| `delivery-frontend-http` | ALLOW | 1000 | `tcp:80` | `0.0.0.0/0` | `delivery-frontend` |
+| `delivery-gateway-http` | ALLOW | 1000 | `tcp:8000` | `0.0.0.0/0` | `delivery-gateway` |
+| `delivery-grpc-interno` | ALLOW | 800 | `tcp:9090-9092` | **tag** `delivery-gateway` | `delivery-servicos` |
+| `delivery-grpc-bloqueio` | DENY | 900 | `tcp:9090-9092` | `0.0.0.0/0` | `delivery-servicos` |
 
-- **So a VM do Gateway alcanca os microsservicos.** A regra gRPC usa a tag de
-  origem, nao um IP: vale para o IP interno da VM do Gateway, seja ele qual for.
-  Da internet, as portas 9090-9092 nao respondem.
+- **So a VM do Gateway alcanca os microsservicos.** A rede `default` tem a regra
+  `default-allow-internal` (prioridade 65534), que libera qualquer porta entre
+  VMs da VPC. O ALLOW da tag `delivery-gateway` (800) vale antes do DENY geral
+  (900), que vale antes da regra padrao: o Gateway entra, qualquer outra origem
+  (internet, VM do frontend, outras VMs do projeto) e recusada. A regra usa a tag
+  de origem, nao um IP: vale para o IP interno da VM do Gateway, seja ele qual for.
 - **O Gateway chama os microsservicos pelo DNS interno da VPC**
   (`servidor-delivery.us-central1-a.c.sistemas-distribuidos-505422.internal`),
   entao nao depende do IP interno da VM.
@@ -49,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File scripts\gcp\criar_infra.ps1
 O script e idempotente (o que ja existe e mantido) e faz:
 
 1. reserva os IPs `ip-delivery-gateway` e `ip-delivery-frontend`;
-2. cria as tres regras de firewall da tabela acima;
+2. cria as quatro regras de firewall da tabela acima;
 3. cria as VMs `delivery-gateway` e `delivery-frontend` com o startup-script
    `scripts/gcp/instalar_docker.sh`, que instala Docker (repositorio oficial,
    com o plugin compose) e Git no primeiro boot;
@@ -216,6 +220,6 @@ DEMO_SENHA=gerada-pelo-preparar_vm
 $P = "--project=sistemas-distribuidos-505422"
 gcloud compute instances delete delivery-frontend delivery-gateway servidor-delivery --zone us-central1-a $P
 gcloud compute addresses delete ip-delivery-frontend ip-delivery-gateway ip-servidor-delivery --region us-central1 $P
-gcloud compute firewall-rules delete delivery-frontend-http delivery-gateway-http delivery-grpc-interno $P
+gcloud compute firewall-rules delete delivery-frontend-http delivery-gateway-http delivery-grpc-interno delivery-grpc-bloqueio $P
 gcloud sql instances delete delivery-postgres $P
 ```

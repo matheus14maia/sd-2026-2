@@ -20,20 +20,26 @@ foreach ($ip in @($IpGateway, $IpFrontend)) {
 }
 
 Etapa "Regras de firewall"
+# A rede default tem a regra default-allow-internal (prioridade 65534), que
+# libera qualquer porta entre VMs da VPC. Para so o Gateway alcancar o gRPC:
+# ALLOW da tag delivery-gateway com prioridade 800 e DENY de qualquer origem
+# com prioridade 900 (numero menor = vale primeiro).
 $regras = @(
-    @{ Nome = "delivery-frontend-http"; Portas = "tcp:80"; Origem = @("--source-ranges=0.0.0.0/0"); Alvo = "delivery-frontend";
+    @{ Nome = "delivery-frontend-http"; Acao = "ALLOW"; Prioridade = 1000; Portas = "tcp:80"; Origem = @("--source-ranges=0.0.0.0/0"); Alvo = "delivery-frontend";
        Descricao = "Frontend React publico" },
-    @{ Nome = "delivery-gateway-http"; Portas = "tcp:8000"; Origem = @("--source-ranges=0.0.0.0/0"); Alvo = "delivery-gateway";
+    @{ Nome = "delivery-gateway-http"; Acao = "ALLOW"; Prioridade = 1000; Portas = "tcp:8000"; Origem = @("--source-ranges=0.0.0.0/0"); Alvo = "delivery-gateway";
        Descricao = "API Gateway publico" },
-    @{ Nome = "delivery-grpc-interno"; Portas = "tcp:9090-9092"; Origem = @("--source-tags=delivery-gateway"); Alvo = "delivery-servicos";
-       Descricao = "gRPC dos microsservicos, so a partir da VM do Gateway" }
+    @{ Nome = "delivery-grpc-interno"; Acao = "ALLOW"; Prioridade = 800; Portas = "tcp:9090-9092"; Origem = @("--source-tags=delivery-gateway"); Alvo = "delivery-servicos";
+       Descricao = "gRPC dos microsservicos, so a partir da VM do Gateway" },
+    @{ Nome = "delivery-grpc-bloqueio"; Acao = "DENY"; Prioridade = 900; Portas = "tcp:9090-9092"; Origem = @("--source-ranges=0.0.0.0/0"); Alvo = "delivery-servicos";
+       Descricao = "Bloqueia o gRPC para qualquer outra origem, inclusive outras VMs da VPC" }
 )
 foreach ($r in $regras) {
     if (Existe { G compute firewall-rules describe $r.Nome }) {
         Write-Host "   ja existe: $($r.Nome)"
     } else {
-        G compute firewall-rules create $r.Nome --network=default --direction=INGRESS --action=ALLOW `
-            --rules=$($r.Portas) @($r.Origem) --target-tags=$($r.Alvo) --description="$($r.Descricao)"
+        G compute firewall-rules create $r.Nome --network=default --direction=INGRESS --action=$($r.Acao) `
+            --priority=$($r.Prioridade) --rules=$($r.Portas) @($r.Origem) --target-tags=$($r.Alvo) --description="$($r.Descricao)"
     }
 }
 
