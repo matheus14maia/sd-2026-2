@@ -1,0 +1,990 @@
+/* Hell's Kitchen - frontend do delivery.
+   Fundo inox claro (contraste alto no projetor), pimenta para acao e 401,
+   manjericao para sucesso, acafrao para erro de cliente. As comandas do
+   trilho usam papel de impressora termica e fonte de maquina. */
+
+:root {
+  --inox: #e8ecef;
+  --inox-escuro: #cfd6dc;
+  --grafite: #1d2329;
+  --grafite-suave: #4a5560;
+  --pimenta: #b42318;
+  --pimenta-escura: #8f1c13;
+  --manjericao: #2f7a4d;
+  --acafrao: #b86e00;
+  --papel: #fffdf7;
+  --branco: #ffffff;
+  --foco: #1f5fbf;
+
+  --fonte: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --fonte-comanda: "Courier Prime", "Courier New", monospace;
+
+  --altura-trilho: 156px;
+  --raio: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--inox);
+  color: var(--grafite);
+  font-family: var(--fonte);
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  font-stretch: 75%;
+  line-height: 1.1;
+  margin: 0;
+}
+
+h1 {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.45rem;
+  font-weight: 750;
+}
+
+h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+p {
+  margin: 0.4rem 0 0;
+}
+
+.app {
+  min-height: 100vh;
+  padding-bottom: calc(var(--altura-trilho) + 24px);
+}
+
+/* ------------------------------------------------------------------ topo */
+.topo {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 14px 28px;
+  background: var(--grafite);
+  color: var(--branco);
+  flex-wrap: wrap;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.marca-selo {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--pimenta);
+  font-weight: 800;
+  font-stretch: 75%;
+  font-size: 1.1rem;
+}
+
+.marca-nome {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-stretch: 62%;
+  letter-spacing: 0.01em;
+}
+
+.abas {
+  display: flex;
+  gap: 4px;
+}
+
+.aba {
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  color: #c9d1d8;
+  padding: 8px 14px;
+  border-radius: var(--raio);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.aba:hover {
+  color: var(--branco);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aba.ativa {
+  color: var(--branco);
+  box-shadow: inset 0 -3px 0 var(--pimenta);
+}
+
+.topo-direita {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 0.92rem;
+  color: #c9d1d8;
+}
+
+.gateway strong {
+  color: var(--branco);
+  font-weight: 600;
+}
+
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--branco);
+}
+
+.usuario .botao-texto {
+  color: #f3b4ae;
+}
+
+/* ------------------------------------------------------------- estrutura */
+.conteudo {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 28px;
+}
+
+.titulo-secao {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.subtitulo {
+  flex-basis: 100%;
+  color: var(--grafite-suave);
+  max-width: 70ch;
+}
+
+.painel {
+  background: var(--branco);
+  border: 1px solid var(--inox-escuro);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.vazio {
+  color: var(--grafite-suave);
+}
+
+/* ----------------------------------------------------------------- botoes */
+.botao {
+  display: inline-block;
+  background: var(--pimenta);
+  color: var(--branco);
+  border: 0;
+  border-radius: var(--raio);
+  padding: 12px 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.botao:hover {
+  background: var(--pimenta-escura);
+}
+
+.botao:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.botao-secundario {
+  background: var(--branco);
+  color: var(--grafite);
+  border: 2px solid var(--grafite);
+  border-radius: var(--raio);
+  padding: 7px 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.botao-secundario:hover {
+  background: var(--grafite);
+  color: var(--branco);
+}
+
+.botao-secundario:disabled {
+  border-color: var(--inox-escuro);
+  color: var(--inox-escuro);
+  background: var(--branco);
+  cursor: default;
+}
+
+.botao-texto {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--pimenta);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ campos */
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.campo label {
+  font-weight: 650;
+}
+
+.campo input,
+.preco-edicao input {
+  border: 2px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+  background: var(--branco);
+}
+
+.campo input:focus {
+  border-color: var(--grafite);
+}
+
+.campo-com-erro input {
+  border-color: var(--acafrao);
+  background: #fff8ec;
+}
+
+.campo-erro {
+  color: #8a5200;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* -------------------------------------------------------------- resultado */
+.resultado,
+.confirmacao {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--raio);
+  border-left: 6px solid;
+  background: var(--papel);
+}
+
+.confirmacao {
+  align-items: start;
+  border-color: var(--manjericao);
+}
+
+.resultado-status {
+  font-family: var(--fonte-comanda);
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.resultado-ok {
+  border-color: var(--manjericao);
+}
+
+.resultado-ok .resultado-status,
+.confirmacao .resultado-status {
+  color: var(--manjericao);
+}
+
+.resultado-erro {
+  border-color: var(--acafrao);
+}
+
+.resultado-erro .resultado-status {
+  color: var(--acafrao);
+}
+
+.resultado-401 {
+  border-color: var(--pimenta);
+}
+
+.resultado-401 .resultado-status {
+  color: var(--pimenta);
+}
+
+/* ------------------------------------------------------------------- login */
+.login {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 56px;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.login-texto h1 {
+  font-size: 3.4rem;
+  font-stretch: 62%;
+  max-width: 14ch;
+}
+
+.login-texto p {
+  max-width: 48ch;
+  margin-top: 16px;
+  color: var(--grafite-suave);
+  font-size: 1.1rem;
+}
+
+.login-dica {
+  border-left: 4px solid var(--pimenta);
+  padding-left: 12px;
+}
+
+.login-form .botao {
+  width: 100%;
+}
+
+.alternador {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 22px;
+  border: 2px solid var(--grafite);
+  border-radius: var(--raio);
+  overflow: hidden;
+}
+
+.alternador button {
+  border: 0;
+  padding: 9px;
+  background: var(--branco);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.alternador button[aria-selected="true"] {
+  background: var(--grafite);
+  color: var(--branco);
+}
+
+/* ---------------------------------------------------------------- cardapio */
+.cardapio,
+.pedidos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 32px;
+  align-items: start;
+}
+
+.filtros {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filtro {
+  border: 2px solid var(--inox-escuro);
+  background: var(--branco);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.filtro.ativo {
+  border-color: var(--grafite);
+  background: var(--grafite);
+  color: var(--branco);
+}
+
+.pratos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--grafite);
+}
+
+.prato {
+  padding: 16px 4px;
+  border-bottom: 1px solid var(--inox-escuro);
+}
+
+.prato-cabeca {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.prato-cabeca h2 {
+  font-size: 1.3rem;
+}
+
+.prato-cabeca::after {
+  content: "";
+  order: 1;
+  flex: 1;
+  border-bottom: 2px dotted var(--inox-escuro);
+  transform: translateY(-4px);
+}
+
+.prato-preco {
+  order: 2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.prato p {
+  color: var(--grafite-suave);
+  max-width: 60ch;
+}
+
+.prato-pe {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.prato-codigo {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.etiqueta-indisponivel {
+  color: var(--pimenta);
+  font-weight: 700;
+}
+
+.prato-indisponivel h2,
+.prato-indisponivel .prato-preco {
+  color: var(--grafite-suave);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.quantidade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.quantidade button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--grafite);
+  background: var(--branco);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.quantidade button:hover {
+  background: var(--grafite);
+  color: var(--branco);
+}
+
+.sacola {
+  position: sticky;
+  top: 20px;
+}
+
+.sacola h2,
+.detalhe h2 {
+  margin-bottom: 14px;
+}
+
+.sacola-itens {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.sacola-itens li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--inox-escuro);
+  font-variant-numeric: tabular-nums;
+}
+
+.sacola-itens .sacola-total {
+  border-bottom: 0;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+/* ----------------------------------------------------------------- pedidos */
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--branco);
+  border: 1px solid var(--inox-escuro);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabela th {
+  text-align: left;
+  background: var(--grafite);
+  color: var(--branco);
+  font-weight: 650;
+  padding: 10px 12px;
+}
+
+.tabela td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--inox);
+}
+
+.tabela .num {
+  text-align: right;
+}
+
+.pedidos .tabela tbody tr {
+  cursor: pointer;
+}
+
+.pedidos .tabela tbody tr:hover,
+.linha-ativa {
+  background: var(--papel);
+}
+
+.linha-ativa td:first-child {
+  box-shadow: inset 4px 0 0 var(--pimenta);
+}
+
+.etapa {
+  font-weight: 650;
+}
+
+.etapa-entregue {
+  color: var(--manjericao);
+}
+
+.detalhe-id {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+  word-break: break-all;
+}
+
+.etapas {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+  display: grid;
+  gap: 6px;
+}
+
+.etapas li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--grafite-suave);
+}
+
+.etapa-numero {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--inox-escuro);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.etapas .feita {
+  color: var(--grafite);
+}
+
+.etapas .feita .etapa-numero {
+  background: var(--manjericao);
+  border-color: var(--manjericao);
+  color: var(--branco);
+}
+
+.etapas .atual {
+  color: var(--grafite);
+  font-weight: 750;
+}
+
+.etapas .atual .etapa-numero {
+  background: var(--pimenta);
+  border-color: var(--pimenta);
+  color: var(--branco);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ----------------------------------------------------------------- cozinha */
+.preco-edicao {
+  display: flex;
+  gap: 8px;
+}
+
+.preco-edicao input {
+  width: 96px;
+  padding: 6px 10px;
+}
+
+.interruptor {
+  min-width: 132px;
+  border: 2px solid var(--pimenta);
+  color: var(--pimenta);
+  background: var(--branco);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.interruptor.ligado {
+  border-color: var(--manjericao);
+  background: var(--manjericao);
+  color: var(--branco);
+}
+
+/* ------------------------------------------------------------------ testes */
+.grupo-cenarios {
+  margin-bottom: 30px;
+}
+
+.grupo-cenarios h2 {
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--grafite);
+}
+
+.grupo-cenarios ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cenario {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--inox-escuro);
+}
+
+.cenario-texto p {
+  color: var(--grafite-suave);
+  margin-top: 2px;
+}
+
+.cenario-acao {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cenario-esperado {
+  font-weight: 650;
+  color: var(--grafite-suave);
+}
+
+.cenario-resposta {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  background: var(--papel);
+  border-left: 6px solid;
+  border-radius: var(--raio);
+  padding: 12px 14px;
+}
+
+.cenario-resposta pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--fonte-comanda);
+  font-size: 0.95rem;
+}
+
+.cenario-resposta.confere {
+  border-color: var(--manjericao);
+}
+
+.cenario-resposta.difere {
+  border-color: var(--pimenta);
+}
+
+.cenario-veredito {
+  display: block;
+  font-family: var(--fonte);
+  font-size: 0.85rem;
+  font-weight: 650;
+  margin-top: 6px;
+}
+
+.confere .cenario-veredito {
+  color: var(--manjericao);
+}
+
+.difere .cenario-veredito {
+  color: var(--pimenta);
+}
+
+/* ------------------------------------------------- trilho de comandas */
+.trilho {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+}
+
+.trilho-barra {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  height: var(--altura-trilho);
+  padding: 0 20px 14px;
+  background: linear-gradient(var(--inox-escuro) 0 10px, var(--grafite) 10px);
+  border-top: 1px solid #aab4bd;
+  overflow: hidden;
+}
+
+.trilho-titulo {
+  flex: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-self: center;
+  margin-top: 10px;
+  color: #c9d1d8;
+  font-weight: 650;
+  font-size: 0.8rem;
+}
+
+.trilho-vazio {
+  align-self: center;
+  margin-top: 10px;
+  color: #c9d1d8;
+}
+
+.comandas {
+  display: flex;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* A comanda nova entra pendurada no trilho: e o unico movimento da tela. */
+.comandas li:first-child .comanda {
+  animation: pendurar 380ms ease-out;
+}
+
+@keyframes pendurar {
+  from {
+    transform: translateY(-36px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.comanda {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 214px;
+  height: calc(var(--altura-trilho) - 24px);
+  padding: 10px 12px 12px;
+  border: 0;
+  background: var(--papel);
+  font-family: var(--fonte-comanda);
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  /* borda serrilhada de papel destacado */
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+  mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+  box-shadow: inset 0 3px 0 #aab4bd;
+}
+
+.comanda-aberta {
+  background: #fff3c8;
+}
+
+.comanda-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.comanda-rota {
+  font-weight: 700;
+  font-size: 0.92rem;
+  word-break: break-all;
+  line-height: 1.25;
+  max-height: 2.6em;
+  overflow: hidden;
+}
+
+.comanda-token {
+  color: var(--grafite-suave);
+}
+
+.carimbo {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 8px;
+  border: 3px solid;
+  border-radius: 4px;
+  transform: rotate(-4deg);
+}
+
+.carimbo-2xx {
+  color: var(--manjericao);
+}
+
+.carimbo-4xx {
+  color: var(--acafrao);
+}
+
+.carimbo-401,
+.carimbo-erro {
+  color: var(--pimenta);
+}
+
+.trilho-detalhe {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: var(--papel);
+  border: 1px solid #aab4bd;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  padding: 14px 20px;
+  box-shadow: 0 -8px 24px rgba(29, 35, 41, 0.18);
+}
+
+.trilho-detalhe-topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: var(--fonte-comanda);
+  font-size: 1.05rem;
+}
+
+.trilho-detalhe-corpo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.trilho-detalhe h3 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.trilho-detalhe pre {
+  margin: 0;
+  max-height: 34vh;
+  overflow: auto;
+  font-family: var(--fonte-comanda);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* -------------------------------------------------------------- responsivo */
+@media (max-width: 960px) {
+  .login,
+  .cardapio,
+  .pedidos,
+  .trilho-detalhe-corpo {
+    grid-template-columns: 1fr;
+  }
+
+  .sacola {
+    position: static;
+  }
+
+  .conteudo {
+    padding: 24px 16px;
+  }
+
+  .topo {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .abas {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .topo-direita {
+    gap: 12px;
+  }
+
+  .tabela {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .trilho-detalhe {
+    max-height: 55vh;
+    overflow: auto;
+  }
+
+  .login-texto h1 {
+    font-size: 2.4rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comandas li:first-child .comanda {
+    animation: none;
+  }
+}
