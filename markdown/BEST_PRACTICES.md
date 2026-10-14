@@ -8,34 +8,43 @@
 ## Arquitetura geral
 
 ```text
-HTTP/JSON :8000 -> gateway (FastAPI) --gRPC--> pedidos :9090 --gRPC--> catalogo :9091
-                                     \--gRPC--> catalogo
-pedidos e catalogo --SQL--> PostgreSQL (Cloud SQL no GCP, container no profile banco-local)
+navegador --HTTP :80--> frontend (nginx, VM delivery-frontend)
+navegador --HTTP/JSON + Bearer :8000--> gateway (FastAPI, VM delivery-gateway)
+gateway --gRPC--> usuarios :9092 | catalogo :9091 | pedidos :9090 (VM servidor-delivery)
+pedidos --gRPC--> catalogo
+usuarios, catalogo e pedidos --SQL--> PostgreSQL (Cloud SQL no GCP, container no profile banco-local)
 ```
 
-- **Gateway** (`src/gateway/`) - unico componente com porta publicada. Valida o
-  JSON, traduz para Protobuf e despacha. Nao acessa o banco.
+- **Frontend** (`frontend/`) - React servido pelo nginx. So chama o Gateway, por
+  `src/api.js`. Nao conhece os microsservicos.
+- **Gateway** (`src/gateway/`) - ponto de entrada do backend. Autentica o JWT,
+  confere o papel, valida o JSON, traduz para Protobuf e despacha. Nao acessa o
+  banco.
+- **Usuarios** (`src/usuarios/`) - dono da tabela `usuarios` (hash bcrypt, papel).
 - **Catalogo** (`src/catalogo/`) - dono da tabela `itens_cardapio`.
 - **Pedidos** (`src/pedidos/`) - dono de `pedidos` e `itens_pedido`; consulta o
   Catalogo por gRPC (`ConsultarItens`) para validar e precificar.
 - **Migrador** (`scripts/migrar_banco.py`) - one-shot no compose; aplica
-  `db/schema.sql` e `db/seed.sql` e termina. Catalogo e Pedidos so sobem depois
-  dele (`service_completed_successfully`).
+  `db/schema.sql` e `db/seed.sql` e termina. Usuarios, Catalogo e Pedidos so
+  sobem depois dele (`service_completed_successfully`).
 
-Os contratos `proto/catalogo.proto` e `proto/pedidos.proto` sao a fronteira
-entre os componentes. Nenhum lado assume nada que nao esteja no contrato.
+Os contratos `proto/usuarios.proto`, `proto/catalogo.proto` e
+`proto/pedidos.proto` sao a fronteira entre os componentes. Nenhum lado assume
+nada que nao esteja no contrato.
 
 ## Stack
 
 | Camada | Tecnologia |
 |---|---|
 | Linguagem | Python 3.12 (imagem) / 3.13 (venv local) |
-| Gateway | FastAPI 0.141 + Pydantic 2.13 + Uvicorn 0.53 |
+| Frontend | React 18.3 + Vite 5.4, entregue pelo `nginx:1.27-alpine` |
+| Gateway | FastAPI 0.141 + Pydantic 2.13 + Uvicorn 0.53 + PyJWT 2.10 (HS256) |
+| Senhas | bcrypt 4.2 (so no microsservico de Usuarios) |
 | Comunicacao interna | gRPC (grpcio 1.68.1) + Protocol Buffers proto3 (protobuf 5.29.1) |
 | Banco | PostgreSQL 16 - Cloud SQL `delivery-postgres` no GCP; `postgres:16` no local |
 | Driver | psycopg 3.3 + psycopg-pool (SQL puro, sem ORM) |
-| Empacotamento | Docker + Docker Compose (imagem unica, papel pelo `command`) |
-| Infraestrutura | VM `servidor-delivery` (us-central1-a, IP estatico 34.60.57.59) + Cloud SQL + firewall `trabalho-sd` |
+| Empacotamento | Docker + Docker Compose (imagem Python unica com papel pelo `command`, imagem propria do frontend, um profile por VM) |
+| Infraestrutura | VMs `delivery-frontend`, `delivery-gateway` e `servidor-delivery` (us-central1-a, IPs estaticos) + Cloud SQL + firewall por tag |
 
 ## Padroes de codigo
 
@@ -67,8 +76,10 @@ entre os componentes. Nenhum lado assume nada que nao esteja no contrato.
 - **SQL so no `repositorio.py`** de cada servico; regra de negocio so no `servico.py`.
 - Toda configuracao que muda entre maquinas vem de variavel de ambiente com
   padrao: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
-  `DB_SSLMODE`, `PORTA`, `CATALOGO_HOST/PORTA`, `PEDIDOS_HOST/PORTA`,
-  `GRPC_TIMEOUT`, `CATALOGO_TIMEOUT`.
+  `DB_SSLMODE`, `PORTA`, `USUARIOS_HOST/PORTA`, `CATALOGO_HOST/PORTA`,
+  `PEDIDOS_HOST/PORTA`, `GRPC_TIMEOUT`, `CATALOGO_TIMEOUT`, `GRPC_BIND`,
+  `JWT_SEGREDO`, `JWT_EXPIRACAO_MINUTOS`, `CORS_ORIGENS`, `API_URL`,
+  `FRONTEND_PORTA`, `COMPOSE_PROFILES`.
 - **Timeouts encadeados diminuem a cada salto.** Gateway -> Pedidos usa 5 s;
   Pedidos -> Catalogo usa 3 s. Se fossem iguais, com o Catalogo fora o Gateway
   estourava primeiro e respondia um `Deadline Exceeded` generico em vez de
@@ -117,6 +128,75 @@ entre os componentes. Nenhum lado assume nada que nao esteja no contrato.
 | Status so avanca para a proxima etapa | `pedidos/servico.py` (`ETAPAS`) | 409 |
 | Categoria inexistente | `catalogo/servico.py` | 404 |
 | Preco alterado precisa ser > 0 | `gateway/esquemas.py` e `catalogo/servico.py` | 400 |
+| Toda rota fora de `ROTAS_PUBLICAS` exige Bearer valido | `gateway/autenticacao.py` (`MiddlewareJWT`) | 401 |
+| Login ou senha errados | `usuarios/servico.py` (`UNAUTHENTICATED`) | 401 |
+| Alterar cardapio ou avancar status exige papel `cozinha` | `gateway/autenticacao.py` (`exigir_papel`) | 403 |
+| Login repetido | `usuarios/servico.py` (`ALREADY_EXISTS`, UNIQUE no banco) | 409 |
+
+## Autenticacao e autorizacao
+
+- **Token so no Gateway.** Ele emite (`POST /auth/login`) e confere o JWT; os
+  microsservicos nao veem token. O Usuarios so confirma login e senha.
+- **Barreira no middleware, nao em cada rota.** `MiddlewareJWT` barra tudo fora de
+  `ROTAS_PUBLICAS`; rota nova ja nasce protegida. Para liberar uma rota, ela
+  precisa entrar na lista de proposito.
+- **401 e autenticacao, 403 e autorizacao.** Token ausente, invalido ou vencido
+  -> 401 no middleware. Token valido de papel errado -> 403 na dependencia
+  `exigir_papel`, que levanta `AcessoNegado` (handler em `erros.py`).
+- **Nenhum segredo no codigo.** O repositorio e publico: sem `JWT_SEGREDO`, o
+  Gateway sorteia uma chave a cada subida (`secrets.token_hex(32)`). Segredo fixo
+  como valor padrao permitiria a qualquer leitor do GitHub assinar tokens.
+- **Senha so como hash bcrypt, e so no Usuarios.** Nenhuma resposta nem log leva
+  a senha; a mesma mensagem cobre login inexistente e senha errada.
+- **Quem se cadastra pela API e `cliente`.** O papel `cozinha` so existe para o
+  usuario que o migrador cria a partir de `DEMO_LOGIN`/`DEMO_SENHA` do `.env`
+  (`garantir_usuario_cozinha` em `scripts/migrar_banco.py`). **Nunca ponha
+  usuario com senha conhecida no `db/seed.sql`:** o repositorio e publico e o
+  sistema fica no ar, entao qualquer leitor teria o papel `cozinha`. No GCP a
+  senha e gerada pelo `preparar_vm.sh` (`openssl rand`) e fica so no `.env` do
+  `servidor-delivery`; os scripts do notebook a leem por SSH (`SenhaCozinha`).
+  A senha nao aparece na tela de login, nos slides nem na saida do `ligar.ps1`.
+- **Coluna nova em tabela existente vai em `ALTER TABLE ... ADD COLUMN IF NOT
+  EXISTS`**, separado do `CREATE TABLE IF NOT EXISTS`: o `CREATE` nao faz nada
+  quando a tabela ja existe, e o Cloud SQL ja tinha `usuarios` sem `papel`.
+- **CORS e o middleware mais externo.** No Starlette o ultimo `add_middleware` e
+  o mais externo; o CORS e adicionado por ultimo para que ate o 401 saia com
+  `Access-Control-Allow-Origin`. Sem isso o navegador esconde o 401 e o frontend
+  ve so "falha de rede". `OPTIONS` (preflight) passa pelo JWT sem token.
+
+## Frontend
+
+- **Um unico modulo fala com o backend** (`frontend/src/api.js`). Ele monta a
+  URL, poe o Bearer, registra a chamada no trilho e encerra a sessao num 401.
+- **Formularios sem validacao no navegador** (`noValidate`, sem `required`): o
+  400 do Gateway e o que aparece embaixo de cada campo. Validar no navegador
+  esconderia o requisito de validacao no backend na demonstracao.
+- **URL do Gateway em tempo de execucao.** O `index.html` carrega `/config.js`,
+  que o nginx gera a partir de `API_URL` (template em `frontend/nginx/`). Mudar o
+  Gateway de lugar nao exige rebuild da imagem.
+- **Texto da interface com acento** (e o que o usuario le); codigo, mensagens da
+  API e documentacao seguem sem acento.
+
+## Deploy em varias VMs
+
+- **Um compose, um profile por papel.** `servicos`, `gateway`, `frontend` e
+  `banco-local`; cada VM poe o seu em `COMPOSE_PROFILES` no `.env`. Servicos de
+  profiles diferentes nao tem `depends_on` entre si (estao em maquinas
+  diferentes): o Gateway responde 503 ate o microsservico subir.
+- **Portas gRPC em `${GRPC_BIND:-127.0.0.1}`.** Local, so a propria maquina
+  alcanca; na VM `servidor-delivery`, `GRPC_BIND=0.0.0.0` e quem restringe e o
+  firewall `delivery-grpc-interno` (origem = tag `delivery-gateway`).
+- **Firewall por tag de origem, nao por IP.** A regra gRPC aceita a tag
+  `delivery-gateway`; vale para o IP interno da VM do Gateway sem precisar
+  conhece-lo.
+- **Gateway acha os microsservicos pelo DNS interno da VPC**
+  (`servidor-delivery.us-central1-a.c.<projeto>.internal`), que resolve tambem de
+  dentro do container.
+- **`.env` por VM, gravado por `scripts/gcp/preparar_vm.sh`**, que troca ou
+  acrescenta chave sem apagar as demais (senha do banco, `JWT_SEGREDO`).
+- **Scripts que rodam no Linux precisam de LF.** O `.gitattributes` forca
+  `eol=lf` em `*.sh` e `*.template`; com `core.autocrlf=true` no Windows, um
+  `preparar_vm.sh` com CRLF quebraria o `bash` na VM.
 
 ## Convencoes importantes
 
@@ -130,11 +210,11 @@ entre os componentes. Nenhum lado assume nada que nao esteja no contrato.
 - **Ao ligar o ambiente, banco antes da VM.** Os servicos esperam o banco por
   cerca de 1 minuto (`DB_TENTATIVAS`) e depois o `restart: always` tenta de novo,
   mas ligar o Cloud SQL primeiro evita a espera na demonstracao.
-- **Profiles do compose:** `postgres` so sobe com `--profile banco-local`. No
-  GCP roda-se `docker compose up -d --build` sem profile e o `.env` aponta para o
-  Cloud SQL. Nenhum servico tem `depends_on` do `postgres` - senao o compose
-  recusaria subir sem o profile; a espera pelo banco e feita em codigo
-  (`src/comum/banco.aguardar_banco`).
+- **Profiles do compose:** todo servico tem profile, entao `docker compose up`
+  sem `COMPOSE_PROFILES` nao sobe nada. `postgres` so sobe com `banco-local`; no
+  GCP o `.env` do `servidor-delivery` aponta para o Cloud SQL. Nenhum servico tem
+  `depends_on` do `postgres` - senao o compose recusaria subir sem o profile; a
+  espera pelo banco e feita em codigo (`src/comum/banco.aguardar_banco`).
 - **O repositorio na VM pertence ao usuario `maia_matheus`**
   (`/home/maia_matheus/sd-2026-2`). Um SSH feito por outro usuario do `gcloud`
   (o nome local do notebook) nao enxerga a pasta; rode os comandos com
@@ -144,12 +224,13 @@ entre os componentes. Nenhum lado assume nada que nao esteja no contrato.
   `tcp:3000,5050,8000,9090-9292`; por isso a porta padrao e `9090` e nao a `50051`
   convencional do gRPC. Descobrir isso so na hora de conectar custa uma sessao de
   depuracao de `UNAVAILABLE` que parece problema de codigo e nao e.
-- A porta publica agora e a `8000` do Gateway (tambem liberada pela regra
-  `trabalho-sd`). As portas gRPC `9090` (Pedidos) e `9091` (Catalogo) sao
-  internas ao compose. Mudou alguma porta? Ela aparece em `docker-compose.yml`,
-  `Dockerfile` (`EXPOSE`), no default de `PORTA` do `servidor.py` do servico, nos
-  defaults de `clientes_grpc.py` / `cliente_catalogo.py` e nas docs `README.md`,
-  `docs/03`, `docs/04` e `docs/05`.
+- Portas publicas: `80` (frontend) e `8000` (Gateway), cada uma com a sua regra
+  de firewall. As portas gRPC `9090` (Pedidos), `9091` (Catalogo) e `9092`
+  (Usuarios) so aceitam a VM do Gateway. Mudou alguma porta? Ela aparece em
+  `docker-compose.yml`, `Dockerfile` (`EXPOSE`), no default de `PORTA` do
+  `servidor.py` do servico, nos defaults de `clientes_grpc.py` /
+  `cliente_catalogo.py`, em `scripts/gcp/criar_infra.ps1` (firewall) e nas docs
+  `README.md`, `docs/03`, `docs/04` e `docs/05`.
 - **`UNAVAILABLE` e `DEADLINE_EXCEEDED` nao sao o mesmo problema.**
   `UNAVAILABLE` com `Connection refused` significa que o pacote chegou na maquina
   e nada escuta na porta (container parado, porta errada). `DEADLINE_EXCEEDED` ao

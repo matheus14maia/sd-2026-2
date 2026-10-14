@@ -1,65 +1,91 @@
 # Delivery Hell's Kitchen - Sistemas Distribuidos 2026/2
 
-Delivery de restaurante com **API Gateway HTTP/JSON** (FastAPI) na frente de dois
-**microsservicos gRPC** (Catalogo e Pedidos) que persistem em **PostgreSQL**
-(Cloud SQL no GCP).
+Delivery de restaurante com **frontend React**, **API Gateway HTTP/JSON**
+(FastAPI, autenticacao JWT) e **tres microsservicos gRPC** (Usuarios, Catalogo e
+Pedidos) que persistem em **PostgreSQL** (Cloud SQL no GCP). No GCP cada camada
+roda em uma VM propria.
+
+![Arquitetura](docs/arquitetura.png)
 
 ```text
- cliente HTTP            VM do GCP (so a 8000 e publica)                  Cloud SQL
- (curl, Swagger,  +--------------------------------------------------+   +------------+
-  frontend)       |                     gRPC            gRPC           |   | PostgreSQL |
- ---- JSON ---->  |  [ gateway :8000 ] ----> [ pedidos :9090 ] ----->  |   |            |
- <--- JSON -----  |   FastAPI+Pydantic  \        |  pedidos,         |   |  pedidos   |
-   201/200/400/   |                      \       |  itens_pedido  ---+-->|  itens_... |
-   404/409/503    |                       ---> [ catalogo :9091 ] ---+-->|  itens_    |
-                  |                               itens_cardapio     |   |  cardapio  |
-                  +--------------------------------------------------+   +------------+
+ navegador --HTTP :80-->  [VM delivery-frontend]  React servido pelo nginx
+     |
+     +--HTTP/JSON + Bearer :8000-->  [VM delivery-gateway]  FastAPI
+                                       CORS -> log -> JWT (401) -> papel (403) -> Pydantic (400)
+                                       |  gRPC / Protobuf pela rede interna da VPC
+                                       v
+                              [VM servidor-delivery]  usuarios :9092  catalogo :9091  pedidos :9090
+                                       |                              ^-- gRPC ConsultarItens --'
+                                       |  SQL / TLS
+                                       v
+                              [Cloud SQL delivery-postgres]  usuarios, itens_cardapio, pedidos, itens_pedido
 ```
+
+No GCP (ligado so para demonstracao, com `scripts/gcp/ligar.ps1`):
+
+| O que | Endereco |
+|---|---|
+| Frontend | `http://34.72.228.145` |
+| API Gateway (Swagger) | `http://34.132.172.125:8000/docs` |
 
 ## Stack
 
 | Camada | Tecnologia |
 |---|---|
-| Linguagem | Python 3.12 |
-| API Gateway | FastAPI + Pydantic (validacao do payload), Uvicorn |
-| Microsservicos | gRPC (grpcio 1.68) + Protocol Buffers proto3 |
+| Frontend | React 18 + Vite 5, servido pelo nginx |
+| API Gateway | FastAPI + Pydantic (validacao), PyJWT (HS256), Uvicorn |
+| Microsservicos | Python 3.12, gRPC (grpcio 1.68) + Protocol Buffers proto3, bcrypt |
 | Banco de dados | PostgreSQL 16 (Cloud SQL no GCP, container no ambiente local), psycopg 3 |
-| Execucao | Docker + Docker Compose (imagem unica, papel escolhido pelo `command`) |
-| Infraestrutura | Compute Engine (VM `servidor-delivery`) + Cloud SQL + firewall VPC |
+| Execucao | Docker + Docker Compose, um profile por papel |
+| Infraestrutura | 3 VMs no Compute Engine + Cloud SQL + firewall VPC por tag |
 
 ## Rotas do Gateway
 
-| Metodo e rota | Microsservico | Sucesso | Erros |
-|---|---|---|---|
-| `GET /cardapio?categoria=` | Catalogo | 200 | 404 categoria inexistente |
-| `PATCH /cardapio/{codigo}` | Catalogo | 200 | 400, 404 |
-| `POST /pedidos` | Pedidos -> Catalogo | **201** | **400** payload invalido ou item inexistente, 409 item indisponivel |
-| `GET /pedidos?limite=` | Pedidos | 200 | 400 |
-| `GET /pedidos/{id}` | Pedidos | 200 | 400 id malformado, 404 |
-| `PATCH /pedidos/{id}/status` | Pedidos | 200 | 400, 404, 409 transicao invalida |
-| `GET /saude` | - | 200 | - |
+| Metodo e rota | Token | Microsservico | Sucesso | Erros |
+|---|---|---|---|---|
+| `POST /auth/cadastro` | nao | Usuarios | **201** | 400, 409 login em uso |
+| `POST /auth/login` | nao | Usuarios | 200 + token | 400, **401** senha errada |
+| `GET /auth/eu` | sim | - | 200 | 401 |
+| `GET /cardapio?categoria=` | sim | Catalogo | 200 | 401, 404 categoria inexistente |
+| `PATCH /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 | 400, 401, **403**, 404 |
+| `POST /pedidos` | sim | Pedidos -> Catalogo | **201** | **400**, 401, 409 item indisponivel |
+| `GET /pedidos?limite=` | sim | Pedidos | 200 | 400, 401 |
+| `GET /pedidos/{id}` | sim | Pedidos | 200 | 400, 401, 404 |
+| `PATCH /pedidos/{id}/status` | sim, papel `cozinha` | Pedidos | 200 | 400, 401, 403, 404, 409 |
+| `GET /saude` | nao | - | 200 | - |
 
-A documentacao interativa (Swagger) fica em `http://HOST:8000/docs`.
+Sem `Authorization: Bearer <token>` valido, toda rota marcada com token responde
+**401** antes de qualquer chamada gRPC. Swagger em `http://HOST:8000/docs`.
 
-## Comecando rapido (local, com banco em container)
+Quem se cadastra pela API entra com papel `cliente`. O usuario com papel
+`cozinha` (login `professor`) e criado pelo migrador com a senha de `DEMO_SENHA`,
+que fica so no `.env` da maquina: nenhuma senha esta no repositorio.
+
+## Comecando rapido (local, tudo em containers)
 
 ```bash
-docker compose --profile banco-local up -d --build
-python scripts/testar_gateway.py --url http://localhost:8000
+cp .env.exemplo .env          # troque DEMO_SENHA
+docker compose up -d --build
+DEMO_SENHA=<a senha do .env> python scripts/testar_gateway.py --url http://localhost:8000
 ```
 
-O segundo comando roda os cenarios de sucesso e de erro e confere o status HTTP
-de cada um. Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
+- O `.env.exemplo` ja vem com `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`.
+- Frontend em `http://localhost`, Gateway em `http://localhost:8000`.
+- O teste roda 29 cenarios (200/201/400/401/403/404/409) e confere o status de cada um.
+
+Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 
 ## Documentacao
 
 | Documento | Conteudo |
 |---|---|
 | [docs/01-visao-geral-do-sistema.md](docs/01-visao-geral-do-sistema.md) | arquitetura, fluxo de uma requisicao e como o sistema reage a cada situacao |
-| [docs/02-contrato-grpc.md](docs/02-contrato-grpc.md) | os dois `.proto` explicados e a geracao dos stubs |
+| [docs/02-contrato-grpc.md](docs/02-contrato-grpc.md) | os tres `.proto` explicados e a geracao dos stubs |
 | [docs/03-execucao-local.md](docs/03-execucao-local.md) | subir tudo localmente, testar e consultar o banco |
-| [docs/04-deploy-gcp-vm.md](docs/04-deploy-gcp-vm.md) | VM + Cloud SQL no GCP, deploy e ciclo liga/desliga |
-| [docs/05-api-gateway.md](docs/05-api-gateway.md) | rotas, validacao, formato de erro e exemplos de requisicao |
+| [docs/04-deploy-gcp-vm.md](docs/04-deploy-gcp-vm.md) | 3 VMs + Cloud SQL no GCP, firewall, scripts de deploy e liga/desliga |
+| [docs/05-api-gateway.md](docs/05-api-gateway.md) | rotas, JWT, papeis, validacao, formato de erro e exemplos |
+| [docs/06-frontend.md](docs/06-frontend.md) | telas do frontend, como ele chama o Gateway e como roda |
+| [apresentacao/](apresentacao/) | slides da arquitetura (`.pptx` e `.pdf`) |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
 [markdown/](markdown/).
@@ -67,18 +93,22 @@ O manual do projeto, o prontuario de problemas e o changelog ficam em
 ## Estrutura
 
 ```text
+proto/usuarios.proto         contrato do microsservico de Usuarios
 proto/catalogo.proto         contrato do microsservico de Catalogo
 proto/pedidos.proto          contrato do microsservico de Pedidos
-db/schema.sql, db/seed.sql   tabelas e carga inicial do cardapio (idempotentes)
-src/gateway/                 API Gateway FastAPI (rotas, esquemas, erros, clientes gRPC)
+db/schema.sql, db/seed.sql   tabelas, cardapio inicial e usuario de demonstracao (idempotentes)
+src/gateway/                 API Gateway FastAPI (autenticacao, rotas, esquemas, erros, clientes gRPC)
+src/usuarios/                microsservico de Usuarios (servidor, servico, repositorio)
 src/catalogo/                microsservico de Catalogo (servidor, servico, repositorio)
 src/pedidos/                 microsservico de Pedidos (servidor, servico, repositorio, cliente do Catalogo)
 src/comum/                   conexao com o banco e inicializacao comum dos servidores gRPC
 src/gerado/                  stubs gerados no build (nao versionados)
+frontend/                    frontend React (Vite) + Dockerfile do nginx
 scripts/gerar_stubs.py       gera os stubs a partir de proto/*.proto
 scripts/migrar_banco.py      aplica db/schema.sql e db/seed.sql
-scripts/testar_gateway.py    smoke test dos cenarios 200/201/400/404/409
-docker-compose.yml           postgres (profile banco-local), migrador, catalogo, pedidos, gateway
+scripts/testar_gateway.py    teste ponta a ponta dos cenarios 200/201/400/401/403/404/409
+scripts/gcp/                 criar a infraestrutura, implantar, ligar, desligar e conferir no GCP
+docker-compose.yml           profiles servicos, gateway, frontend e banco-local
 ```
 
 > Os arquivos em `src/gerado/` sao artefato de build: regerados por

@@ -1,10 +1,25 @@
 -- Schema do delivery. Idempotente: pode rodar a cada deploy sem apagar dados.
 --
 -- Cada microsservico e dono das suas tabelas:
+--   usuarios -> usuarios
 --   catalogo -> itens_cardapio
 --   pedidos  -> pedidos, itens_pedido
 -- Nao ha chave estrangeira entre tabelas de servicos diferentes: itens_pedido
 -- guarda uma copia (snapshot) do nome e do preco no momento da compra.
+
+-- Usuarios ------------------------------------------------------------------
+-- senha_hash guarda o hash bcrypt; a senha em texto puro nunca e gravada.
+CREATE TABLE IF NOT EXISTS usuarios (
+    id         UUID        PRIMARY KEY,
+    login      TEXT        NOT NULL UNIQUE,
+    nome       TEXT        NOT NULL,
+    senha_hash TEXT        NOT NULL,
+    criado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- papel em ALTER separado para bancos que ja tinham a tabela sem a coluna.
+ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS papel TEXT NOT NULL DEFAULT 'cliente'
+    CHECK (papel IN ('cliente', 'cozinha'));
 
 -- Catalogo ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS itens_cardapio (

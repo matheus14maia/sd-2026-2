@@ -18,3 +18,8 @@ INSERT INTO itens_cardapio (codigo, nome, descricao, categoria, preco, disponive
     ('SO01', 'Pudim de leite',          'Fatia individual',                                   'Sobremesas', 16.00, TRUE),
     ('SO02', 'Petit gateau',            'Com sorvete de creme',                               'Sobremesas', 27.90, TRUE)
 ON CONFLICT (codigo) DO NOTHING;
+
+-- Nenhum usuario e criado aqui: o repositorio e publico, e um usuario com senha
+-- conhecida daria a qualquer um o papel cozinha no sistema no ar. O usuario da
+-- cozinha e criado pelo migrador a partir de DEMO_LOGIN/DEMO_SENHA do .env
+-- (scripts/migrar_banco.py). Quem se cadastra por POST /auth/cadastro e cliente.

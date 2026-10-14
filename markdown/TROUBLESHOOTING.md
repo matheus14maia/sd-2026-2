@@ -20,7 +20,72 @@
 
 ---
 
+## 2026-10-14
+
+### `remove-tags` nao remove nada quando chamado do PowerShell
+
+**Sintoma:** `scripts/gcp/criar_infra.ps1` terminou sem erro, mas a VM
+`servidor-delivery` continuou com `portas-trabalho-sd` (regra `trabalho-sd`, que
+abre 9090-9292 para a internet). A saida do gcloud foi:
+
+```text
+No change requested; skipping update for [servidor-delivery].
+```
+
+**Causa:** no PowerShell, `--tags portas-trabalho-sd,http-server,https-server`
+sem aspas vira um array, e o comando nativo recebe as tags como argumentos
+separados. O gcloud nao interpretou a lista e nao alterou nada, sem falhar.
+
+**Solucao:** passar a lista entre aspas
+(`--tags "portas-trabalho-sd,http-server,https-server"`) e conferir as tags
+depois de qualquer mudanca:
+`gcloud compute instances describe servidor-delivery --zone us-central1-a --format="value(tags.items)"`
+(esperado: so `delivery-servicos`).
+
+**Arquivos:** `scripts/gcp/criar_infra.ps1`.
+
+### Regra `default-allow-internal` libera o gRPC para qualquer VM da VPC
+
+**Sintoma:** com so a regra `delivery-grpc-interno` (ALLOW da tag
+`delivery-gateway`), qualquer outra VM da rede `default` (a do frontend, a
+`aula-sd-1`) tambem alcancaria as portas 9090-9092 do `servidor-delivery`.
+
+**Causa:** a rede `default` do projeto tem `default-allow-internal`
+(`10.128.0.0/9`, todas as portas, prioridade 65534). Regras ALLOW se somam: a
+regra com tag de origem nao restringe nada, so libera.
+
+**Solucao:** regra `delivery-grpc-bloqueio` (DENY `tcp:9090-9092` de
+`0.0.0.0/0` para a tag `delivery-servicos`, prioridade 900) e o ALLOW do Gateway
+com prioridade 800, que vale antes. Conferido de dentro das VMs com
+`timeout 4 bash -c 'echo > /dev/tcp/servidor-delivery.us-central1-a.c.sistemas-distribuidos-505422.internal/9090'`:
+`delivery-frontend` -> bloqueada, `delivery-gateway` -> aberta.
+
+**Arquivos:** `scripts/gcp/criar_infra.ps1`, `docs/04-deploy-gcp-vm.md`.
+
+---
+
 ## 2026-09-24
+
+### Cloud SQL Studio: `relation "itens_pedido" does not exist`
+
+**Sintoma:** no Cloud SQL Studio da instancia `delivery-postgres`:
+
+```text
+Execution failed. All statements are aborted. Details: pq: relation "itens_pedido" does not exist
+```
+
+O Explorador mostra `postgres > public` sem as tabelas do projeto.
+
+**Causa:** o login do Studio foi feito no banco padrao `postgres`. As tabelas
+do projeto ficam no banco `delivery` (`DB_NAME` do `.env`), que e outro banco
+na mesma instancia. No PostgreSQL um banco nao enxerga as tabelas de outro.
+
+**Solucao:** trocar a sessao do Studio para o banco `delivery` (icone de
+usuario ao lado de "Explorador", ou sair e entrar de novo), com usuario
+`postgres` e a senha do banco. O Explorador passa a mostrar
+`delivery > public > Tabelas 3`.
+
+**Arquivos:** nenhum (acesso pelo Console).
 
 ### 503 "Deadline Exceeded" em vez de "Catalogo indisponivel"
 
