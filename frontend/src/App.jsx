@@ -7,10 +7,12 @@ import Login from "./telas/Login.jsx";
 import Pedidos from "./telas/Pedidos.jsx";
 import Testes from "./telas/Testes.jsx";
 
+// A aba Cozinha so aparece para o papel cozinha. Esconder e conveniencia: quem
+// barra de verdade e o Gateway, com 403.
 const ABAS = [
   { id: "cardapio", nome: "Cardápio" },
   { id: "pedidos", nome: "Pedidos" },
-  { id: "cozinha", nome: "Cozinha" },
+  { id: "cozinha", nome: "Cozinha", papel: "cozinha" },
   { id: "testes", nome: "Testes de segurança" },
 ];
 
@@ -20,6 +22,9 @@ export default function App() {
   const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
 
   useEffect(() => aoMudarSessao(() => setSessao(lerSessao())), []);
+
+  const papel = sessao?.usuario?.papel;
+  const abasVisiveis = ABAS.filter((a) => !a.papel || a.papel === papel);
 
   function abrirPedido(id) {
     setPedidoEmFoco(id);
@@ -35,7 +40,7 @@ export default function App() {
         </div>
         {sessao && (
           <nav className="abas" aria-label="Seções">
-            {ABAS.map((a) => (
+            {abasVisiveis.map((a) => (
               <button
                 key={a.id}
                 className={a.id === aba ? "aba ativa" : "aba"}
@@ -54,6 +59,7 @@ export default function App() {
           {sessao && (
             <span className="usuario">
               {sessao.usuario?.nome}
+              <span className="papel">{papel}</span>
               <button className="botao-texto" onClick={encerrarSessao}>
                 Sair
               </button>
@@ -65,8 +71,10 @@ export default function App() {
       <main className="conteudo">
         {!sessao && <Login />}
         {sessao && aba === "cardapio" && <Cardapio sessao={sessao} aoCriarPedido={abrirPedido} />}
-        {sessao && aba === "pedidos" && <Pedidos emFoco={pedidoEmFoco} aoFocar={setPedidoEmFoco} />}
-        {sessao && aba === "cozinha" && <Cozinha />}
+        {sessao && aba === "pedidos" && (
+          <Pedidos emFoco={pedidoEmFoco} aoFocar={setPedidoEmFoco} podeAvancar={papel === "cozinha"} />
+        )}
+        {sessao && aba === "cozinha" && papel === "cozinha" && <Cozinha />}
         {sessao && aba === "testes" && <Testes />}
       </main>
 

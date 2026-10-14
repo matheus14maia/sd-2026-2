@@ -96,6 +96,13 @@ def main() -> int:
             autorizacao="Bearer %s.%s.assinatura-falsa" % (cabecalho, carga))
     cenario("Dono do token", 200, "GET", "/auth/eu")
 
+    # Autorizacao: quem se cadastra pela API e cliente e nao mexe no cardapio.
+    sessao_cliente = cenario("Login do cliente recem-criado", 200, "POST", "/auth/login",
+                             {"login": novo_login, "senha": "senha-teste"})
+    token_cliente = (sessao_cliente or {}).get("access_token", "") if isinstance(sessao_cliente, dict) else ""
+    cenario("Cliente tentando alterar o cardapio", 403, "PATCH", "/cardapio/PR01",
+            {"disponivel": True, "preco": 1.0}, autorizacao="Bearer " + token_cliente)
+
     # Rotas de negocio (com token) -----------------------------------------
     cenario("Cardapio de bebidas", 200, "GET", "/cardapio?categoria=Bebidas")
 
@@ -122,6 +129,8 @@ def main() -> int:
     cenario("Avanca status RECEBIDO -> EM_PREPARO", 200, "PATCH", "/pedidos/%s/status" % pedido_id, {"status": "EM_PREPARO"})
     cenario("Pula etapa EM_PREPARO -> ENTREGUE", 409, "PATCH", "/pedidos/%s/status" % pedido_id, {"status": "ENTREGUE"})
     cenario("Status fora da lista", 400, "PATCH", "/pedidos/%s/status" % pedido_id, {"status": "CANCELADO"})
+    cenario("Cliente tentando avancar o status", 403, "PATCH", "/pedidos/%s/status" % pedido_id,
+            {"status": "PRONTO"}, autorizacao="Bearer " + token_cliente)
     cenario("Lista os pedidos", 200, "GET", "/pedidos?limite=3")
 
     print("\n" + ("Todos os cenarios passaram." if falhas == 0 else "%d cenario(s) com status diferente do esperado." % falhas))

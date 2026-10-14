@@ -31,4 +31,10 @@ def login(request: Request, corpo: LoginEntrada):
 )
 def eu(request: Request):
     claims = request.state.usuario
-    return {"id": claims["sub"], "login": claims["login"], "nome": claims["nome"], "expira_em": claims["exp"]}
+    return {
+        "id": claims["sub"],
+        "login": claims["login"],
+        "nome": claims["nome"],
+        "papel": claims.get("papel", ""),
+        "expira_em": claims["exp"],
+    }

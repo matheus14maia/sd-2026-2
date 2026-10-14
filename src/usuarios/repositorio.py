@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-COLUNAS = "id::text AS id, login, nome, criado_em"
+COLUNAS = "id::text AS id, login, nome, papel, criado_em"
 
 
 class LoginDuplicado(Exception):

@@ -28,6 +28,15 @@ function tokenComOutroUsuario() {
   }
 }
 
+// Cria um cliente descartavel pelo Gateway e devolve o token dele.
+async function tokenDeCliente() {
+  const login = `cliente${Date.now().toString().slice(-7)}`;
+  const senha = "senha-cliente";
+  await chamar("POST", "/auth/cadastro", { corpo: { login, nome: "Cliente de teste", senha }, semToken: true });
+  const r = await chamar("POST", "/auth/login", { corpo: { login, senha }, semToken: true });
+  return r.dados?.access_token || "";
+}
+
 const CENARIOS = [
   {
     grupo: "Autenticação (401)",
@@ -55,6 +64,24 @@ const CENARIOS = [
         explicacao: "O Usuarios confere o hash bcrypt e recusa.",
         esperado: 401,
         executar: () => chamar("POST", "/auth/login", { corpo: { login: "professor", senha: "chute" }, semToken: true }),
+      },
+    ],
+  },
+  {
+    grupo: "Autorização (403)",
+    itens: [
+      {
+        titulo: "Cliente tentando mudar preço",
+        explicacao: "Cria um cliente, faz login e tenta o PATCH da cozinha com o token dele.",
+        esperado: 403,
+        executar: async () => {
+          const token = await tokenDeCliente();
+          return chamar("PATCH", "/cardapio/PR01", {
+            corpo: { disponivel: true, preco: 1 },
+            autorizacao: `Bearer ${token}`,
+            manterSessao: true,
+          });
+        },
       },
     ],
   },
@@ -140,8 +167,8 @@ export default function Testes() {
       <div className="titulo-secao">
         <h1>Testes de segurança</h1>
         <p className="subtitulo">
-          Requisições erradas de propósito. O Gateway barra token inválido com 401 e payload inválido com 400, antes de
-          chamar qualquer microsserviço.
+          Requisições erradas de propósito. O Gateway barra token inválido com 401, papel sem permissão com 403 e
+          payload inválido com 400, antes de chamar qualquer microsserviço.
         </p>
       </div>
       {CENARIOS.map((g) => (

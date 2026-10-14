@@ -30,6 +30,7 @@ def _para_proto(linha: dict) -> pb.Usuario:
         id=linha["id"],
         login=linha["login"],
         nome=linha["nome"],
+        papel=linha["papel"],
         criado_em=criado_em.astimezone().isoformat(timespec="seconds"),
     )
 

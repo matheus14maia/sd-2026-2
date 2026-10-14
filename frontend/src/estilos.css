@@ -164,6 +164,15 @@ p {
   color: var(--branco);
 }
 
+.papel {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--grafite);
+  background: #c9d1d8;
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+
 .usuario .botao-texto {
   color: #f3b4ae;
 }

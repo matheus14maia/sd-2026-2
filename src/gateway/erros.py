@@ -9,7 +9,8 @@ Dois tipos de erro chegam aqui:
    equivalente ao status code do gRPC.
 
 O 401 de token ausente/invalido nao passa por aqui: o MiddlewareJWT
-(autenticacao.py) responde antes de a requisicao chegar nas rotas.
+(autenticacao.py) responde antes de a requisicao chegar nas rotas. O 403 de
+papel sem permissao vem da dependencia exigir_papel (acesso_negado abaixo).
 """
 
 import grpc
@@ -89,6 +90,10 @@ async def validacao_invalida(request: Request, exc: RequestValidationError) -> J
         status_code=400,
         content={"mensagem": "Dados da requisicao invalidos", "erros": erros},
     )
+
+
+async def acesso_negado(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"mensagem": str(exc)})
 
 
 async def erro_grpc(request: Request, exc: grpc.RpcError) -> JSONResponse:

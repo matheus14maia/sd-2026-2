@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from ..autenticacao import esquema_bearer
+from ..autenticacao import esquema_bearer, exigir_papel
 from ..esquemas import PedidoEntrada, StatusEntrada
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"], dependencies=[Depends(esquema_bearer)])
@@ -26,7 +26,11 @@ def obter(request: Request, pedido_id: str):
     return request.app.state.grpc.obter_pedido(pedido_id)
 
 
-@router.patch("/{pedido_id}/status", summary="Avanca o status do pedido (200 / 409)")
+@router.patch(
+    "/{pedido_id}/status",
+    summary="Avanca o status do pedido (200 / 409; 403 se nao for cozinha)",
+    dependencies=[Depends(exigir_papel("cozinha"))],
+)
 def atualizar_status(request: Request, pedido_id: str, corpo: StatusEntrada):
     pedido = request.app.state.grpc.atualizar_status(pedido_id, corpo.status)
     return {"mensagem": "Status atualizado", "pedido": pedido}

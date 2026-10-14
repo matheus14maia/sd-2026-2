@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 
-from ..autenticacao import esquema_bearer
+from ..autenticacao import esquema_bearer, exigir_papel
 from ..esquemas import PADRAO_CODIGO, ItemAtualizacao
 
 router = APIRouter(prefix="/cardapio", tags=["cardapio"], dependencies=[Depends(esquema_bearer)])
@@ -13,7 +13,11 @@ def listar(request: Request, categoria: str = Query(default="", max_length=50)):
     return request.app.state.grpc.listar_cardapio(categoria.strip())
 
 
-@router.patch("/{codigo}", summary="Altera disponibilidade/preco de um item (200)")
+@router.patch(
+    "/{codigo}",
+    summary="Altera disponibilidade/preco de um item (200; 403 se nao for cozinha)",
+    dependencies=[Depends(exigir_papel("cozinha"))],
+)
 def atualizar(
     request: Request,
     corpo: ItemAtualizacao,

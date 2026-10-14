@@ -7,7 +7,7 @@ expostos para fora: so o Gateway publica porta.
 
 Ordem das camadas de uma requisicao (de fora para dentro):
 
-    CORS -> log -> MiddlewareJWT -> validacao Pydantic -> rota -> gRPC
+    CORS -> log -> MiddlewareJWT (401) -> papel (403) -> validacao Pydantic (400) -> rota -> gRPC
 
     uvicorn src.gateway.app:app --host 0.0.0.0 --port 8000
 """
@@ -23,7 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import erros
-from .autenticacao import SEGREDO, SEGREDO_PADRAO, MiddlewareJWT
+from .autenticacao import SEGREDO_DEFINIDO, AcessoNegado, MiddlewareJWT
 from .clientes_grpc import CATALOGO_ENDERECO, PEDIDOS_ENDERECO, USUARIOS_ENDERECO, ClientesGrpc
 from .rotas import auth, cardapio, pedidos
 
@@ -41,8 +41,8 @@ async def ciclo_de_vida(app: FastAPI):
         flush=True,
     )
     print(f"CORS liberado para: {', '.join(CORS_ORIGENS)}", flush=True)
-    if SEGREDO == SEGREDO_PADRAO:
-        print("AVISO: JWT_SEGREDO nao definido, usando o segredo local de desenvolvimento.", flush=True)
+    if not SEGREDO_DEFINIDO:
+        print("AVISO: JWT_SEGREDO nao definido; segredo sorteado nesta subida.", flush=True)
     yield
     app.state.grpc.fechar()
 
@@ -60,6 +60,7 @@ app = FastAPI(
 
 app.add_exception_handler(RequestValidationError, erros.validacao_invalida)
 app.add_exception_handler(grpc.RpcError, erros.erro_grpc)
+app.add_exception_handler(AcessoNegado, erros.acesso_negado)
 
 app.include_router(auth.router)
 app.include_router(cardapio.router)

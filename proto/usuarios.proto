@@ -3,6 +3,9 @@
 // Usuarios e dono da tabela usuarios do PostgreSQL: guarda o login, o nome e o
 // hash bcrypt da senha. A senha nunca volta em nenhuma resposta. Quem emite o
 // token JWT e o Gateway, depois que este servico confirma as credenciais.
+//
+// papel: "cliente" (quem se cadastra pela API) ou "cozinha" (altera cardapio e
+// avanca pedidos). O Gateway coloca o papel no token e confere nas rotas.
 syntax = "proto3";
 
 package usuarios;
@@ -21,6 +24,7 @@ message Usuario {
   string login = 2;
   string nome = 3;
   string criado_em = 4;    // ISO 8601
+  string papel = 5;        // cliente | cozinha
 }
 
 message CadastrarUsuarioRequest {

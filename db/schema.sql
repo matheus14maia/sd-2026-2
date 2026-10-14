@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
     senha_hash TEXT        NOT NULL,
     criado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- papel em ALTER separado para bancos que ja tinham a tabela sem a coluna.
+ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS papel TEXT NOT NULL DEFAULT 'cliente'
+    CHECK (papel IN ('cliente', 'cozinha'));
 
 -- Catalogo ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS itens_cardapio (

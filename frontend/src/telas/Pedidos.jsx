@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ETAPAS, NOME_ETAPA, chamar, formatarData, formatarPreco } from "../api.js";
 import { Resultado } from "../componentes/Campo.jsx";
 
-export default function Pedidos({ emFoco, aoFocar }) {
+export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
   const [pedidos, setPedidos] = useState([]);
   const [detalhe, setDetalhe] = useState(null);
   const [resposta, setResposta] = useState(null);
@@ -133,12 +133,15 @@ export default function Pedidos({ emFoco, aoFocar }) {
             </ul>
 
             <div className="acoes">
-              {proxima && (
+              {!podeAvancar && proxima && (
+                <p className="vazio">A cozinha avança as etapas deste pedido.</p>
+              )}
+              {podeAvancar && proxima && (
                 <button className="botao" onClick={() => mudarStatus(proxima)}>
                   Avançar para {NOME_ETAPA[proxima].toLowerCase()}
                 </button>
               )}
-              {pulo && (
+              {podeAvancar && pulo && (
                 <button className="botao-secundario" onClick={() => mudarStatus(pulo)}>
                   Tentar pular para entregue
                 </button>

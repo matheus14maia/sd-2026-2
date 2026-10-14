@@ -3,7 +3,8 @@
 O Gateway e o unico ponto que emite e confere token. O microsservico de
 Usuarios so confirma login e senha; daqui para dentro (gRPC) ninguem ve token.
 
-    JWT_SEGREDO             chave HMAC do HS256 (obrigatoria em producao)
+    JWT_SEGREDO             chave HMAC do HS256. Sem ela, o Gateway sorteia uma
+                            chave a cada subida (os tokens antigos deixam de valer)
     JWT_EXPIRACAO_MINUTOS   validade do token (padrao 60)
 
 O MiddlewareJWT barra na borda, com 401, toda requisicao sem
@@ -12,15 +13,19 @@ rotas de ROTAS_PUBLICAS passam sem token.
 """
 
 import os
+import secrets
 import time
 
 import jwt
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 
-SEGREDO_PADRAO = "segredo-local-de-desenvolvimento-troque-no-gcp"
-SEGREDO = os.getenv("JWT_SEGREDO") or SEGREDO_PADRAO
+# Nunca ha segredo fixo no codigo: o repositorio e publico e qualquer um
+# poderia assinar tokens com ele.
+SEGREDO_DEFINIDO = bool(os.getenv("JWT_SEGREDO"))
+SEGREDO = os.getenv("JWT_SEGREDO") or secrets.token_hex(32)
 ALGORITMO = "HS256"
 EXPIRACAO_MINUTOS = int(os.getenv("JWT_EXPIRACAO_MINUTOS", "60"))
 
@@ -43,6 +48,7 @@ def emitir_token(usuario: dict) -> dict:
         "sub": usuario["id"],
         "login": usuario["login"],
         "nome": usuario["nome"],
+        "papel": usuario["papel"],
         "iat": agora,
         "exp": agora + EXPIRACAO_MINUTOS * 60,
     }
@@ -61,6 +67,24 @@ def validar_token(token: str) -> dict:
         algorithms=[ALGORITMO],
         options={"require": ["sub", "exp", "iat"]},
     )
+
+
+class AcessoNegado(Exception):
+    """Token valido, mas o papel do usuario nao permite a operacao (403)."""
+
+
+def exigir_papel(papel: str):
+    """Dependencia de rota: so deixa passar quem tem o papel no token.
+
+    O MiddlewareJWT ja garantiu que o token e valido; aqui so se confere a
+    autorizacao. Quem se cadastra pela API e sempre "cliente".
+    """
+
+    def conferir(request: Request) -> None:
+        if request.state.usuario.get("papel") != papel:
+            raise AcessoNegado("Operacao permitida so para o papel '%s'." % papel)
+
+    return conferir
 
 
 def _nao_autorizado(mensagem: str) -> JSONResponse:
