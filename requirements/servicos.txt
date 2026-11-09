@@ -1,0 +1,5 @@
+# Microsservicos gRPC (Usuarios, Catalogo, Pedidos).
+-r comum.txt
+-r banco.txt
+grpcio-reflection==1.68.1
+grpcio-health-checking==1.68.1

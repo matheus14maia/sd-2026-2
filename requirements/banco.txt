@@ -1,0 +1,4 @@
+# Acesso ao PostgreSQL (SQL puro, pool de conexoes) e hash de senha.
+psycopg[binary,pool]==3.3.6
+psycopg-pool==3.3.3
+bcrypt==4.2.1

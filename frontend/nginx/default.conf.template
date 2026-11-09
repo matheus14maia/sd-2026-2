@@ -1,8 +1,13 @@
-# O entrypoint da imagem nginx troca ${API_URL} pelo valor da variavel de
-# ambiente ao subir o container: a URL do Gateway muda sem rebuild.
+# O entrypoint da imagem nginx troca ${PORT} e ${API_URL} pelos valores das
+# variaveis de ambiente ao subir o container: a porta e a URL do Gateway mudam
+# sem rebuild. ($uri nao e variavel de ambiente e fica como esta.)
 server {
-    listen 80;
+    listen ${PORT};
+    server_tokens off;
     root /usr/share/nginx/html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
 
     location = /config.js {
         default_type application/javascript;
@@ -10,8 +15,10 @@ server {
         return 200 "window.API_URL = '${API_URL}';\n";
     }
 
+    # Arquivos do Vite tem hash no nome: podem ficar em cache por muito tempo.
     location /assets/ {
         expires 7d;
+        add_header Cache-Control "public, immutable";
     }
 
     location / {
