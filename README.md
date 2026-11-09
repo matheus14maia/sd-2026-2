@@ -73,11 +73,12 @@ Deploy do Trabalho 2 no GCP (VMs; ligado so para demonstracao, com `scripts/gcp/
 | `GET /cardapio?categoria=` | sim | Catalogo | 200 | 401, 404 categoria inexistente |
 | `PATCH /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 | 400, 401, **403**, 404 |
 | `POST /pedidos` | sim | Pedidos -> Catalogo | **201** (em nome do dono do token) | **400**, 401, 409 item indisponivel, 503 |
-| `GET /pedidos?limite=` | sim | Pedidos | 200 (cliente: so os seus; cozinha: todos) | 400, 401 |
-| `GET /pedidos/{id}` | sim | Pedidos | 200 | 400, 401, 404 (inclusive pedido de outro cliente) |
+| `GET /pedidos?limite=&etapa=&periodo=&item=&cliente=` | sim | Pedidos | 200 (cliente: so os seus; cozinha: todos; filtros opcionais) | 400, 401 |
+| `GET /pedidos/eventos` | sim | Pedidos (stream gRPC) | 200, fluxo Server-Sent Events: pedido criado ou etapa alterada, sem F5 | 401 |
+| `GET /pedidos/{id}` | sim | Pedidos | 200 (com o horario de cada etapa e a previsao de entrega) | 400, 401, 404 (inclusive pedido de outro cliente) |
 | `PATCH /pedidos/{id}/status` | sim, papel `cozinha` | Pedidos | 200 | 400, 401, 403, 404, 409 |
 | `GET /saude` | nao | - | 200 (com o estado dos circuitos) | - |
-| `GET /saude/servicos` | sim | os tres (health check gRPC) | 200 | 401 |
+| `GET /saude/servicos` | sim, papel `cozinha` | os tres (health check gRPC) | 200 | 401, 403 |
 
 Sem `Authorization: Bearer <token>` valido, toda rota marcada com token responde
 **401** antes de qualquer chamada gRPC. Swagger em `http://HOST:8000/docs`.
@@ -109,8 +110,9 @@ python scripts/testar_resiliencia.py      # derruba e religa o Catalogo e confer
 - O `.env.exemplo` ja vem com `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`.
 - Frontend em `http://localhost` (aba **Saude dos servicos** para acompanhar uma
   falha ao vivo), Gateway em `http://localhost:8000`.
-- O teste ponta a ponta roda 37 cenarios (200/201/400/401/403/404/409) e confere
-  status e conteudo de cada um, inclusive o dono dos pedidos.
+- O teste ponta a ponta roda 46 cenarios (200/201/400/401/403/404/409) e confere
+  status e conteudo de cada um, inclusive o dono dos pedidos, os filtros, o
+  historico de etapas e a atualizacao em tempo real.
 
 Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 

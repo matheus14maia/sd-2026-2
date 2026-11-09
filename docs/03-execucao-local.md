@@ -87,7 +87,7 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
-### Teste ponta a ponta (37 cenarios)
+### Teste ponta a ponta (46 cenarios)
 
 PowerShell:
 
@@ -143,9 +143,18 @@ OK  Cliente consulta o proprio pedido  (esperado 200, recebido 200)
 OK  Cliente nao ve o pedido de outro usuario  (esperado 404, recebido 404)
 OK  Cozinha lista os pedidos de todos  (esperado 200, recebido 200)
 OK  Cozinha consulta o pedido do cliente  (esperado 200, recebido 200)
+OK  Filtro por etapa  (esperado 200, recebido 200)
+OK  Filtro por prato  (esperado 200, recebido 200)
+OK  Filtro por periodo (hoje)  (esperado 200, recebido 200)
+OK  Filtro por cliente (cozinha)  (esperado 200, recebido 200)
+OK  Filtro com etapa invalida  (esperado 400, recebido 400)
+OK  Historico com o horario de cada etapa  (esperado 200, recebido 200)
+OK  Tempo real: cliente recebe a nova etapa sem recarregar  (esperado 200, recebido 200)
+OK  Tempo real: cliente nao recebe pedido de outro usuario  (esperado 200, recebido 200)
 OK  Health check dos microsservicos  (esperado 200, recebido 200)
+OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)
 
-Todos os 37 cenarios passaram.
+Todos os 46 cenarios passaram.
 ```
 
 ### Teste de tolerancia a falhas
@@ -168,6 +177,7 @@ docker compose exec postgres psql -U postgres -d delivery \
   -c "select login, nome, papel, left(senha_hash, 7) as hash, criado_em from usuarios order by criado_em;" \
   -c "select id, usuario_id, cliente, status, total, criado_em from pedidos order by criado_em;" \
   -c "select pedido_id, linha, codigo, quantidade, subtotal from itens_pedido;" \
+  -c "select pedido_id, status, registrado_em from etapas_pedido order by registrado_em;" \
   -c "select codigo, preco, disponivel, atualizado_em from itens_cardapio where codigo = 'PR05';"
 ```
 

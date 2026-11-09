@@ -68,7 +68,24 @@ aquele servico na mesma alteracao.
 | `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[], usuario_id, pedido_id}` | `Pedido` | `INSERT ... ON CONFLICT (id) DO NOTHING` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE`, `ALREADY_EXISTS` |
 | `ObterPedido` | `ObterPedidoRequest{pedido_id, usuario_id}` | `Pedido` | `SELECT` do pedido (filtrado pelo dono quando `usuario_id` vem preenchido) e das linhas | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | `ListarPedidos` | `ListarPedidosRequest{limite, usuario_id}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT` (sem filtro quando `usuario_id` vem vazio) | `INVALID_ARGUMENT` |
-| `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |
+| `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` + linha em `etapas_pedido` + `NOTIFY` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |
+| `AcompanharPedidos` | `AcompanharPedidosRequest{usuario_id}` | `stream EventoPedido` | `LISTEN` no canal `pedidos`; para cada aviso, `SELECT` do pedido | `INVALID_ARGUMENT` |
+
+`AcompanharPedidos` e **server streaming**: a resposta e uma sequencia de
+`EventoPedido{tipo, pedido}` que so termina quando quem chamou fecha. `tipo` e
+`PEDIDO_CRIADO`, `STATUS_ATUALIZADO` ou `BATIMENTO` (sem pedido, a cada 15 s sem
+movimento, para manter a conexao viva). Os avisos saem de um `NOTIFY` gravado na
+mesma transacao da mudanca, entao funcionam com varias instancias do Pedidos.
+
+Campos de filtro do `ListarPedidosRequest` (vazio = sem filtro; varios
+preenchidos se combinam):
+
+| Campo | Tag | Filtro |
+|---|---|---|
+| `status` (repeated `StatusPedido`) | 3 | pedido em uma destas etapas |
+| `criado_desde` | 4 | criado a partir deste instante (ISO 8601) |
+| `codigo_item` | 5 | pedido que tem este item do cardapio |
+| `cliente` | 6 | trecho do nome do cliente, sem diferenciar maiusculas |
 
 Campos novos no Trabalho 3 (tags novas, nenhuma tag antiga mudou de numero, entao
 mensagens antigas continuam compativeis):
@@ -98,6 +115,8 @@ nome que esta no token: o corpo HTTP do `POST /pedidos` nao tem mais esse campo.
 | `criado_em` | string | 8 | ISO 8601 com fuso (`2026-09-24T20:43:57-03:00`) |
 | `atualizado_em` | string | 9 | muda a cada `AtualizarStatus` |
 | `usuario_id` | string | 10 | UUID do dono (o `id` do `Usuario`) |
+| `historico` | repeated `EtapaRegistrada{status, registrado_em}` | 11 | etapas ja alcancadas, em ordem, com o horario (tabela `etapas_pedido`) |
+| `previsao_entrega` | string | 12 | ISO 8601: `criado_em` + `tempo_estimado_minutos` |
 
 `StatusPedido`: `STATUS_DESCONHECIDO = 0` (obrigatorio em proto3),
 `RECEBIDO`, `EM_PREPARO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `ENTREGUE`. O pedido so

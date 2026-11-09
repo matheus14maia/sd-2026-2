@@ -31,15 +31,16 @@ da requisicao).
 | Metodo e rota | Acesso | Corpo | Sucesso | RPC |
 |---|---|---|---|---|
 | `GET /saude` | publica | - | 200 `{"status":"ok", "circuitos": {...}}` | - |
-| `GET /saude/servicos` | token | - | 200 `{"servicos": {nome: {health_check, latencia_ms, circuito, falhas_seguidas, ...}}}` | `grpc.health.v1.Health/Check` nos tres |
+| `GET /saude/servicos` | token + papel `cozinha` | - | 200 `{"servicos": {nome: {health_check, latencia_ms, circuito, falhas_seguidas, ...}}, "tempo_real": {conectado, navegadores}}` | `grpc.health.v1.Health/Check` nos tres |
 | `POST /auth/cadastro` | publica | `{"login", "nome", "senha"}` | **201** `{"mensagem", "usuario"}` | `UsuarioService.CadastrarUsuario` |
 | `POST /auth/login` | publica | `{"login", "senha"}` | 200 `{"access_token", "token_type", "expira_em_segundos", "usuario"}` | `UsuarioService.VerificarCredenciais` |
 | `GET /auth/eu` | token | - | 200 dados do token | - |
 | `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
 | `PATCH /cardapio/{codigo}` | token + papel `cozinha` | `{"disponivel": true, "preco": 82.5}` (`preco` opcional) | 200 item alterado | `CatalogoService.AtualizarItem` |
 | `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade"}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
-| `GET /pedidos?limite=20` | token | - | 200 `{"escopo": "meus"/"todos", "pedidos": [...]}` | `PedidoService.ListarPedidos` |
-| `GET /pedidos/{id}` | token | - | 200 pedido (cliente: so os seus; outro usuario -> 404) | `PedidoService.ObterPedido` |
+| `GET /pedidos?limite=20&etapa=&periodo=&item=&cliente=` | token | - | 200 `{"escopo": "meus"/"todos", "filtros": {...}, "pedidos": [...]}` | `PedidoService.ListarPedidos` |
+| `GET /pedidos/eventos` | token | - | 200 `text/event-stream` (ver [Tempo real](#tempo-real-server-sent-events)) | `PedidoService.AcompanharPedidos` (stream) |
+| `GET /pedidos/{id}` | token | - | 200 pedido com `historico` e `previsao_entrega` (cliente: so os seus; outro usuario -> 404) | `PedidoService.ObterPedido` |
 | `PATCH /pedidos/{id}/status` | token + papel `cozinha` | `{"status": "EM_PREPARO"}` | 200 `{"mensagem", "pedido"}` | `PedidoService.AtualizarStatus` |
 
 `/docs` e `/openapi.json` (Swagger) tambem sao publicos. No Swagger, faca o
@@ -98,6 +99,52 @@ O pedido e sempre feito em nome de quem esta logado. A rota `POST /pedidos` le
   inexistente, para nao revelar que o pedido existe;
 - papel `cozinha`: ve todos os pedidos (`"escopo": "todos"`), porque precisa
   avancar as etapas de qualquer um.
+
+## Filtros da listagem
+
+`GET /pedidos` aceita, alem do filtro pelo dono, quatro filtros opcionais. Todos
+viram condicoes no `SELECT` do Pedidos e se combinam (o pedido precisa atender a
+todos os preenchidos):
+
+| Parametro | Valores | Efeito |
+|---|---|---|
+| `etapa` | `RECEBIDO`, `EM_PREPARO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `ENTREGUE` ou `EM_ANDAMENTO` (todas menos `ENTREGUE`) | pedidos nessa etapa |
+| `periodo` | `hoje`, `7d`, `30d` | pedidos criados a partir do inicio do dia (fuso do servidor) ou dos ultimos 7/30 dias |
+| `item` | codigo do cardapio (`PR01`) | pedidos que tem esse prato |
+| `cliente` | texto (ate 100 caracteres) | pedidos cujo nome do cliente contem o texto, sem diferenciar maiusculas |
+
+Valor fora da lista responde **400** (`"erros": {"etapa": "valor nao permitido; use um de: ..."}`).
+A resposta repete os filtros aplicados em `"filtros"`.
+
+## Tempo real (Server-Sent Events)
+
+`GET /pedidos/eventos` deixa a conexao aberta e manda um evento a cada pedido
+criado ou etapa alterada, sem o navegador precisar recarregar:
+
+```text
+event: estado
+data: {"conectado": true}
+
+event: pedido
+data: {"tipo": "status", "pedido": {"pedido_id": "...", "status": "EM_PREPARO", "historico": [...], ...}}
+
+: ping
+```
+
+- **Do banco ao navegador.** O Pedidos grava um `NOTIFY` no PostgreSQL na mesma
+  transacao da mudanca. Uma thread com `LISTEN` repassa o aviso ao RPC em stream
+  `AcompanharPedidos`. O Gateway mantem **um** desses streams por instancia
+  (aberto quando o primeiro navegador conecta, fechado quando o ultimo sai) e
+  repassa cada evento aos navegadores conectados.
+- **Dono do pedido.** Cliente so recebe os eventos dos proprios pedidos; a
+  cozinha recebe todos.
+- **Falhas.** Se o Pedidos cair, o Gateway tenta de novo com espera crescente
+  (1 s, 2 s, 4 s... ate 15 s) e manda `estado: {"conectado": false}`; o frontend
+  mostra "Reconectando..." e volta sozinho. Sem eventos, sai um comentario
+  `: ping` a cada 15 s para a conexao nao ser fechada por inatividade.
+- **Token.** O `EventSource` do navegador nao manda o cabecalho
+  `Authorization`; o frontend le o fluxo com `fetch`, que manda o Bearer como em
+  qualquer outra chamada.
 
 ## Validacao do payload
 
@@ -223,5 +270,5 @@ $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda os 37 cenarios em
-sequencia, inclusive os de 401, 403 e os de dono do pedido.
+O teste `python scripts/testar_gateway.py --url $URL` roda os 46 cenarios em
+sequencia, inclusive os de 401, 403, dono do pedido, filtros e tempo real.

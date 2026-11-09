@@ -137,4 +137,6 @@ depender de quem o chama (defesa em profundidade).
 | Status avanca so para a proxima etapa | evita estados impossiveis; o `UPDATE` e condicional (`WHERE status = atual`) para duas chamadas simultaneas nao avancarem duas vezes |
 | Dono do pedido vem do token | o professor apontou que o nome do cliente era texto livre e a lista nao filtrava pelo usuario; agora o pedido guarda o `usuario_id` do token e o cliente so ve os seus |
 | Retry, circuit breaker e fallback no cliente gRPC | uma falha de um microsservico nao derruba o sistema inteiro nem trava o usuario (ver [07-resiliencia.md](07-resiliencia.md)) |
+| Tempo real com NOTIFY + gRPC streaming + SSE | a tela acompanha o pedido sem F5; o aviso nasce no banco (funciona com varias instancias) e o Gateway abre um so stream por instancia, nao um por navegador |
+| Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
 | Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |

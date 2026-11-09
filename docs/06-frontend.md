@@ -8,12 +8,23 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 
 | Tela | O que faz | Chamadas ao Gateway |
 |---|---|---|
-| Entrar / Criar conta | login e cadastro; os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo | `POST /auth/login`, `POST /auth/cadastro` |
-| Cardapio | lista os pratos, filtra por categoria (o filtro e feito no servidor), monta a sacola e faz o pedido em nome de quem esta logado (so pede o endereco); se o Catalogo cair, mostra a faixa "cardapio salvo pelo Gateway" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos` |
-| Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; mostra itens e etapas; a cozinha avanca a etapa e pode tentar pular uma (409) | `GET /pedidos`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status` |
+| Entrar / Criar conta | login e cadastro; campos obrigatorios com asterisco (dica "Campo obrigatorio" ao passar o mouse); os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo | `POST /auth/login`, `POST /auth/cadastro` |
+| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), sacola e pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com animacao de chamas; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos` |
+| Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; filtros por etapa, periodo, prato e (cozinha) cliente; horario de cada etapa, previsao de entrega com o tempo que falta; a cozinha avanca a etapa e pode tentar pular uma (409); tudo se atualiza sozinho | `GET /pedidos?...`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status`, `GET /pedidos/eventos` |
 | Cozinha (so papel `cozinha`) | liga e desliga pratos do cardapio do dia e ajusta preco | `GET /cardapio`, `PATCH /cardapio/{codigo}` |
-| Saude dos servicos | a cada 3 s, health check gRPC de cada microsservico e o estado do circuit breaker no Gateway; botoes para carregar o cardapio e fazer um pedido de teste durante uma falha (ver [07-resiliencia.md](07-resiliencia.md)) | `GET /saude/servicos`, `GET /cardapio`, `POST /pedidos` |
-| Testes de seguranca | botoes que mandam requisicoes erradas de proposito: sem token, token adulterado, token editado, senha errada (401), cliente mudando preco (403), payload invalido (400), item inexistente (400), item indisponivel (409), pedido em nome de outra pessoa (400), cliente vendo pedido de outro (404) | varias |
+| Saude dos servicos (so papel `cozinha`) | a cada 3 s, health check gRPC de cada microsservico, o estado do circuit breaker no Gateway e da conexao de tempo real; botoes para carregar o cardapio e fazer um pedido de teste durante uma falha (ver [07-resiliencia.md](07-resiliencia.md)) | `GET /saude/servicos`, `GET /cardapio`, `POST /pedidos` |
+| Testes de seguranca (so papel `cozinha`) | botoes que mandam requisicoes erradas de proposito: sem token, token adulterado, token editado, senha errada (401), cliente mudando preco ou vendo a saude (403), payload invalido (400), item inexistente (400), item indisponivel (409), pedido em nome de outra pessoa (400), cliente vendo pedido de outro (404) | varias |
+
+**Tempo real.** Depois do login o app abre uma conexao com `GET /pedidos/eventos`
+(ver [05-api-gateway.md](05-api-gateway.md#tempo-real-server-sent-events)). O
+topo mostra "Ao vivo" (ou "Reconectando..."), a lista e o detalhe do pedido se
+atualizam sozinhos, e aparecem avisos: a cozinha e avisada de cada pedido novo e
+o cliente de cada etapa do pedido dele.
+
+**Mensagens.** A API responde sem acento (convencao do backend); o
+`src/mensagens.js` transforma as mensagens conhecidas em frases com acento para a
+tela (por exemplo, `nao deve estar vazio` no endereco vira "Informe o endereco de
+entrega."). A aba de testes e o trilho de comandas mostram a resposta crua.
 
 No rodape fica o **trilho de comandas**: cada chamada feita ao Gateway aparece
 como uma comanda com horario, metodo, rota, duracao, se foi com token e o status
@@ -76,9 +87,10 @@ frontend/
   index.html                       carrega /config.js e o app
   nginx/default.conf.template      porta ${PORT}, /config.js com ${API_URL}, gzip e fallback de SPA
   Dockerfile                       build com node:22-alpine, entrega com nginx-unprivileged:1.28-alpine
-  src/api.js                       unico modulo que chama o Gateway; sessao e registro das chamadas
+  src/api.js                       unico modulo que chama o Gateway; sessao, registro das chamadas e tempo real
+  src/mensagens.js                 mensagens da API -> texto da tela (com acento)
   src/App.jsx                      cabecalho, abas e escolha da tela
   src/telas/                       Login, Cardapio, Pedidos, Cozinha, Saude, Testes
-  src/componentes/                 Campo (erro por campo, Aviso, Resultado), Trilho (comandas)
+  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama
   src/estilos.css                  identidade visual
 ```

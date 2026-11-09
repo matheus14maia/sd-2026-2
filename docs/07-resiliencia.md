@@ -33,6 +33,7 @@ Resumo do que acontece quando o **Catalogo cai**:
 | Health check | `grpc.health.v1` nos tres servicos | usado pelo `HEALTHCHECK` das imagens (`docker compose ps` mostra `healthy`) e pela rota `GET /saude/servicos` |
 | Encerramento limpo | `executar()` em `src/comum/servidor_grpc.py` | no `SIGTERM` o servico marca o health como `NOT_SERVING` e termina as chamadas em andamento (5 s) |
 | Reinicio automatico | `restart: always` no compose | container que cai volta sozinho |
+| Tempo real que reconecta | `src/gateway/eventos.py`, `src/pedidos/eventos.py`, `assinarEventos` no frontend | se o Pedidos cair, o stream do Gateway tenta de novo (1 s ate 15 s) e os navegadores veem "Reconectando..."; se o banco cair, o `LISTEN` reconecta sozinho |
 
 ## Erros vistos pelo cliente
 

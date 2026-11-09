@@ -234,6 +234,20 @@ nada que nao esteja no contrato.
 - Sem a linha `# syntax=docker/dockerfile:1`: o BuildKit embutido ja entende
   `RUN --mount=type=cache`, e a diretiva so faria o build baixar mais uma imagem.
 
+## Tempo real
+
+- **O aviso nasce no banco.** Toda gravacao que muda um pedido chama
+  `pg_notify('pedidos', ...)` dentro da mesma transacao (so e entregue se o
+  COMMIT acontecer). Nao avise a partir da memoria do processo: com varias
+  instancias do Pedidos, a que gravou nao e a que mantem o stream.
+- **Um stream por instancia do Gateway, nao por navegador.** `RetransmissorEventos`
+  abre o `AcompanharPedidos` quando o primeiro navegador conecta e fecha quando o
+  ultimo sai; cada stream ocupa uma thread do servidor gRPC do Pedidos.
+- **A rota `/pedidos/eventos` vem antes de `/pedidos/{pedido_id}`** no router:
+  senao "eventos" seria lido como id de pedido.
+- **O frontend le o SSE com `fetch`**, nao com `EventSource`: o `EventSource` nao
+  manda o cabecalho `Authorization`.
+
 ## Frontend
 
 - **Um unico modulo fala com o backend** (`frontend/src/api.js`). Ele monta a
@@ -249,6 +263,19 @@ nada que nao esteja no contrato.
   esta logado; a tela so mostra o nome da sessao.
 - **Consulta periodica usa `silencioso: true`** em `chamar()` (tela Saude): senao
   o trilho de comandas enche de `GET /saude/servicos` a cada 3 s.
+- **Mensagens da API passam por `src/mensagens.js`** antes de ir para a tela
+  (`Campo` e `Resultado` ja fazem isso): a API continua sem acento, a tela mostra
+  frase com acento. Mensagem nova na API? Acrescente a regra la. A aba de testes
+  e o trilho mostram a resposta crua de proposito.
+- **Asterisco de obrigatorio nao bloqueia o envio** (`Campo obrigatorio`): a
+  validacao continua so no Gateway, para o 400 aparecer na demonstracao.
+- **Abas de operacao so para a cozinha** (Saude e Testes): esconder e
+  conveniencia, quem barra e o Gateway (`/saude/servicos` responde 403).
+- **Animacoes poucas e com `prefers-reduced-motion`**: toda animacao nova entra
+  tambem no bloco que as desliga no fim do `estilos.css`.
+- **Texto do cardapio e conteudo da tela, entao leva acento** (`db/seed.sql`). O
+  `ON CONFLICT` da carga atualiza nome, descricao e categoria, nunca preco nem
+  disponibilidade (que a cozinha muda pela API).
 - **Texto da interface com acento** (e o que o usuario le); codigo, mensagens da
   API e documentacao seguem sem acento.
 
