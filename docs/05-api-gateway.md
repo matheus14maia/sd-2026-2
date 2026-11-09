@@ -8,7 +8,8 @@ ou o erro, de volta para HTTP/JSON.
 Camadas de uma requisicao, de fora para dentro:
 
 ```text
-CORSMiddleware -> log -> MiddlewareJWT (401) -> exigir_papel (403) -> Pydantic (400) -> rota -> gRPC
+CORSMiddleware -> log + id da requisicao -> MiddlewareJWT (401) -> exigir_papel (403) -> Pydantic (400)
+  -> rota -> ClienteResiliente (prazo, retry, circuit breaker) -> gRPC
 ```
 
 | Arquivo | Responsabilidade |
@@ -16,23 +17,29 @@ CORSMiddleware -> log -> MiddlewareJWT (401) -> exigir_papel (403) -> Pydantic (
 | `app.py` | cria o FastAPI, registra os middlewares (CORS, log, JWT), os handlers de erro e as rotas |
 | `autenticacao.py` | emite o JWT, `MiddlewareJWT` (401 na borda) e `exigir_papel` (403) |
 | `esquemas.py` | modelos Pydantic de entrada: os campos obrigatorios de negocio |
-| `rotas/auth.py`, `rotas/cardapio.py`, `rotas/pedidos.py` | endpoints HTTP, cada um delegando a uma chamada gRPC |
-| `clientes_grpc.py` | canais e stubs gRPC (abertos uma vez) e conversao Protobuf <-> dict |
-| `erros.py` | payload invalido -> 400; papel sem permissao -> 403; status gRPC -> status HTTP |
+| `rotas/auth.py`, `rotas/cardapio.py`, `rotas/pedidos.py`, `rotas/saude.py` | endpoints HTTP, cada um delegando a uma chamada gRPC |
+| `clientes_grpc.py` | canais e stubs gRPC (abertos uma vez), conversao Protobuf <-> dict, retry/circuit breaker por servico e o cache do cardapio |
+| `erros.py` | payload invalido -> 400; papel sem permissao -> 403; status gRPC -> status HTTP; circuito aberto -> 503 com `Retry-After` |
+| `__main__.py` | `python -m src.gateway` sobe o Uvicorn na porta de `PORT` (padrao 8000) |
+
+O que e comum com os microsservicos fica em `src/comum/`: `resiliencia.py`
+(retry e circuit breaker), `canal.py` (canal gRPC) e `registro.py` (log com o id
+da requisicao).
 
 ## Rotas
 
 | Metodo e rota | Acesso | Corpo | Sucesso | RPC |
 |---|---|---|---|---|
-| `GET /saude` | publica | - | 200 `{"status":"ok"}` | - |
+| `GET /saude` | publica | - | 200 `{"status":"ok", "circuitos": {...}}` | - |
+| `GET /saude/servicos` | token | - | 200 `{"servicos": {nome: {health_check, latencia_ms, circuito, falhas_seguidas, ...}}}` | `grpc.health.v1.Health/Check` nos tres |
 | `POST /auth/cadastro` | publica | `{"login", "nome", "senha"}` | **201** `{"mensagem", "usuario"}` | `UsuarioService.CadastrarUsuario` |
 | `POST /auth/login` | publica | `{"login", "senha"}` | 200 `{"access_token", "token_type", "expira_em_segundos", "usuario"}` | `UsuarioService.VerificarCredenciais` |
 | `GET /auth/eu` | token | - | 200 dados do token | - |
-| `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[]}` | `CatalogoService.ListarItens` |
+| `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
 | `PATCH /cardapio/{codigo}` | token + papel `cozinha` | `{"disponivel": true, "preco": 82.5}` (`preco` opcional) | 200 item alterado | `CatalogoService.AtualizarItem` |
-| `POST /pedidos` | token | `{"cliente", "endereco", "itens": [{"codigo", "quantidade"}]}` | **201** `{"mensagem", "pedido"}` | `PedidoService.CriarPedido` |
-| `GET /pedidos?limite=20` | token | - | 200 `{"pedidos": [...]}` | `PedidoService.ListarPedidos` |
-| `GET /pedidos/{id}` | token | - | 200 pedido | `PedidoService.ObterPedido` |
+| `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade"}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
+| `GET /pedidos?limite=20` | token | - | 200 `{"escopo": "meus"/"todos", "pedidos": [...]}` | `PedidoService.ListarPedidos` |
+| `GET /pedidos/{id}` | token | - | 200 pedido (cliente: so os seus; outro usuario -> 404) | `PedidoService.ObterPedido` |
 | `PATCH /pedidos/{id}/status` | token + papel `cozinha` | `{"status": "EM_PREPARO"}` | 200 `{"mensagem", "pedido"}` | `PedidoService.AtualizarStatus` |
 
 `/docs` e `/openapi.json` (Swagger) tambem sao publicos. No Swagger, faca o
@@ -79,6 +86,19 @@ dependencia `exigir_papel("cozinha")`. Token valido de outro papel responde
 O token ja foi conferido pelo middleware: o 403 e decisao de autorizacao, nao de
 autenticacao.
 
+## Dono do pedido
+
+O pedido e sempre feito em nome de quem esta logado. A rota `POST /pedidos` le
+`sub` (id) e `nome` do token e manda para o Pedidos como `usuario_id` e
+`cliente`; o corpo nao tem o campo `cliente` (se vier, `extra="forbid"` responde
+400 "campo nao permitido"). Nas consultas:
+
+- papel `cliente`: `GET /pedidos` lista so os pedidos dele (`"escopo": "meus"`) e
+  `GET /pedidos/{id}` de pedido de outro usuario responde **404**, igual a um id
+  inexistente, para nao revelar que o pedido existe;
+- papel `cozinha`: ve todos os pedidos (`"escopo": "todos"`), porque precisa
+  avancar as etapas de qualquer um.
+
 ## Validacao do payload
 
 As regras ficam declaradas nos modelos de `esquemas.py`, e todos recusam campo
@@ -89,7 +109,8 @@ desconhecido (`extra="forbid"`).
 | `login` (cadastro) | 3 a 30 letras, numeros, ponto ou sublinhado; normalizado para minusculo |
 | `nome` (cadastro) | obrigatorio, nao vazio, ate 200 caracteres |
 | `senha` | cadastro: 6 a 72 caracteres (72 e o limite do bcrypt); login: obrigatoria |
-| `cliente`, `endereco` | obrigatorios, texto; espacos nas pontas sao removidos; nao podem ficar vazios; ate 200 caracteres |
+| `endereco` | obrigatorio, texto; espacos nas pontas sao removidos; nao pode ficar vazio; ate 200 caracteres |
+| `cliente` (pedido) | nao existe no corpo: o nome vem do token; enviar responde "campo nao permitido" |
 | `itens` | obrigatorio, lista com 1 a 30 itens |
 | `itens[].codigo` | 2 letras + 2 digitos; aceita minusculo e normaliza para maiusculo |
 | `itens[].quantidade` | inteiro estrito (`"2"` e `1.5` sao recusados), de 1 a 99 |
@@ -104,7 +125,7 @@ de uma vez:
 {
   "mensagem": "Dados da requisicao invalidos",
   "erros": {
-    "cliente": "nao deve estar vazio",
+    "cliente": "campo nao permitido",
     "endereco": "campo obrigatorio",
     "itens.0.codigo": "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)",
     "itens.0.quantidade": "deve ser um numero inteiro",
@@ -127,19 +148,25 @@ login) explicam o formato esperado pela tabela `FORMATOS`.
 | `NOT_FOUND` | 404 | pedido ou categoria inexistente |
 | `FAILED_PRECONDITION` | 409 | item indisponivel; transicao de status invalida |
 | `ALREADY_EXISTS` | 409 | login ja cadastrado |
-| `UNAVAILABLE`, `DEADLINE_EXCEEDED` | 503 | microsservico fora do ar |
+| `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `CANCELLED`, `RESOURCE_EXHAUSTED` | 503 + `Retry-After` | microsservico fora do ar, lento ou reiniciando (depois do retry) |
 | qualquer outro | 500 | "Erro interno ao processar a requisicao." |
 
 Corpo: `{"mensagem": "<detalhe do microsservico>", "codigo_grpc": "NOT_FOUND"}`.
+Quando a falha e de uma dependencia do servico chamado (Catalogo fora durante um
+`CriarPedido`), o corpo traz tambem `"dependencia": "catalogo"`. Circuito aberto
+responde 503 sem chamar o microsservico:
+`{"mensagem": "...", "servico": "catalogo", "circuito": "ABERTO"}`.
+Detalhes em [07-resiliencia.md](07-resiliencia.md).
 
 ## CORS
 
 O frontend roda em outra origem (outra porta, e no GCP outra VM). O
 `CORSMiddleware` libera as origens de `CORS_ORIGENS` (separadas por virgula;
 padrao `*`), os metodos `GET`, `POST`, `PATCH`, `OPTIONS` e os cabecalhos
-`Authorization` e `Content-Type`. Ele e o middleware mais externo: assim ate as
-respostas 401 e 400 saem com os cabecalhos de CORS, e o navegador consegue
-mostrar o erro em vez de esconde-lo como falha de rede.
+`Authorization` e `Content-Type`, e expoe `X-Requisicao-Id` e `Retry-After`
+para o JavaScript. Ele e o middleware mais externo: assim ate as respostas 401 e
+400 saem com os cabecalhos de CORS, e o navegador consegue mostrar o erro em vez
+de esconde-lo como falha de rede.
 
 ## Variaveis de ambiente
 
@@ -148,7 +175,9 @@ mostrar o erro em vez de esconde-lo como falha de rede.
 | `USUARIOS_HOST` / `USUARIOS_PORTA` | `localhost` / `9092` | endereco do microsservico de Usuarios |
 | `CATALOGO_HOST` / `CATALOGO_PORTA` | `localhost` / `9091` | endereco do Catalogo |
 | `PEDIDOS_HOST` / `PEDIDOS_PORTA` | `localhost` / `9090` | endereco do Pedidos |
-| `GRPC_TIMEOUT` | `5` | prazo de cada chamada gRPC, em segundos |
+| `GRPC_TIMEOUT` | `5` | prazo de cada tentativa gRPC, em segundos |
+| `GRPC_PRAZO_TOTAL`, `RETRY_TENTATIVAS`, `DISJUNTOR_FALHAS`, `DISJUNTOR_ABERTO_SEGUNDOS`, `CACHE_CARDAPIO_SEGUNDOS` | ver [07-resiliencia.md](07-resiliencia.md) | retry, circuit breaker e fallback |
+| `PORT` | `8000` | porta HTTP do Gateway |
 | `JWT_SEGREDO` | sorteado na subida | chave HMAC do token |
 | `JWT_EXPIRACAO_MINUTOS` | `60` | validade do token |
 | `CORS_ORIGENS` | `*` | origens liberadas para o navegador |
@@ -172,7 +201,7 @@ curl -i "$URL/cardapio?categoria=Pratos" -H "$AUTH"
 
 # 201
 curl -i -X POST "$URL/pedidos" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"cliente":"Maria","endereco":"Rua 10, 123","itens":[{"codigo":"PR01","quantidade":2},{"codigo":"BE02","quantidade":1}]}'
+  -d '{"endereco":"Rua 10, 123","itens":[{"codigo":"PR01","quantidade":2},{"codigo":"BE02","quantidade":1}]}'
 
 # 400
 curl -i -X POST "$URL/pedidos" -H "$AUTH" -H "Content-Type: application/json" \
@@ -194,5 +223,5 @@ $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda todos os cenarios em
-sequencia, inclusive os de 401 e 403.
+O teste `python scripts/testar_gateway.py --url $URL` roda os 37 cenarios em
+sequencia, inclusive os de 401, 403 e os de dono do pedido.

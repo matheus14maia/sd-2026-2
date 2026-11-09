@@ -7,8 +7,9 @@ API HTTP) e possivel:
 
 - criar conta e entrar (token JWT);
 - consultar o cardapio (inteiro ou por categoria);
-- montar um pedido com varios itens e a quantidade de cada um;
-- consultar e listar pedidos;
+- montar um pedido com varios itens e a quantidade de cada um, sempre em nome
+  de quem esta logado (o nome e o dono vem do token, nao de um campo livre);
+- consultar e listar os proprios pedidos (a cozinha ve os de todos);
 - com o papel `cozinha`: avancar o status do pedido
   (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`), tirar um
   item do cardapio do dia ou mudar o preco.
@@ -52,17 +53,34 @@ quando a chamada chega neles, o Gateway ja autenticou e autorizou.
 ## Caminho de um `POST /pedidos`
 
 ```text
-1. navegador  --HTTP POST /pedidos {JSON} + Bearer-->  gateway
+1. navegador  --HTTP POST /pedidos {endereco, itens} + Bearer-->  gateway
 2. gateway: MiddlewareJWT confere assinatura e validade
             sem token, token invalido ou expirado -> 401 (nao chega nos microsservicos)
-3. gateway: Pydantic valida o payload
+3. gateway: Pydantic valida o payload (campo "cliente" no corpo -> 400)
             invalido -> 400 {"mensagem", "erros": {campo: motivo}}
-4. gateway  --gRPC PedidoService.CriarPedido (Protobuf)-->  pedidos
-5. pedidos  --gRPC CatalogoService.ConsultarItens-->  catalogo  --SELECT-->  itens_cardapio
-6. pedidos: confere existencia/disponibilidade, calcula subtotal, total e tempo
-7. pedidos  --INSERT pedidos + itens_pedido (uma transacao)-->  PostgreSQL
-8. pedidos  --Pedido (Protobuf)-->  gateway  --201 Created {JSON}-->  navegador
+4. gateway: monta o CriarPedidoRequest com usuario_id = sub do token, cliente =
+            nome do token e um pedido_id novo (chave de idempotencia)
+5. gateway  --gRPC PedidoService.CriarPedido (Protobuf, com retry)-->  pedidos
+6. pedidos  --gRPC CatalogoService.ConsultarItens (com retry)-->  catalogo  --SELECT-->  itens_cardapio
+7. pedidos: confere existencia/disponibilidade, calcula subtotal, total e tempo
+8. pedidos  --INSERT pedidos + itens_pedido (uma transacao)-->  PostgreSQL
+9. pedidos  --Pedido (Protobuf)-->  gateway  --201 Created {JSON}-->  navegador
 ```
+
+Se o Catalogo nao responde no passo 6, o Pedidos tenta de novo com backoff e,
+sem sucesso, responde 503 sem gravar nada. O que acontece em cada tipo de falha
+esta em [07-resiliencia.md](07-resiliencia.md).
+
+## Dono do pedido
+
+| Papel | `POST /pedidos` | `GET /pedidos` | `GET /pedidos/{id}` |
+|---|---|---|---|
+| `cliente` | grava em nome do dono do token | so os proprios pedidos (`"escopo": "meus"`) | so se o pedido for dele; de outro usuario responde 404 |
+| `cozinha` | grava em nome do dono do token | todos (`"escopo": "todos"`) | qualquer pedido |
+
+O Gateway tira o `usuario_id` e o nome do token assinado e manda para o Pedidos
+no Protobuf; o corpo HTTP nao tem como escolher em nome de quem o pedido e feito.
+O filtro e feito no banco (`WHERE usuario_id = ...`), pelo Pedidos.
 
 ## Como o sistema reage
 
@@ -78,8 +96,10 @@ quando a chamada chega neles, o Gateway ja autenticou e autorizou.
 | login fora do formato (`a b`) | Gateway | - | 400 | `use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)` |
 | senha curta | Gateway | - | 400 | `deve ter pelo menos 6 caracteres` |
 | JSON malformado | Gateway (Pydantic) | - | 400 | `erros.<campo>: "JSON malformado"` |
-| `cliente` ou `endereco` ausente | Gateway | - | 400 | `erros.cliente: "campo obrigatorio"` |
-| `cliente` so com espacos | Gateway | - | 400 | `erros.cliente: "nao deve estar vazio"` |
+| `endereco` ausente | Gateway | - | 400 | `erros.endereco: "campo obrigatorio"` |
+| `endereco` so com espacos | Gateway | - | 400 | `erros.endereco: "nao deve estar vazio"` |
+| `cliente` no corpo do pedido | Gateway | - | 400 | `erros.cliente: "campo nao permitido"` (o nome vem do token) |
+| cliente pedindo pedido de outro usuario | Pedidos (filtro pelo dono) | `NOT_FOUND` | 404 | `Pedido '...' nao encontrado.` |
 | `itens` vazio | Gateway | - | 400 | `erros.itens: "deve ter pelo menos um item"` |
 | `quantidade` <= 0 | Gateway | - | 400 | `erros.itens.0.quantidade: "deve ser maior que zero"` |
 | `quantidade` nao inteira (`"2"`, `1.5`) | Gateway | - | 400 | `"deve ser um numero inteiro"` |
@@ -92,8 +112,10 @@ quando a chamada chega neles, o Gateway ja autenticou e autorizou.
 | pular ou voltar etapa do status | Pedidos | `FAILED_PRECONDITION` | 409 | `Nao e possivel mudar de EM_PREPARO para ENTREGUE: a proxima etapa e PRONTO.` |
 | status fora da lista | Gateway | - | 400 | `"valor nao permitido; use um de: RECEBIDO, ..."` |
 | categoria inexistente | Catalogo | `NOT_FOUND` | 404 | `Categoria 'Pizzas' nao existe no cardapio.` |
-| Catalogo fora do ar ao criar pedido | Pedidos | `UNAVAILABLE` | 503 | `Catalogo indisponivel no momento (...). Tente novamente.` |
-| microsservico fora do ar | Gateway | `UNAVAILABLE` | 503 | detalhe do gRPC |
+| Catalogo fora do ar ao criar pedido | Pedidos (depois do retry) | `UNAVAILABLE` | 503 + `Retry-After` | `Catalogo indisponivel no momento (...): nao foi possivel confirmar os itens.` |
+| Catalogo fora do ar ao listar o cardapio | Gateway | `UNAVAILABLE` | 200 | lista salva, com `"origem": "cache"` e `"aviso"` |
+| microsservico fora do ar | Gateway (depois do retry) | `UNAVAILABLE` | 503 + `Retry-After` | detalhe do gRPC |
+| 3 falhas seguidas do mesmo servico | Gateway (circuit breaker) | - | 503 imediato | `Servico de catalogo temporariamente indisponivel (circuito aberto)...` |
 
 A validacao de negocio existe nas duas camadas: o Gateway barra payload
 invalido na borda, e o microsservico repete as checagens essenciais para nao
@@ -113,4 +135,6 @@ depender de quem o chama (defesa em profundidade).
 | SQL puro com psycopg 3 (sem ORM) | as consultas ficam visiveis no repositorio de cada servico (`repositorio.py`) |
 | Um banco, tabelas separadas por dono | uma unica instancia Cloud SQL mantem o custo baixo sem misturar responsabilidades |
 | Status avanca so para a proxima etapa | evita estados impossiveis; o `UPDATE` e condicional (`WHERE status = atual`) para duas chamadas simultaneas nao avancarem duas vezes |
+| Dono do pedido vem do token | o professor apontou que o nome do cliente era texto livre e a lista nao filtrava pelo usuario; agora o pedido guarda o `usuario_id` do token e o cliente so ve os seus |
+| Retry, circuit breaker e fallback no cliente gRPC | uma falha de um microsservico nao derruba o sistema inteiro nem trava o usuario (ver [07-resiliencia.md](07-resiliencia.md)) |
 | Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |

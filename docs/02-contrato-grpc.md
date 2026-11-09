@@ -65,17 +65,31 @@ aquele servico na mesma alteracao.
 
 | RPC | Request | Response | O que faz no banco | Erros |
 |---|---|---|---|---|
-| `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[]}` | `Pedido` | `INSERT` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE` |
-| `ObterPedido` | `ObterPedidoRequest{pedido_id}` | `Pedido` | `SELECT` do pedido e das linhas | `INVALID_ARGUMENT`, `NOT_FOUND` |
-| `ListarPedidos` | `ListarPedidosRequest{limite}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... ORDER BY criado_em DESC LIMIT` | - |
+| `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[], usuario_id, pedido_id}` | `Pedido` | `INSERT ... ON CONFLICT (id) DO NOTHING` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE`, `ALREADY_EXISTS` |
+| `ObterPedido` | `ObterPedidoRequest{pedido_id, usuario_id}` | `Pedido` | `SELECT` do pedido (filtrado pelo dono quando `usuario_id` vem preenchido) e das linhas | `INVALID_ARGUMENT`, `NOT_FOUND` |
+| `ListarPedidos` | `ListarPedidosRequest{limite, usuario_id}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT` (sem filtro quando `usuario_id` vem vazio) | `INVALID_ARGUMENT` |
 | `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |
+
+Campos novos no Trabalho 3 (tags novas, nenhuma tag antiga mudou de numero, entao
+mensagens antigas continuam compativeis):
+
+| Mensagem | Campo | Tag | Quem preenche | Para que |
+|---|---|---|---|---|
+| `CriarPedidoRequest` | `usuario_id` | 4 | Gateway, com o `sub` do token | dono do pedido |
+| `CriarPedidoRequest` | `pedido_id` | 5 | Gateway, UUID novo por requisicao HTTP | chave de idempotencia: repetir a chamada (retry) devolve o pedido ja gravado em vez de criar outro |
+| `ObterPedidoRequest` | `usuario_id` | 2 | Gateway: vazio para a cozinha, o `sub` para cliente | pedido de outro usuario responde `NOT_FOUND`, sem revelar que o id existe |
+| `ListarPedidosRequest` | `usuario_id` | 2 | idem | lista so os pedidos do dono |
+| `Pedido` | `usuario_id` | 10 | Pedidos | dono do pedido (vazio nos pedidos anteriores ao Trabalho 3) |
+
+O campo `cliente` continua no contrato, mas quem preenche e o Gateway, com o
+nome que esta no token: o corpo HTTP do `POST /pedidos` nao tem mais esse campo.
 
 `Pedido`:
 
 | Campo | Tipo | Tag | Observacao |
 |---|---|---|---|
-| `pedido_id` | string | 1 | UUID4 gerado pelo servico |
-| `cliente` | string | 2 | |
+| `pedido_id` | string | 1 | UUID4 gerado pelo Gateway (ou pelo servico, se vier vazio) |
+| `cliente` | string | 2 | nome do dono no momento da compra |
 | `endereco` | string | 3 | |
 | `status` | `StatusPedido` | 4 | enum |
 | `itens` | repeated `ItemConfirmado` | 5 | `codigo, nome, quantidade, preco_unitario, subtotal` |
@@ -83,10 +97,27 @@ aquele servico na mesma alteracao.
 | `tempo_estimado_minutos` | int32 | 7 | `15 + 3 x unidades` |
 | `criado_em` | string | 8 | ISO 8601 com fuso (`2026-09-24T20:43:57-03:00`) |
 | `atualizado_em` | string | 9 | muda a cada `AtualizarStatus` |
+| `usuario_id` | string | 10 | UUID do dono (o `id` do `Usuario`) |
 
 `StatusPedido`: `STATUS_DESCONHECIDO = 0` (obrigatorio em proto3),
 `RECEBIDO`, `EM_PREPARO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `ENTREGUE`. O pedido so
-avanca para a etapa seguinte. Pular ou voltar responde `FAILED_PRECONDITION`.
+avanca para a etapa seguinte. Pular ou voltar responde `FAILED_PRECONDITION`;
+pedir o status em que o pedido ja esta devolve o pedido sem alterar nada
+(idempotente, para um retry nao virar erro).
+
+## Servicos padrao em todos os servidores
+
+| Servico | Para que |
+|---|---|
+| `grpc.health.v1.Health` | health check padrao do gRPC: `HEALTHCHECK` das imagens e `GET /saude/servicos` do Gateway |
+| `grpc.reflection.v1alpha.ServerReflection` | `grpcurl` sem o `.proto` local |
+
+Metadados gRPC usados entre os servicos:
+
+| Metadado | Direcao | Para que |
+|---|---|---|
+| `traceparent` | quem chama -> servico | id da requisicao, para os logs de todos os servicos mostrarem o mesmo id |
+| `x-falha-dependencia` (trailer) | servico -> quem chama | avisa que a falha foi de uma dependencia (ex.: `catalogo`); quem chama nao repete a chamada e nao abre o circuito do servico (ver [07-resiliencia.md](07-resiliencia.md)) |
 
 ## Gerar os stubs
 
@@ -112,6 +143,7 @@ grpcurl -plaintext -d '{"login":"professor","senha":"SENHA_DO_ENV"}' localhost:9
 grpcurl -plaintext localhost:9091 list
 grpcurl -plaintext -d '{"codigos":["PR01","BE02"]}' localhost:9091 catalogo.CatalogoService/ConsultarItens
 grpcurl -plaintext -d '{"limite":3}' localhost:9090 pedidos.PedidoService/ListarPedidos
+grpcurl -plaintext localhost:9091 grpc.health.v1.Health/Check
 ```
 
 De fora (internet) as portas 9090-9092 nao respondem: so o Gateway e o frontend

@@ -1,44 +1,74 @@
 # 3. Execucao local
 
-No ambiente local tudo roda na mesma maquina: o PostgreSQL em container
-(profile `banco-local`, no papel que o Cloud SQL cumpre no GCP), os tres
-microsservicos, o Gateway e o frontend. O codigo e o mesmo do GCP: so mudam as
-variaveis do `.env`.
+No seu computador tudo roda em containers: o PostgreSQL (profile `banco-local`),
+o migrador, os tres microsservicos, o Gateway e o frontend. Nao precisa de
+conta nem de nada na nuvem.
 
-## Com Docker (recomendado)
+## Pre-requisitos
 
-```bash
-cp .env.exemplo .env          # PowerShell: Copy-Item .env.exemplo .env
+| Programa | Para que | Onde baixar |
+|---|---|---|
+| **Docker Desktop** (Windows/macOS) ou Docker Engine com o plugin Compose (Linux) | construir as imagens e subir os containers | docker.com/products/docker-desktop |
+| **Git** | clonar o repositorio | git-scm.com |
+| **Python 3.10+** (opcional) | rodar os scripts de teste, que so usam a biblioteca padrao | python.org |
+
+No Windows, o Docker Desktop precisa estar aberto (icone da baleia parado na
+bandeja) antes dos comandos abaixo. Confira com `docker version`.
+
+## Subir tudo
+
+PowerShell (Windows):
+
+```powershell
+git clone https://github.com/matheus14maia/sd-2026-2.git
+cd sd-2026-2
+Copy-Item .env.exemplo .env
+notepad .env        # troque a linha DEMO_SENHA= por uma senha sua, ex.: DEMO_SENHA=minha-senha-123
 docker compose up -d --build
 docker compose ps
 ```
 
-Antes de subir, defina `DEMO_SENHA` no `.env` (vem vazia): e a senha do usuario
-`professor` (papel `cozinha`), que o migrador cria. Vazia ou igual a um valor que
-ja apareceu no repositorio, o migrador nao cria o usuario. Nenhuma senha fica no
-repositorio.
+Bash (Linux/macOS):
+
+```bash
+git clone https://github.com/matheus14maia/sd-2026-2.git
+cd sd-2026-2
+cp .env.exemplo .env      # e edite DEMO_SENHA
+docker compose up -d --build
+docker compose ps
+```
+
+A primeira vez demora alguns minutos (baixa as imagens base e instala as
+dependencias); depois o Docker reaproveita o cache.
+
+`DEMO_SENHA` e a senha do usuario `professor` (papel `cozinha`), que o migrador
+cria. Vazia ou igual a um valor que ja apareceu no repositorio, o migrador nao
+cria o usuario. Nenhuma senha fica no repositorio.
 
 O `.env.exemplo` ja traz `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`,
 entao o `docker compose up` sobe todos os papeis. Sem o `.env`, passe os
 profiles na linha de comando:
 `docker compose --profile banco-local --profile servicos --profile gateway --profile frontend up -d --build`.
 
-Servicos esperados:
+Servicos esperados (`docker compose ps`):
 
 | Container | Estado | Porta |
 |---|---|---|
-| `delivery-postgres` | Up | interna 5432 |
+| `delivery-postgres` | Up (healthy) | interna 5432 |
 | `delivery-migrador` | Exited (0) | roda o schema e o seed e termina |
-| `delivery-usuarios` | Up | `127.0.0.1:9092` |
-| `delivery-catalogo` | Up | `127.0.0.1:9091` |
-| `delivery-pedidos` | Up | `127.0.0.1:9090` |
-| `delivery-gateway` | Up | `0.0.0.0:8000->8000/tcp` |
-| `delivery-frontend` | Up | `0.0.0.0:80->80/tcp` |
+| `delivery-usuarios` | Up (healthy) | `127.0.0.1:9092` |
+| `delivery-catalogo` | Up (healthy) | `127.0.0.1:9091` |
+| `delivery-pedidos` | Up (healthy) | `127.0.0.1:9090` |
+| `delivery-gateway` | Up (healthy) | `0.0.0.0:8000->8000/tcp` |
+| `delivery-frontend` | Up (healthy) | `0.0.0.0:80->8080/tcp` |
+
+O `(healthy)` vem do `HEALTHCHECK` de cada imagem: os microsservicos respondem
+ao health check gRPC, o Gateway ao `GET /saude` e o nginx a pagina inicial.
 
 - **Frontend:** `http://localhost` (login `professor` com a `DEMO_SENHA` do `.env`, ou crie uma conta).
 - **Gateway:** `http://localhost:8000`, Swagger em `http://localhost:8000/docs`.
-- A porta 80 ocupada na maquina? Troque `FRONTEND_PORTA=3000` no `.env` e use
-  `http://localhost:3000`.
+- A porta 80 ocupada na maquina? Troque `FRONTEND_PORTA=3000` no `.env`, rode
+  `docker compose up -d frontend` e use `http://localhost:3000`.
 - As portas gRPC ficam so em `127.0.0.1`: da para usar o `grpcurl` local, mas
   nada na rede alcanca os microsservicos.
 
@@ -57,14 +87,24 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
+### Teste ponta a ponta (37 cenarios)
+
+PowerShell:
+
+```powershell
+$env:DEMO_SENHA = "a-senha-do-.env"
+python scripts\testar_gateway.py --url http://localhost:8000 --resumido
+```
+
+Bash:
+
 ```bash
-export DEMO_SENHA=a-senha-do-.env      # PowerShell: $env:DEMO_SENHA="a-senha-do-.env"
-python scripts/testar_gateway.py --url http://localhost:8000 --resumido
+DEMO_SENHA=a-senha-do-.env python scripts/testar_gateway.py --url http://localhost:8000 --resumido
 ```
 
 O script so usa a biblioteca padrao do Python, entao roda sem instalar nada. Ele
-faz login com o usuario da cozinha (senha em `DEMO_SENHA` ou `--senha`), cria um
-usuario novo e passa por todos os status:
+faz login com o usuario da cozinha, cria um cliente novo e confere status e
+conteudo de cada resposta:
 
 ```text
 OK  Gateway no ar (rota publica)  (esperado 200, recebido 200)
@@ -82,9 +122,10 @@ OK  Dono do token  (esperado 200, recebido 200)
 OK  Login do cliente recem-criado  (esperado 200, recebido 200)
 OK  Cliente tentando alterar o cardapio  (esperado 403, recebido 403)
 OK  Cardapio de bebidas  (esperado 200, recebido 200)
-OK  Pedido valido e gravado no banco  (esperado 201, recebido 201)
-OK  Sem o campo cliente  (esperado 400, recebido 400)
-OK  Quantidade zero e itens vazios  (esperado 400, recebido 400)
+OK  Pedido valido gravado em nome do dono do token  (esperado 201, recebido 201)
+OK  Campo cliente no corpo e recusado (o nome vem do token)  (esperado 400, recebido 400)
+OK  Sem o campo endereco  (esperado 400, recebido 400)
+OK  Quantidade zero e endereco vazio  (esperado 400, recebido 400)
 OK  Lista de itens vazia  (esperado 400, recebido 400)
 OK  JSON malformado  (esperado 400, recebido 400)
 OK  Item que nao existe no banco  (esperado 400, recebido 400)
@@ -92,13 +133,31 @@ OK  Item indisponivel (PR05)  (esperado 409, recebido 409)
 OK  Consulta do pedido criado  (esperado 200, recebido 200)
 OK  Pedido inexistente  (esperado 404, recebido 404)
 OK  Avanca status RECEBIDO -> EM_PREPARO  (esperado 200, recebido 200)
+OK  Repetir o mesmo status e idempotente  (esperado 200, recebido 200)
 OK  Pula etapa EM_PREPARO -> ENTREGUE  (esperado 409, recebido 409)
 OK  Status fora da lista  (esperado 400, recebido 400)
 OK  Cliente tentando avancar o status  (esperado 403, recebido 403)
-OK  Lista os pedidos  (esperado 200, recebido 200)
+OK  Cliente faz o proprio pedido  (esperado 201, recebido 201)
+OK  Cliente lista so os proprios pedidos  (esperado 200, recebido 200)
+OK  Cliente consulta o proprio pedido  (esperado 200, recebido 200)
+OK  Cliente nao ve o pedido de outro usuario  (esperado 404, recebido 404)
+OK  Cozinha lista os pedidos de todos  (esperado 200, recebido 200)
+OK  Cozinha consulta o pedido do cliente  (esperado 200, recebido 200)
+OK  Health check dos microsservicos  (esperado 200, recebido 200)
 
-Todos os cenarios passaram.
+Todos os 37 cenarios passaram.
 ```
+
+### Teste de tolerancia a falhas
+
+```bash
+python scripts/testar_resiliencia.py
+```
+
+Derruba o Catalogo (`docker compose stop catalogo`), confere o fallback do
+cardapio, o 503 do pedido, o isolamento do Pedidos e o circuit breaker, religa
+o Catalogo e confere a recuperacao. Detalhes e outros cenarios (falha parcial,
+lentidao) em [07-resiliencia.md](07-resiliencia.md).
 
 O mesmo fluxo pelo navegador esta em [06-frontend.md](06-frontend.md).
 
@@ -107,12 +166,17 @@ O mesmo fluxo pelo navegador esta em [06-frontend.md](06-frontend.md).
 ```bash
 docker compose exec postgres psql -U postgres -d delivery \
   -c "select login, nome, papel, left(senha_hash, 7) as hash, criado_em from usuarios order by criado_em;" \
-  -c "select id, cliente, status, total, criado_em, atualizado_em from pedidos order by criado_em;" \
+  -c "select id, usuario_id, cliente, status, total, criado_em from pedidos order by criado_em;" \
   -c "select pedido_id, linha, codigo, quantidade, subtotal from itens_pedido;" \
   -c "select codigo, preco, disponivel, atualizado_em from itens_cardapio where codigo = 'PR05';"
 ```
 
-O `hash` sai como `$2b$12$`: so o hash bcrypt fica no banco.
+No PowerShell, junte tudo numa linha so (sem as barras invertidas) ou rode um
+`-c` por vez.
+
+- O `hash` sai como `$2b$12$`: so o hash bcrypt fica no banco.
+- `usuario_id` e o dono do pedido (o `sub` do token); `cliente` e o nome dele
+  no momento da compra.
 
 Persistencia: `docker compose restart usuarios catalogo pedidos gateway` e o
 `GET /pedidos/{id}` de um pedido anterior continua respondendo 200 (o token
@@ -126,17 +190,40 @@ docker compose logs -f gateway usuarios pedidos catalogo
 ```
 
 ```text
-delivery-usuarios  | [20:43:51] VerificarCredenciais: login='professor' -> ok
-delivery-gateway   | [20:43:51] POST /auth/login -> 200 (212 ms)
-delivery-pedidos   | [20:43:57] CriarPedido: cliente='Maria' itens=[('PR01', 2)]
-delivery-catalogo  | [20:43:57] ConsultarItens: ['PR01'] -> 1 encontrados
-delivery-pedidos   | [20:43:57] Pedido 4bb080f4-... gravado: 1 itens, 2 unidades, total R$ 125.80
-delivery-gateway   | [20:43:57] POST /pedidos -> 201 (41 ms) [professor]
-delivery-gateway   | [20:43:58] GET /pedidos -> 401 (0 ms)
+delivery-usuarios  | [20:43:51] [5d270bae] VerificarCredenciais: login='professor' -> ok
+delivery-gateway   | [20:43:51] [5d270bae] POST /auth/login -> 200 (212 ms)
+delivery-pedidos   | [20:43:57] [e99430b1] CriarPedido: pedido=c841893b-... usuario=46034422-... cliente='Professor' itens=[('PR01', 2)]
+delivery-catalogo  | [20:43:57] [e99430b1] ConsultarItens: ['PR01'] -> 1 encontrados
+delivery-pedidos   | [20:43:57] [e99430b1] Pedido c841893b-... gravado: 1 itens, 2 unidades, total R$ 125.80
+delivery-gateway   | [20:43:57] [e99430b1] POST /pedidos -> 201 (41 ms) [professor]
+delivery-gateway   | [20:43:58] [7a51c0de] GET /pedidos -> 401 (0 ms)
 ```
 
-A linha do Gateway mostra o login do dono do token. Um 401 aparece so no log do
-Gateway: a requisicao nao chegou a nenhum microsservico.
+- O colchete e o id da requisicao: o mesmo id aparece em todos os servicos que
+  a atenderam (ver [07-resiliencia.md](07-resiliencia.md#seguir-uma-requisicao-pelos-logs)).
+- A linha do Gateway mostra o login do dono do token. Um 401 aparece so no log
+  do Gateway: a requisicao nao chegou a nenhum microsservico.
+
+## Imagens
+
+Cada componente tem o seu Dockerfile multi-stage, em `docker/` e `frontend/`:
+
+| Imagem | Dockerfile | Base final | O que leva |
+|---|---|---|---|
+| usuarios, catalogo, pedidos | `docker/microsservico.Dockerfile` (`--build-arg SERVICO=...`) | `python:3.12-slim` | venv com gRPC, psycopg e bcrypt + o codigo do servico |
+| gateway | `docker/gateway.Dockerfile` | `python:3.12-slim` | venv com FastAPI, Uvicorn, PyJWT e gRPC + o codigo do Gateway |
+| migrador | `docker/migrador.Dockerfile` | `python:3.12-slim` | psycopg, bcrypt, `db/` e o script |
+| frontend | `frontend/Dockerfile` | `nginxinc/nginx-unprivileged:1.28-alpine` | os arquivos estaticos do Vite |
+
+Boas praticas aplicadas: estagios separados para gerar os stubs (o `grpcio-tools`
+nao vai para a imagem final) e instalar dependencias; camada de dependencias
+antes do codigo (mudar o codigo nao reinstala nada); `requirements/` separado
+por papel (o Gateway nao leva driver de banco, os servicos nao levam FastAPI);
+usuario sem root; `HEALTHCHECK`; `.dockerignore` em lista de permissao.
+
+Comparacao medida no `docker image inspect` (inclui a base `python:3.12-slim`):
+a imagem unica do Trabalho 2 tinha **308 MB**; agora gateway **229 MB**,
+microsservicos **233 MB**, migrador **208 MB** e frontend **82 MB**.
 
 ## Sem Docker (desenvolvimento)
 
@@ -148,13 +235,13 @@ docker run -d --name pg-dev -e POSTGRES_DB=delivery -e POSTGRES_PASSWORD=postgre
 python -m venv .venv          # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python scripts/gerar_stubs.py
-export DB_PASSWORD=postgres   # PowerShell: $env:DB_PASSWORD="postgres"
+export DB_PASSWORD=postgres DB_SSLMODE=disable DEMO_SENHA=minha-senha   # PowerShell: $env:DB_PASSWORD="postgres"; ...
 python scripts/migrar_banco.py
-python -m src.usuarios.servidor                          # terminal 1
-python -m src.catalogo.servidor                          # terminal 2
-python -m src.pedidos.servidor                           # terminal 3
-uvicorn src.gateway.app:app --host 0.0.0.0 --port 8000   # terminal 4
-cd frontend && npm install && npm run dev                # terminal 5 (http://localhost:5173)
+python -m src.usuarios.servidor          # terminal 1
+python -m src.catalogo.servidor          # terminal 2
+python -m src.pedidos.servidor           # terminal 3
+python -m src.gateway                    # terminal 4 (porta 8000)
+cd frontend && npm install && npm run dev   # terminal 5 (http://localhost:5173)
 ```
 
 Os padroes das variaveis ja apontam para `localhost` (banco em 5432, Usuarios em
@@ -168,3 +255,13 @@ docker compose stop      # para, mantem os dados
 docker compose down      # remove os containers, o volume com os dados fica
 docker compose down -v   # remove tambem o volume (zera o banco)
 ```
+
+## Problemas comuns
+
+| Sintoma | Causa provavel | Acao |
+|---|---|---|
+| `error during connect` / `Cannot connect to the Docker daemon` | Docker Desktop fechado | abra o Docker Desktop e espere ficar pronto |
+| `Bind for 0.0.0.0:80 failed: port is already allocated` | outro programa usa a porta 80 | `FRONTEND_PORTA=3000` no `.env` e `docker compose up -d frontend` |
+| Login do `professor` responde 401 | `DEMO_SENHA` vazia ou trocada depois do primeiro `up` | defina a senha no `.env` e rode `docker compose up -d migrador` (ele atualiza a senha) |
+| Frontend abre, mas toda acao da "Gateway fora do ar" | Gateway parado ou `API_URL` errado | `docker compose ps` e `curl http://localhost:8000/saude` |
+| `delivery-migrador` reiniciando | banco ainda subindo | espere; o migrador tenta de novo sozinho |

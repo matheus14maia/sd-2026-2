@@ -20,6 +20,60 @@
 
 ---
 
+## 2026-11-09
+
+### Catalogo volta, mas o Gateway continua sem conseguir chamar ele
+
+**Sintoma:** depois de `pkill`/`docker compose stop` e de religar o Catalogo, o
+Pedidos voltava a falar com ele na hora, mas o Gateway continuava servindo o
+cardapio do cache por mais de 1 minuto. A cada chamada de teste do circuito:
+
+```text
+[12:43:40] NOTICE: Circuito de catalogo MEIO_ABERTO: liberando uma chamada de teste
+[12:43:41] ERROR: catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:9091: Failed to connect to remote host: Timeout occurred: FD Shutdown
+[12:43:41] ERROR: Circuito de catalogo ABERTO apos 7 falhas seguidas: chamadas recusadas na hora por 15 s
+```
+
+**Causa:** backoff de reconexao do canal gRPC. No padrao, o intervalo entre
+tentativas de reconexao cresce (1 s, 1,6 s, 2,6 s... ate 120 s) e cada tentativa
+pode esperar ate 20 s (`min_reconnect_backoff`). Com o canal em
+`TRANSIENT_FAILURE`, toda chamada falha na hora, sem tentar conectar; a chamada
+de teste do circuito caia nisso e reabria o circuito. O canal do Pedidos tinha
+falhado menos vezes, entao o backoff dele era menor e ele voltou antes.
+
+**Solucao:** opcoes do canal em `OPCOES_CANAL` (`initial_reconnect_backoff_ms`
+500, `max_reconnect_backoff_ms` 5000, `min_reconnect_backoff_ms` 2000 e
+`dns_min_time_between_resolutions_ms` 1000, porque o container pode voltar com
+outro IP) e `wait_for_ready=True` so na chamada de teste do circuito: ela espera
+o canal conectar (ate o timeout) em vez de falhar na hora. Depois disso o
+circuito fecha no primeiro teste depois que o servico volta.
+
+**Arquivos:** `src/comum/canal.py`, `src/comum/resiliencia.py`,
+`src/gateway/clientes_grpc.py`, `src/pedidos/cliente_catalogo.py`.
+
+### `GET /cardapio` responde 500 logo depois de derrubar o Catalogo
+
+**Sintoma:** com o Catalogo recebendo `SIGTERM`, a primeira chamada respondeu
+`500 Erro interno ao processar a requisicao.` em 2 ms, sem retry e sem usar o
+cardapio salvo. Uma sonda direta no gRPC mostrou:
+
+```text
+ 0.0s CANCELLED: CANCELLED
+ 0.5s UNAVAILABLE: failed to connect to all addresses; ...
+```
+
+**Causa:** durante o encerramento (`servidor.stop(5)`), o servidor gRPC cancela
+as chamadas que chegam, e o cliente recebe `CANCELLED`. Esse codigo nao estava
+em `FALHAS_DO_SERVICO` nem no mapa de `erros.py`: virava erro "de negocio", nao
+tinha retry nem fallback e caia no 500 generico.
+
+**Solucao:** `CANCELLED` entrou em `REPETIR_SE_IDEMPOTENTE` (o Gateway nunca
+cancela chamada, entao ele so chega vindo do servidor) e no mapa para 503, junto
+com `RESOURCE_EXHAUSTED`. Agora a mesma situacao responde 200 com o cardapio
+salvo.
+
+**Arquivos:** `src/comum/resiliencia.py`, `src/gateway/erros.py`.
+
 ## 2026-10-14
 
 ### `remove-tags` nao remove nada quando chamado do PowerShell
