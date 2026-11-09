@@ -411,25 +411,85 @@ p {
   align-items: start;
 }
 
-.filtros {
+/* Abas do cardapio: uma por categoria, com a quantidade de pratos. */
+.abas-cardapio {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 2px solid var(--grafite);
+  margin-bottom: 18px;
+  scrollbar-width: thin;
 }
 
-.filtro {
-  border: 2px solid var(--inox-escuro);
-  background: var(--branco);
-  border-radius: 999px;
-  padding: 5px 14px;
+.aba-cardapio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  padding: 10px 16px 9px;
+  border-radius: var(--raio) var(--raio) 0 0;
+  font-weight: 700;
+  font-stretch: 87%;
+  font-size: 1.05rem;
+  color: var(--grafite-suave);
   cursor: pointer;
-  font-weight: 600;
+  transition: background 150ms ease, color 150ms ease;
 }
 
-.filtro.ativo {
-  border-color: var(--grafite);
-  background: var(--grafite);
+.aba-cardapio:hover {
+  color: var(--grafite);
+  background: rgba(29, 35, 41, 0.06);
+}
+
+.aba-cardapio.ativa {
   color: var(--branco);
+  background: var(--grafite);
+}
+
+.aba-contagem {
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--inox-escuro);
+  color: var(--grafite);
+}
+
+.aba-cardapio.ativa .aba-contagem {
+  background: var(--pimenta);
+  color: var(--branco);
+}
+
+/* Troca de aba: o painel entra com um leve zoom. */
+.painel-aba,
+.detalhe-conteudo {
+  animation: aparecer 260ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.grupo-pratos + .grupo-pratos {
+  margin-top: 26px;
+}
+
+.grupo-titulo {
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pimenta);
+  margin-bottom: 8px;
 }
 
 .pratos {
@@ -440,8 +500,19 @@ p {
 }
 
 .prato {
-  padding: 16px 4px;
+  padding: 16px 12px;
   border-bottom: 1px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+/* Zoom discreto no prato sob o mouse. */
+.prato:hover {
+  background: var(--branco);
+  transform: scale(1.012);
+  box-shadow: 0 6px 18px rgba(29, 35, 41, 0.1);
+  position: relative;
+  z-index: 1;
 }
 
 .prato-cabeca {
@@ -450,7 +521,7 @@ p {
   gap: 12px;
 }
 
-.prato-cabeca h2 {
+.prato-cabeca h3 {
   font-size: 1.3rem;
 }
 
@@ -493,7 +564,7 @@ p {
   font-weight: 700;
 }
 
-.prato-indisponivel h2,
+.prato-indisponivel h3,
 .prato-indisponivel .prato-preco {
   color: var(--grafite-suave);
   text-decoration: line-through;
@@ -523,6 +594,10 @@ p {
 .quantidade button:hover {
   background: var(--grafite);
   color: var(--branco);
+}
+
+.quantidade button:active {
+  transform: scale(0.9);
 }
 
 .sacola {
@@ -622,6 +697,18 @@ p {
   align-items: center;
   gap: 10px;
   color: var(--grafite-suave);
+}
+
+.etapa-nome {
+  flex: 1;
+}
+
+.etapa-hora {
+  font-family: var(--fonte-comanda);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--grafite);
+  font-variant-numeric: tabular-nums;
 }
 
 .etapa-numero {
@@ -1041,6 +1128,326 @@ p {
   margin-top: 10px;
 }
 
+/* ------------------------------------------------------ campo obrigatorio */
+.obrigatorio {
+  position: relative;
+  margin-left: 4px;
+  color: var(--pimenta);
+  font-weight: 800;
+  cursor: help;
+}
+
+/* Dica ao passar o mouse sobre o asterisco. */
+.obrigatorio::after {
+  content: attr(data-dica);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 4px);
+  background: var(--grafite);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 4px 9px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.obrigatorio:hover::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.legenda-obrigatorio {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.legenda-obrigatorio span {
+  color: var(--pimenta);
+  font-weight: 800;
+}
+
+/* -------------------------------------------------- finalizar pedido (chamas) */
+.botao-chamas-area {
+  position: relative;
+}
+
+.botao-chamas {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-stretch: 87%;
+  background: linear-gradient(135deg, #d9480f, var(--pimenta) 55%, var(--pimenta-escura));
+  box-shadow: 0 4px 0 #6d140d;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.botao-chamas:hover {
+  filter: brightness(1.08);
+  background: linear-gradient(135deg, #e8590c, var(--pimenta) 55%, var(--pimenta-escura));
+}
+
+.botao-chamas:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #6d140d;
+}
+
+.icone-chama {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: #ffd43b;
+}
+
+.botao-chamas:hover .icone-chama {
+  animation: tremular 420ms ease-in-out infinite alternate;
+}
+
+@keyframes tremular {
+  from {
+    transform: rotate(-6deg) scale(1);
+  }
+  to {
+    transform: rotate(6deg) scale(1.15);
+  }
+}
+
+/* Pedido confirmado: chamas sobem do botao por um instante. */
+.chamas {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.chama {
+  position: absolute;
+  bottom: 44px;
+  width: 36px;
+  height: 36px;
+  color: #ff922b;
+  opacity: 0;
+  animation: subir-chama 1.3s ease-out forwards;
+}
+
+.chama-0 { left: 6%; animation-delay: 0ms; }
+.chama-1 { left: 20%; animation-delay: 120ms; color: #ffd43b; }
+.chama-2 { left: 34%; animation-delay: 60ms; }
+.chama-3 { left: 48%; animation-delay: 180ms; color: #fa5252; }
+.chama-4 { left: 62%; animation-delay: 30ms; color: #ffd43b; }
+.chama-5 { left: 76%; animation-delay: 150ms; }
+.chama-6 { left: 88%; animation-delay: 90ms; color: #fa5252; }
+
+@keyframes subir-chama {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-110px) scale(1.5) rotate(12deg);
+  }
+}
+
+/* ------------------------------------------------------ filtros dos pedidos */
+.filtros-pedidos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+  margin-bottom: 10px;
+}
+
+.filtros-pedidos label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--grafite-suave);
+}
+
+.filtros-pedidos select,
+.filtros-pedidos input {
+  min-width: 170px;
+  border: 2px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  padding: 7px 10px;
+  background: var(--branco);
+  color: var(--grafite);
+  font-size: 0.95rem;
+}
+
+.filtros-pedidos select:focus,
+.filtros-pedidos input:focus {
+  border-color: var(--grafite);
+}
+
+.filtros-limpar {
+  margin-bottom: 9px;
+}
+
+.contagem-pedidos {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--grafite-suave);
+}
+
+/* -------------------------------------------------- previsao de entrega */
+.previsao {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin: 18px 0 4px;
+  padding: 12px 14px;
+  border-radius: var(--raio);
+  background: var(--papel);
+  border-left: 6px solid var(--acafrao);
+}
+
+.previsao-rotulo {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--grafite-suave);
+}
+
+.previsao-hora {
+  font-family: var(--fonte-comanda);
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.previsao-barra {
+  grid-column: 1 / -1;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--inox);
+  overflow: hidden;
+}
+
+.previsao-barra span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--acafrao), var(--pimenta));
+  transition: width 600ms ease;
+}
+
+.previsao-atraso {
+  border-left-color: var(--pimenta);
+}
+
+.previsao-entregue {
+  border-left-color: var(--manjericao);
+}
+
+/* ------------------------------------------------------------ tempo real */
+.ao-vivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 650;
+  color: #f3b4ae;
+}
+
+.ao-vivo.ligado {
+  color: #b2f2bb;
+}
+
+.ao-vivo-ponto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ao-vivo.ligado .ao-vivo-ponto {
+  animation: pulsar 1.6s ease-out infinite;
+}
+
+@keyframes pulsar {
+  0% {
+    box-shadow: 0 0 0 0 rgba(178, 242, 187, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(178, 242, 187, 0);
+  }
+}
+
+.avisos-tempo-real {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+}
+
+.aviso-tempo-real {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 0;
+  border-left: 6px solid var(--pimenta);
+  border-radius: var(--raio);
+  background: var(--grafite);
+  color: var(--branco);
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  animation: entrar-aviso 300ms ease-out;
+}
+
+.aviso-tempo-real-acao {
+  font-size: 0.82rem;
+  color: #f3b4ae;
+  text-decoration: underline;
+}
+
+@keyframes entrar-aviso {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.saude-tempo-real {
+  margin: 0 0 14px;
+  color: var(--grafite-suave);
+}
+
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
   .login,
@@ -1093,7 +1500,23 @@ p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .comandas li:first-child .comanda {
+  .comandas li:first-child .comanda,
+  .painel-aba,
+  .detalhe-conteudo,
+  .botao-chamas:hover .icone-chama,
+  .chama,
+  .ao-vivo.ligado .ao-vivo-ponto,
+  .aviso-tempo-real {
     animation: none;
+  }
+
+  .chamas {
+    display: none;
+  }
+
+  .prato,
+  .prato:hover {
+    transform: none;
+    transition: none;
   }
 }

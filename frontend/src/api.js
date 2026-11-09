@@ -100,7 +100,7 @@ export async function chamar(metodo, rota, opcoes = {}) {
       dados = { mensagem: texto };
     }
   } catch {
-    dados = { mensagem: `Gateway fora do ar ou inacessivel em ${API_URL}.` };
+    dados = { mensagem: `Não foi possível falar com o servidor (${API_URL}). Verifique se o sistema está no ar.` };
   }
 
   if (!silencioso) registrar({
@@ -122,12 +122,97 @@ export async function chamar(metodo, rota, opcoes = {}) {
   return { status, ok: status >= 200 && status < 300, dados, requisicao };
 }
 
+// ------------------------------------------------------------ tempo real
+// Atualizacoes dos pedidos sem F5: GET /pedidos/eventos e um fluxo
+// Server-Sent Events. O EventSource do navegador nao manda o cabecalho
+// Authorization, entao a leitura e feita com fetch + leitor de stream, levando
+// o Bearer como nas outras chamadas. Caiu a conexao? Tenta de novo com espera
+// crescente (1 s, 2 s, 4 s... ate 30 s). Devolve a funcao que encerra.
+export function assinarEventos({ aoPedido, aoEstado }) {
+  let parar = false;
+  let controle = null;
+  let espera = 1000;
+
+  function processar(bloco) {
+    let evento = "message";
+    const dados = [];
+    for (const linha of bloco.split("\n")) {
+      if (linha.startsWith("event:")) evento = linha.slice(6).trim();
+      else if (linha.startsWith("data:")) dados.push(linha.slice(5).trim());
+    }
+    if (!dados.length) return; // comentario ": ping" ou "retry:"
+    try {
+      const conteudo = JSON.parse(dados.join("\n"));
+      if (evento === "pedido") aoPedido?.(conteudo);
+      if (evento === "estado") aoEstado?.(Boolean(conteudo.conectado));
+    } catch {
+      // bloco incompleto ou invalido: ignora
+    }
+  }
+
+  async function conectar() {
+    while (!parar) {
+      const sessao = lerSessao();
+      if (!sessao?.token) return;
+      controle = new AbortController();
+      try {
+        const resposta = await fetch(API_URL + "/pedidos/eventos", {
+          headers: { Authorization: `Bearer ${sessao.token}`, Accept: "text/event-stream" },
+          signal: controle.signal,
+        });
+        if (resposta.status === 401) {
+          encerrarSessao();
+          return;
+        }
+        if (!resposta.ok || !resposta.body) throw new Error(`HTTP ${resposta.status}`);
+        espera = 1000;
+        const leitor = resposta.body.pipeThrough(new TextDecoderStream()).getReader();
+        let acumulado = "";
+        for (;;) {
+          const { value, done } = await leitor.read();
+          if (done) break;
+          acumulado += value;
+          let fim;
+          while ((fim = acumulado.indexOf("\n\n")) >= 0) {
+            processar(acumulado.slice(0, fim));
+            acumulado = acumulado.slice(fim + 2);
+          }
+        }
+      } catch {
+        if (parar) return;
+      }
+      aoEstado?.(false);
+      await new Promise((resolver) => setTimeout(resolver, espera));
+      espera = Math.min(espera * 2, 30000);
+    }
+  }
+
+  conectar();
+  return () => {
+    parar = true;
+    controle?.abort();
+  };
+}
+
 // --------------------------------------------------------------- utilitarios
 export const formatarPreco = (valor) =>
   (valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const formatarData = (iso) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "";
+
+export const formatarHora = (iso) =>
+  iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+
+// Categorias do banco -> nome nas abas, na ordem de um cardapio.
+export const CATEGORIAS = [
+  { valor: "Entradas", nome: "Entradas" },
+  { valor: "Pratos", nome: "Pratos principais" },
+  { valor: "Sobremesas", nome: "Sobremesas" },
+  { valor: "Bebidas", nome: "Bebidas" },
+];
+
+export const nomeCategoria = (valor) => CATEGORIAS.find((c) => c.valor === valor)?.nome || valor;
 
 export const ETAPAS = ["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"];
 

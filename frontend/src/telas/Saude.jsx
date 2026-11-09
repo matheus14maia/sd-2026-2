@@ -16,6 +16,7 @@ const INTERVALO_MS = 3000;
 
 export default function Saude() {
   const [servicos, setServicos] = useState(null);
+  const [tempoReal, setTempoReal] = useState(null);
   const [erro, setErro] = useState(null);
   const [atualizadoEm, setAtualizadoEm] = useState("");
   const [automatico, setAutomatico] = useState(true);
@@ -25,6 +26,7 @@ export default function Saude() {
     const r = await chamar("GET", "/saude/servicos", { silencioso: true });
     if (r.ok) {
       setServicos(r.dados.servicos);
+      setTempoReal(r.dados.tempo_real || null);
       setErro(null);
     } else {
       setErro(r);
@@ -84,6 +86,17 @@ export default function Saude() {
 
       {erro && <Resultado resposta={erro} />}
       {acao && <Resultado resposta={acao} sucesso={acao.sucesso} />}
+
+      {tempoReal && (
+        <p className="saude-tempo-real">
+          Atualização em tempo real (stream gRPC do Pedidos → Gateway → navegador):{" "}
+          <span className={`estado ${tempoReal.conectado ? "estado-ok" : "estado-alerta"}`}>
+            {tempoReal.conectado ? "Conectada" : "Sem conexão"}
+          </span>{" "}
+          · {tempoReal.navegadores === 1 ? "1 navegador ouvindo" : `${tempoReal.navegadores} navegadores ouvindo`} neste
+          Gateway.
+        </p>
+      )}
 
       {servicos && (
         <table className="tabela saude-tabela">

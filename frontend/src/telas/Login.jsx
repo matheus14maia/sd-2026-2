@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { chamar, salvarSessao } from "../api.js";
-import Campo, { Resultado } from "../componentes/Campo.jsx";
+import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
@@ -57,13 +57,30 @@ export default function Login() {
           </button>
         </div>
 
-        <Campo id="login" rotulo="Login" value={form.login} onChange={alterar("login")} erro={erros.login} autoComplete="username" />
+        <Campo
+          id="login"
+          rotulo="Login"
+          obrigatorio
+          value={form.login}
+          onChange={alterar("login")}
+          erro={erros.login}
+          autoComplete="username"
+        />
         {modo === "criar" && (
-          <Campo id="nome" rotulo="Nome" value={form.nome} onChange={alterar("nome")} erro={erros.nome} autoComplete="name" />
+          <Campo
+            id="nome"
+            rotulo="Nome"
+            obrigatorio
+            value={form.nome}
+            onChange={alterar("nome")}
+            erro={erros.nome}
+            autoComplete="name"
+          />
         )}
         <Campo
           id="senha"
           rotulo="Senha"
+          obrigatorio
           type="password"
           value={form.senha}
           onChange={alterar("senha")}
@@ -74,6 +91,7 @@ export default function Login() {
         <button className="botao" type="submit" disabled={enviando}>
           {modo === "entrar" ? "Entrar" : "Criar conta"}
         </button>
+        <LegendaObrigatorio />
 
         <Resultado
           resposta={resposta}

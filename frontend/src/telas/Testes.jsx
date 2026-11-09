@@ -83,6 +83,15 @@ const CENARIOS = [
           });
         },
       },
+      {
+        titulo: "Cliente vendo a saúde dos serviços",
+        explicacao: "A tela de saúde é da cozinha: com o token de um cliente o Gateway responde 403.",
+        esperado: 403,
+        executar: async () => {
+          const token = await tokenDeCliente();
+          return chamar("GET", "/saude/servicos", { autorizacao: `Bearer ${token}`, manterSessao: true });
+        },
+      },
     ],
   },
   {
