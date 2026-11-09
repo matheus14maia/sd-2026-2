@@ -9,7 +9,7 @@ from datetime import datetime
 import bcrypt
 import grpc
 
-from ..comum.servidor_grpc import log
+from ..comum.registro import log
 from ..gerado import usuarios_pb2 as pb
 from ..gerado import usuarios_pb2_grpc as pb_grpc
 from .repositorio import LoginDuplicado, RepositorioUsuarios

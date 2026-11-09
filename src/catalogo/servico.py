@@ -9,7 +9,7 @@ import os
 
 import grpc
 
-from ..comum.servidor_grpc import log
+from ..comum.registro import log
 from ..gerado import catalogo_pb2 as pb
 from ..gerado import catalogo_pb2_grpc as pb_grpc
 from .repositorio import RepositorioCatalogo

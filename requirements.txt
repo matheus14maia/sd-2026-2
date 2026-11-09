@@ -2,6 +2,7 @@
 grpcio==1.68.1
 grpcio-tools==1.68.1
 grpcio-reflection==1.68.1
+grpcio-health-checking==1.68.1
 protobuf==5.29.1
 
 # API Gateway HTTP/JSON (FastAPI + validacao com Pydantic).
