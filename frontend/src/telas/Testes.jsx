@@ -90,7 +90,7 @@ const CENARIOS = [
     itens: [
       {
         titulo: "Pedido sem campos obrigatórios",
-        explicacao: "Corpo vazio: faltam cliente, endereço e itens.",
+        explicacao: "Corpo vazio: faltam endereço e itens.",
         esperado: 400,
         executar: () => chamar("POST", "/pedidos", { corpo: {} }),
       },
@@ -100,14 +100,14 @@ const CENARIOS = [
         esperado: 400,
         executar: () =>
           chamar("POST", "/pedidos", {
-            corpo: { cliente: "Teste", endereco: "INF", itens: [{ codigo: "PR01", quantidade: 0 }, { codigo: "X1", quantidade: 1 }] },
+            corpo: { endereco: "INF", itens: [{ codigo: "PR01", quantidade: 0 }, { codigo: "X1", quantidade: 1 }] },
           }),
       },
       {
         titulo: "JSON malformado",
         explicacao: "Corpo cortado no meio.",
         esperado: 400,
-        executar: () => chamar("POST", "/pedidos", { corpoBruto: '{"cliente": "Teste", ' }),
+        executar: () => chamar("POST", "/pedidos", { corpoBruto: '{"endereco": "INF", ' }),
       },
     ],
   },
@@ -119,14 +119,42 @@ const CENARIOS = [
         explicacao: "Pedidos pergunta ao Catalogo por gRPC e recusa.",
         esperado: 400,
         executar: () =>
-          chamar("POST", "/pedidos", { corpo: { cliente: "Teste", endereco: "INF", itens: [{ codigo: "XX99", quantidade: 1 }] } }),
+          chamar("POST", "/pedidos", { corpo: { endereco: "INF", itens: [{ codigo: "XX99", quantidade: 1 }] } }),
       },
       {
         titulo: "Item indisponível (PR05)",
         explicacao: "Prato fora do cardápio do dia.",
         esperado: 409,
         executar: () =>
-          chamar("POST", "/pedidos", { corpo: { cliente: "Teste", endereco: "INF", itens: [{ codigo: "PR05", quantidade: 1 }] } }),
+          chamar("POST", "/pedidos", { corpo: { endereco: "INF", itens: [{ codigo: "PR05", quantidade: 1 }] } }),
+      },
+    ],
+  },
+  {
+    grupo: "Posse dos pedidos",
+    itens: [
+      {
+        titulo: "Pedido em nome de outra pessoa",
+        explicacao: "Manda o campo cliente no corpo. O nome vem só do token: o Gateway recusa o campo.",
+        esperado: 400,
+        executar: () =>
+          chamar("POST", "/pedidos", {
+            corpo: { cliente: "Outra Pessoa", endereco: "INF", itens: [{ codigo: "BE01", quantidade: 1 }] },
+          }),
+      },
+      {
+        titulo: "Cliente tentando ver pedido de outro usuário",
+        explicacao: "Cria um cliente novo e pede o seu pedido mais recente com o token dele.",
+        esperado: 404,
+        executar: async () => {
+          const meus = await chamar("GET", "/pedidos?limite=1");
+          const alvo = meus.dados?.pedidos?.[0]?.pedido_id;
+          if (!alvo) {
+            return { status: 0, ok: false, dados: { mensagem: "Faça um pedido no cardápio antes deste teste." } };
+          }
+          const token = await tokenDeCliente();
+          return chamar("GET", `/pedidos/${alvo}`, { autorizacao: `Bearer ${token}`, manterSessao: true });
+        },
       },
     ],
   },
@@ -168,7 +196,7 @@ export default function Testes() {
         <h1>Testes de segurança</h1>
         <p className="subtitulo">
           Requisições erradas de propósito. O Gateway barra token inválido com 401, papel sem permissão com 403 e
-          payload inválido com 400, antes de chamar qualquer microsserviço.
+          payload inválido com 400, antes de chamar qualquer microsserviço. Pedido de outro usuário responde 404.
         </p>
       </div>
       {CENARIOS.map((g) => (

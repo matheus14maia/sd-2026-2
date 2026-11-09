@@ -15,6 +15,16 @@ export default function Campo({ id, rotulo, erro, ...props }) {
   );
 }
 
+// Faixa de aviso (ex.: dado servido do cache porque um microsservico caiu).
+export function Aviso({ titulo, children }) {
+  return (
+    <div className="aviso" role="status">
+      <strong>{titulo}</strong>
+      <p>{children}</p>
+    </div>
+  );
+}
+
 // Faixa com o resultado de uma acao: status HTTP + mensagem do Gateway.
 export function Resultado({ resposta, sucesso }) {
   if (!resposta) return null;

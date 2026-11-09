@@ -48,6 +48,13 @@ export default function Trilho() {
             <div>
               <h3>Resposta do Gateway</h3>
               <pre>{formatar(selecionado.dados)}</pre>
+              {selecionado.requisicao && (
+                <p className="trilho-requisicao">
+                  Id da requisição <code>{selecionado.requisicao.slice(0, 8)}</code>: procure nos logs com{" "}
+                  <code>docker compose logs | findstr {selecionado.requisicao.slice(0, 8)}</code> (Windows) ou{" "}
+                  <code>| grep</code> (Linux/macOS).
+                </p>
+              )}
             </div>
           </div>
         </div>

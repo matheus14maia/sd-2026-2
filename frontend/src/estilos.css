@@ -941,6 +941,106 @@ p {
   word-break: break-word;
 }
 
+/* ------------------------------------------------------------------ aviso */
+.aviso {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-left: 6px solid var(--acafrao);
+  border-radius: var(--raio);
+  background: var(--papel);
+}
+
+.aviso p {
+  margin-top: 4px;
+  color: var(--grafite-suave);
+}
+
+.pedido-em-nome {
+  margin: 4px 0 14px;
+}
+
+.pedido-em-nome span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.trilho-requisicao {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.trilho-requisicao code,
+.saude code {
+  font-family: var(--fonte-comanda);
+  font-size: 0.9em;
+  background: var(--inox);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------ saude */
+.saude-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.saude-automatico {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.saude-tabela {
+  margin-top: 8px;
+}
+
+.estado {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.estado-ok {
+  background: #e3f1e8;
+  color: var(--manjericao);
+}
+
+.estado-alerta {
+  background: #fbefd9;
+  color: var(--acafrao);
+}
+
+.estado-falha {
+  background: #f8e1df;
+  color: var(--pimenta);
+}
+
+.saude-detalhe {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--grafite-suave);
+}
+
+.saude-dicas {
+  margin-top: 24px;
+}
+
+.saude-dicas ol {
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+
+.saude-dicas li + li {
+  margin-top: 10px;
+}
+
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
   .login,

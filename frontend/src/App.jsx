@@ -5,6 +5,7 @@ import Cardapio from "./telas/Cardapio.jsx";
 import Cozinha from "./telas/Cozinha.jsx";
 import Login from "./telas/Login.jsx";
 import Pedidos from "./telas/Pedidos.jsx";
+import Saude from "./telas/Saude.jsx";
 import Testes from "./telas/Testes.jsx";
 
 // A aba Cozinha so aparece para o papel cozinha. Esconder e conveniencia: quem
@@ -13,6 +14,7 @@ const ABAS = [
   { id: "cardapio", nome: "Cardápio" },
   { id: "pedidos", nome: "Pedidos" },
   { id: "cozinha", nome: "Cozinha", papel: "cozinha" },
+  { id: "saude", nome: "Saúde dos serviços" },
   { id: "testes", nome: "Testes de segurança" },
 ];
 
@@ -75,6 +77,7 @@ export default function App() {
           <Pedidos emFoco={pedidoEmFoco} aoFocar={setPedidoEmFoco} podeAvancar={papel === "cozinha"} />
         )}
         {sessao && aba === "cozinha" && papel === "cozinha" && <Cozinha />}
+        {sessao && aba === "saude" && <Saude />}
         {sessao && aba === "testes" && <Testes />}
       </main>
 

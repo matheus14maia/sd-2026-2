@@ -3,6 +3,10 @@
 // Pedidos e dono das tabelas pedidos e itens_pedido do PostgreSQL. Para criar
 // um pedido ele consulta o microsservico de Catalogo por gRPC: e o Catalogo
 // quem diz se o item existe, se esta disponivel e quanto custa.
+//
+// Todo pedido pertence a um usuario (usuario_id). O Gateway preenche o
+// usuario_id e o nome do cliente a partir do token JWT: o corpo da requisicao
+// HTTP nao escolhe em nome de quem o pedido e feito.
 syntax = "proto3";
 
 package pedidos;
@@ -33,9 +37,14 @@ message ItemPedido {
 }
 
 message CriarPedidoRequest {
-  string cliente = 1;
+  string cliente = 1;          // nome do dono do token (preenchido pelo Gateway)
   string endereco = 2;
   repeated ItemPedido itens = 3;
+  string usuario_id = 4;       // UUID do dono do token (preenchido pelo Gateway)
+  // UUID gerado por quem chama: chave de idempotencia. Repetir a chamada com o
+  // mesmo pedido_id (retry apos timeout) devolve o pedido ja gravado, sem
+  // duplicar. Vazio = o servico gera um id novo.
+  string pedido_id = 5;
 }
 
 // Linha do pedido ja precificada. Nome e preco sao gravados no momento da
@@ -58,14 +67,20 @@ message Pedido {
   int32 tempo_estimado_minutos = 7;
   string criado_em = 8;        // ISO 8601
   string atualizado_em = 9;    // ISO 8601
+  string usuario_id = 10;      // dono do pedido (vazio em pedidos anteriores ao Trabalho 3)
 }
 
 message ObterPedidoRequest {
   string pedido_id = 1;
+  // Preenchido: so devolve o pedido se ele for deste usuario (senao NOT_FOUND,
+  // sem revelar que o id existe). Vazio: qualquer pedido (papel cozinha).
+  string usuario_id = 2;
 }
 
 message ListarPedidosRequest {
   int32 limite = 1;            // 0 = padrao do servico
+  // Preenchido: so os pedidos deste usuario. Vazio: todos (papel cozinha).
+  string usuario_id = 2;
 }
 
 message ListarPedidosResponse {

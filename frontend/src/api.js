@@ -63,8 +63,9 @@ function registrar(registro) {
 //   semToken     nao envia o Authorization mesmo havendo sessao
 //   autorizacao  valor exato do cabecalho Authorization (testes de seguranca)
 //   manterSessao um 401 nao derruba a sessao (testes de seguranca)
+//   silencioso   nao vira comanda no trilho (consulta periodica da tela Saude)
 export async function chamar(metodo, rota, opcoes = {}) {
-  const { corpo, corpoBruto, semToken, autorizacao, manterSessao } = opcoes;
+  const { corpo, corpoBruto, semToken, autorizacao, manterSessao, silencioso } = opcoes;
   const cabecalhos = {};
   const sessao = lerSessao();
 
@@ -85,9 +86,13 @@ export async function chamar(metodo, rota, opcoes = {}) {
   const inicio = performance.now();
   let status = 0;
   let dados = null;
+  let requisicao = "";
   try {
     const resposta = await fetch(API_URL + rota, { method: metodo, headers: cabecalhos, body: enviado });
     status = resposta.status;
+    // Id da requisicao (trace): o mesmo que aparece nos logs do Gateway e dos
+    // microsservicos que a atenderam.
+    requisicao = resposta.headers.get("X-Requisicao-Id") || "";
     const texto = await resposta.text();
     try {
       dados = texto ? JSON.parse(texto) : null;
@@ -98,7 +103,7 @@ export async function chamar(metodo, rota, opcoes = {}) {
     dados = { mensagem: `Gateway fora do ar ou inacessivel em ${API_URL}.` };
   }
 
-  registrar({
+  if (!silencioso) registrar({
     id: proximoId++,
     horario: new Date().toLocaleTimeString("pt-BR"),
     metodo,
@@ -108,12 +113,13 @@ export async function chamar(metodo, rota, opcoes = {}) {
     comToken: Boolean(cabecalhos.Authorization),
     enviado: enviado ?? null,
     dados,
+    requisicao,
   });
 
   if (status === 401 && sessao?.token && !manterSessao && cabecalhos.Authorization) {
     encerrarSessao();
   }
-  return { status, ok: status >= 200 && status < 300, dados };
+  return { status, ok: status >= 200 && status < 300, dados, requisicao };
 }
 
 // --------------------------------------------------------------- utilitarios

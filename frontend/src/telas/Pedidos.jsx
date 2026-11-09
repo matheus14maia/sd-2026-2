@@ -4,12 +4,16 @@ import { Resultado } from "../componentes/Campo.jsx";
 
 export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
   const [pedidos, setPedidos] = useState([]);
+  const [escopo, setEscopo] = useState(podeAvancar ? "todos" : "meus");
   const [detalhe, setDetalhe] = useState(null);
   const [resposta, setResposta] = useState(null);
 
   const carregarLista = useCallback(async () => {
     const r = await chamar("GET", "/pedidos?limite=20");
-    if (r.ok) setPedidos(r.dados.pedidos);
+    if (r.ok) {
+      setPedidos(r.dados.pedidos);
+      setEscopo(r.dados.escopo);
+    }
   }, []);
 
   const carregarDetalhe = useCallback(async (id) => {
@@ -45,11 +49,16 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
     <div className="pedidos">
       <section>
         <div className="titulo-secao">
-          <h1>Pedidos</h1>
+          <h1>{escopo === "todos" ? "Todos os pedidos" : "Meus pedidos"}</h1>
           <button className="botao-secundario" onClick={carregarLista}>
             Atualizar lista
           </button>
         </div>
+        <p className="subtitulo">
+          {escopo === "todos"
+            ? "A cozinha vê os pedidos de todos os clientes."
+            : "Você vê só os pedidos feitos com o seu login: o Gateway filtra pelo usuário do token."}
+        </p>
         {pedidos.length === 0 ? (
           <p className="vazio">Nenhum pedido ainda. Monte um no cardápio.</p>
         ) : (

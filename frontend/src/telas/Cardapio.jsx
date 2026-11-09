@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { chamar, formatarPreco } from "../api.js";
-import Campo, { Resultado } from "../componentes/Campo.jsx";
+import Campo, { Aviso, Resultado } from "../componentes/Campo.jsx";
 
 export default function Cardapio({ sessao, aoCriarPedido }) {
   const [itens, setItens] = useState([]);
@@ -8,7 +8,9 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   const [categoria, setCategoria] = useState("");
   const [carregamento, setCarregamento] = useState(null);
   const [carrinho, setCarrinho] = useState({});
-  const [entrega, setEntrega] = useState({ cliente: sessao.usuario?.nome || "", endereco: "" });
+  const [endereco, setEndereco] = useState("");
+  // Aviso do Gateway quando o Catalogo esta fora e a lista veio do cache.
+  const [aviso, setAviso] = useState("");
   const [resposta, setResposta] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -18,6 +20,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
       if (r.ok) {
         setItens(r.dados.itens);
         setExibidos(r.dados.itens);
+        setAviso(r.dados.origem === "cache" ? r.dados.aviso : "");
       }
     });
   }, []);
@@ -38,18 +41,20 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     setCategoria(nova);
     // O filtro e feito no servidor (SELECT ... WHERE categoria), nao no navegador.
     const r = await chamar("GET", nova ? `/cardapio?categoria=${encodeURIComponent(nova)}` : "/cardapio");
+    setCarregamento(r);
     if (r.ok) {
       setExibidos(r.dados.itens);
       if (!nova) setItens(r.dados.itens);
+      setAviso(r.dados.origem === "cache" ? r.dados.aviso : "");
     }
   }
 
   async function fazerPedido(evento) {
     evento.preventDefault();
     setEnviando(true);
+    // Sem "cliente": o Gateway faz o pedido em nome do dono do token.
     const corpo = {
-      cliente: entrega.cliente,
-      endereco: entrega.endereco,
+      endereco,
       itens: linhas.map((l) => ({ codigo: l.item.codigo, quantidade: l.quantidade })),
     };
     const r = await chamar("POST", "/pedidos", { corpo });
@@ -73,6 +78,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
         </div>
 
         {carregamento && !carregamento.ok && <Resultado resposta={carregamento} />}
+        {aviso && <Aviso titulo="Catálogo fora do ar: cardápio salvo pelo Gateway">{aviso}</Aviso>}
 
         <ul className="pratos">
           {exibidos.map((item) => (
@@ -128,18 +134,15 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
         )}
 
         <form onSubmit={fazerPedido} noValidate>
-          <Campo
-            id="cliente"
-            rotulo="Nome para entrega"
-            value={entrega.cliente}
-            onChange={(e) => setEntrega({ ...entrega, cliente: e.target.value })}
-            erro={erros.cliente}
-          />
+          <p className="pedido-em-nome">
+            Pedido em nome de <strong>{sessao.usuario?.nome}</strong>
+            <span>O nome vem do seu login (token JWT), não do formulário.</span>
+          </p>
           <Campo
             id="endereco"
             rotulo="Endereço"
-            value={entrega.endereco}
-            onChange={(e) => setEntrega({ ...entrega, endereco: e.target.value })}
+            value={endereco}
+            onChange={(e) => setEndereco(e.target.value)}
             erro={erros.endereco}
             placeholder="Rua, número e bairro"
           />

@@ -37,7 +37,8 @@ class ItemEntrada(Entrada):
 
 
 class PedidoEntrada(Entrada):
-    cliente: TextoObrigatorio = Field(examples=["Maria"])
+    # Sem campo "cliente": o pedido e sempre feito em nome do dono do token. Um
+    # "cliente" no corpo cai no extra="forbid" e responde 400.
     endereco: TextoObrigatorio = Field(examples=["Rua 10, 123 - Setor Universitario"])
     itens: list[ItemEntrada] = Field(min_length=1, max_length=30)
 

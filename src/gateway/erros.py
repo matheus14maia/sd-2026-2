@@ -6,7 +6,9 @@ Dois tipos de erro chegam aqui:
    motivo de cada campo. O FastAPI responderia 422 por padrao; o trabalho pede
    400 Bad Request, por isso o handler e sobrescrito.
 2. Erro devolvido por um microsservico (grpc.RpcError) -> o status HTTP
-   equivalente ao status code do gRPC.
+   equivalente ao status code do gRPC. 503 sai com Retry-After.
+3. Circuito aberto (CircuitoAberto, ver src/comum/resiliencia.py) -> 503 na
+   hora, sem chamar o microsservico, com Retry-After = tempo ate o novo teste.
 
 O 401 de token ausente/invalido nao passa por aqui: o MiddlewareJWT
 (autenticacao.py) responde antes de a requisicao chegar nas rotas. O 403 de
@@ -18,7 +20,11 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from ..comum.resiliencia import CircuitoAberto, falha_de_dependencia
 from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN
+
+# Segundos que o cliente deve esperar antes de tentar de novo depois de um 503.
+RETRY_AFTER_SEGUNDOS = "5"
 
 GRPC_PARA_HTTP = {
     grpc.StatusCode.INVALID_ARGUMENT: 400,
@@ -28,6 +34,9 @@ GRPC_PARA_HTTP = {
     grpc.StatusCode.ALREADY_EXISTS: 409,
     grpc.StatusCode.UNAVAILABLE: 503,
     grpc.StatusCode.DEADLINE_EXCEEDED: 503,
+    # O Gateway nunca cancela chamada: CANCELLED e o servico desligando no meio dela.
+    grpc.StatusCode.CANCELLED: 503,
+    grpc.StatusCode.RESOURCE_EXHAUSTED: 503,
 }
 
 # Formato esperado por regex, para o erro string_pattern_mismatch.
@@ -101,7 +110,17 @@ async def erro_grpc(request: Request, exc: grpc.RpcError) -> JSONResponse:
     mensagem = exc.details() or exc.code().name
     if status >= 500 and exc.code() not in GRPC_PARA_HTTP:
         mensagem = "Erro interno ao processar a requisicao."
+    conteudo = {"mensagem": mensagem, "codigo_grpc": exc.code().name}
+    dependencia = falha_de_dependencia(exc)
+    if dependencia:
+        conteudo["dependencia"] = dependencia
+    cabecalhos = {"Retry-After": RETRY_AFTER_SEGUNDOS} if status == 503 else None
+    return JSONResponse(status_code=status, content=conteudo, headers=cabecalhos)
+
+
+async def circuito_aberto(request: Request, exc: CircuitoAberto) -> JSONResponse:
     return JSONResponse(
-        status_code=status,
-        content={"mensagem": mensagem, "codigo_grpc": exc.code().name},
+        status_code=503,
+        content={"mensagem": str(exc), "servico": exc.servico, "circuito": "ABERTO"},
+        headers={"Retry-After": str(exc.segundos)},
     )
