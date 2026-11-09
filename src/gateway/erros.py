@@ -81,7 +81,8 @@ def _mensagem(erro: dict) -> str:
     tipo = erro.get("type", "")
     if tipo == "literal_error":
         esperado = (erro.get("ctx") or {}).get("expected", "")
-        return "valor nao permitido; use um de: %s" % esperado.replace("'", "")
+        # O Pydantic monta a lista em ingles ("'A', 'B' or 'C'").
+        return "valor nao permitido; use um de: %s" % esperado.replace("'", "").replace(" or ", " ou ")
     if tipo == "less_than_equal":
         return "deve ser no maximo %s" % (erro.get("ctx") or {}).get("le")
     if tipo == "string_pattern_mismatch":

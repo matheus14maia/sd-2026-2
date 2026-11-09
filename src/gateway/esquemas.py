@@ -25,6 +25,7 @@ CodigoItem = Annotated[
 Login = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=PADRAO_LOGIN)]
 
 Etapa = Literal["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"]
+ETAPAS = ("RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE")
 
 
 class Entrada(BaseModel):

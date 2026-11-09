@@ -7,10 +7,15 @@ o total e grava pedido + itens no PostgreSQL numa transacao.
 Todo pedido tem dono (usuario_id). Quem preenche o dono e o nome do cliente e o
 Gateway, a partir do token JWT; ObterPedido e ListarPedidos recebem o usuario_id
 para filtrar (papel cliente) ou vazio para ver tudo (papel cozinha).
+
+AcompanharPedidos e um stream: cada pedido criado ou com etapa alterada (em
+qualquer instancia, via NOTIFY do PostgreSQL) vira um EventoPedido na hora.
 """
 
+import queue
+import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import grpc
 
@@ -19,7 +24,8 @@ from ..comum.resiliencia import METADADO_FALHA_DEPENDENCIA, CircuitoAberto
 from ..gerado import pedidos_pb2 as pb
 from ..gerado import pedidos_pb2_grpc as pb_grpc
 from .cliente_catalogo import ClienteCatalogo
-from .repositorio import RepositorioPedidos
+from .eventos import CentralEventos
+from .repositorio import FiltrosListagem, RepositorioPedidos
 
 # Tempo base de preparo + acrescimo por unidade pedida.
 TEMPO_BASE_MINUTOS = 15
@@ -30,6 +36,11 @@ ETAPAS = ("RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE")
 
 LIMITE_PADRAO = 50
 LIMITE_MAXIMO = 200
+CODIGO_ITEM = re.compile(r"^[A-Z]{2}[0-9]{2}$")
+CLIENTE_MAXIMO = 100
+# Sem eventos, o stream manda um BATIMENTO neste intervalo (mantem a conexao viva).
+BATIMENTO_SEGUNDOS = 15
+TIPOS_EVENTO = {"criado": pb.PEDIDO_CRIADO, "status": pb.STATUS_ATUALIZADO}
 
 
 def _iso(momento: datetime) -> str:
@@ -37,6 +48,7 @@ def _iso(momento: datetime) -> str:
 
 
 def _para_proto(pedido: dict) -> pb.Pedido:
+    previsao = pedido["criado_em"] + timedelta(minutes=pedido["tempo_estimado_minutos"])
     return pb.Pedido(
         pedido_id=pedido["pedido_id"],
         usuario_id=pedido["usuario_id"],
@@ -48,6 +60,12 @@ def _para_proto(pedido: dict) -> pb.Pedido:
         tempo_estimado_minutos=pedido["tempo_estimado_minutos"],
         criado_em=_iso(pedido["criado_em"]),
         atualizado_em=_iso(pedido["atualizado_em"]),
+        historico=[
+            pb.EtapaRegistrada(status=pb.StatusPedido.Value(e["status"]), registrado_em=_iso(e["registrado_em"]))
+            for e in pedido.get("historico", [])
+            if e["status"] in ETAPAS
+        ],
+        previsao_entrega=_iso(previsao),
     )
 
 
@@ -69,10 +87,45 @@ def _filtro_dono(request, context) -> str | None:
     return usuario_id
 
 
+def _filtros_listagem(request, context) -> FiltrosListagem:
+    """Filtros do ListarPedidos validados. Valor malformado responde INVALID_ARGUMENT."""
+    status = []
+    for valor in request.status:
+        nome = pb.StatusPedido.Name(valor)
+        if nome not in ETAPAS:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Etapa '%s' invalida para o filtro." % nome)
+        status.append(nome)
+
+    criado_desde = request.criado_desde.strip() or None
+    if criado_desde:
+        try:
+            datetime.fromisoformat(criado_desde)
+        except ValueError:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "criado_desde invalido: '%s'." % criado_desde)
+
+    codigo_item = request.codigo_item.strip().upper() or None
+    if codigo_item and not CODIGO_ITEM.match(codigo_item):
+        context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Codigo de item invalido: '%s'." % codigo_item)
+
+    cliente = request.cliente.strip() or None
+    if cliente and len(cliente) > CLIENTE_MAXIMO:
+        context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Filtro de cliente muito longo.")
+
+    return FiltrosListagem(
+        usuario_id=_filtro_dono(request, context),
+        status=status,
+        criado_desde=criado_desde,
+        codigo_item=codigo_item,
+        cliente=cliente,
+    )
+
+
 class PedidoService(pb_grpc.PedidoServiceServicer):
-    def __init__(self, repositorio: RepositorioPedidos, catalogo: ClienteCatalogo) -> None:
+    def __init__(self, repositorio: RepositorioPedidos, catalogo: ClienteCatalogo,
+                 eventos: CentralEventos) -> None:
         self.repositorio = repositorio
         self.catalogo = catalogo
+        self.eventos = eventos
 
     # ------------------------------------------------------------ CriarPedido
     def CriarPedido(self, request, context):
@@ -197,10 +250,52 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
     def ListarPedidos(self, request, context):
         limite = request.limite if request.limite > 0 else LIMITE_PADRAO
         limite = min(limite, LIMITE_MAXIMO)
-        dono = _filtro_dono(request, context)
-        pedidos = self.repositorio.listar(limite, dono)
-        log("ListarPedidos: limite=%d dono=%s -> %d pedidos" % (limite, dono or "todos", len(pedidos)))
+        filtros = _filtros_listagem(request, context)
+        pedidos = self.repositorio.listar(limite, filtros)
+        extras = []
+        if filtros.status:
+            extras.append("etapas=%s" % ",".join(filtros.status))
+        if filtros.criado_desde:
+            extras.append("desde=%s" % filtros.criado_desde)
+        if filtros.codigo_item:
+            extras.append("item=%s" % filtros.codigo_item)
+        if filtros.cliente:
+            extras.append("cliente=%r" % filtros.cliente)
+        log("ListarPedidos: limite=%d dono=%s%s -> %d pedidos"
+            % (limite, filtros.usuario_id or "todos", (" " + " ".join(extras)) if extras else "", len(pedidos)))
         return pb.ListarPedidosResponse(pedidos=[_para_proto(p) for p in pedidos])
+
+    # ------------------------------------------------------ AcompanharPedidos
+    def AcompanharPedidos(self, request, context):
+        """Stream de eventos: um EventoPedido por pedido criado ou etapa alterada."""
+        dono = _filtro_dono(request, context)
+        fila = self.eventos.assinar()
+        # Quem chamou fechou o stream: acorda a espera na hora (sem aguardar o batimento).
+        context.add_callback(lambda: fila.put(None))
+        log("AcompanharPedidos: stream aberto (dono=%s)" % (dono or "todos"))
+        try:
+            # Primeiro batimento na hora: quem assina sabe que o stream esta ativo.
+            yield pb.EventoPedido(tipo=pb.BATIMENTO)
+            while context.is_active():
+                try:
+                    aviso = fila.get(timeout=BATIMENTO_SEGUNDOS)
+                except queue.Empty:
+                    yield pb.EventoPedido(tipo=pb.BATIMENTO)
+                    continue
+                if aviso is None:
+                    break
+                if dono and aviso.get("usuario_id") != dono:
+                    continue
+                pedido = self.repositorio.buscar(aviso.get("pedido_id", ""))
+                if pedido is None:
+                    continue
+                yield pb.EventoPedido(
+                    tipo=TIPOS_EVENTO.get(aviso.get("tipo"), pb.EVENTO_DESCONHECIDO),
+                    pedido=_para_proto(pedido),
+                )
+        finally:
+            self.eventos.cancelar(fila)
+            log("AcompanharPedidos: stream encerrado (dono=%s)" % (dono or "todos"))
 
     # -------------------------------------------------------- AtualizarStatus
     def AtualizarStatus(self, request, context):
@@ -236,7 +331,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
                 "Nao e possivel mudar de %s para %s: %s." % (atual, novo, motivo),
             )
 
-        if not self.repositorio.atualizar_status(pedido_id, atual, novo):
+        if not self.repositorio.atualizar_status(pedido_id, atual, novo, pedido["usuario_id"]):
             context.abort(
                 grpc.StatusCode.FAILED_PRECONDITION,
                 "O pedido mudou de status durante a operacao. Consulte e tente de novo.",

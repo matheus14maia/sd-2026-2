@@ -62,3 +62,22 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS usuario_id UUID;
 
 CREATE INDEX IF NOT EXISTS idx_pedidos_criado_em ON pedidos (criado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_pedidos_usuario ON pedidos (usuario_id, criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos (status);
+CREATE INDEX IF NOT EXISTS idx_itens_pedido_codigo ON itens_pedido (codigo);
+
+-- Historico das etapas: uma linha por etapa alcancada, com o horario. Mesma
+-- dona (Pedidos), entao a FK para pedidos vale.
+CREATE TABLE IF NOT EXISTS etapas_pedido (
+    pedido_id     UUID        NOT NULL REFERENCES pedidos (id) ON DELETE CASCADE,
+    status        TEXT        NOT NULL,
+    registrado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (pedido_id, status)
+);
+-- Pedidos de antes do historico: registra a etapa inicial e a atual com os
+-- horarios que a tabela pedidos ja tem. ON CONFLICT: idempotente a cada deploy.
+INSERT INTO etapas_pedido (pedido_id, status, registrado_em)
+SELECT id, 'RECEBIDO', criado_em FROM pedidos
+ON CONFLICT DO NOTHING;
+INSERT INTO etapas_pedido (pedido_id, status, registrado_em)
+SELECT id, status, atualizado_em FROM pedidos WHERE status <> 'RECEBIDO'
+ON CONFLICT DO NOTHING;

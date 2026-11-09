@@ -11,6 +11,7 @@ from ..comum.servidor_grpc import executar
 from ..gerado import pedidos_pb2 as pb
 from ..gerado import pedidos_pb2_grpc as pb_grpc
 from .cliente_catalogo import ClienteCatalogo
+from .eventos import CentralEventos
 from .repositorio import RepositorioPedidos
 from .servico import PedidoService
 
@@ -22,7 +23,8 @@ def main() -> int:
     pool = criar_pool()
     catalogo = ClienteCatalogo()
     print("Catalogo em", catalogo.endereco, flush=True)
-    servico = PedidoService(RepositorioPedidos(pool), catalogo)
+    # LISTEN no canal "pedidos": alimenta os streams de AcompanharPedidos.
+    servico = PedidoService(RepositorioPedidos(pool), catalogo, CentralEventos())
 
     def encerrar() -> None:
         catalogo.fechar()

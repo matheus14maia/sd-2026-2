@@ -27,6 +27,7 @@ from ..comum.resiliencia import CircuitoAberto
 from . import erros
 from .autenticacao import SEGREDO_DEFINIDO, AcessoNegado, MiddlewareJWT
 from .clientes_grpc import ClientesGrpc
+from .eventos import RetransmissorEventos
 from .rotas import auth, cardapio, pedidos, saude
 
 # Origens do frontend que o navegador pode usar para chamar o Gateway, separadas
@@ -37,11 +38,13 @@ CORS_ORIGENS = [o.strip() for o in os.getenv("CORS_ORIGENS", "*").split(",") if 
 @asynccontextmanager
 async def ciclo_de_vida(app: FastAPI):
     app.state.grpc = ClientesGrpc()
+    app.state.eventos = RetransmissorEventos(app.state.grpc)
     log("Gateway -> " + ClientesGrpc.destinos())
     log("CORS liberado para: " + ", ".join(CORS_ORIGENS))
     if not SEGREDO_DEFINIDO:
         log("JWT_SEGREDO nao definido; segredo sorteado nesta subida.", "WARNING")
     yield
+    app.state.eventos.encerrar()
     app.state.grpc.fechar()
 
 

@@ -20,6 +20,9 @@ def main() -> None:
         proxy_headers=True,
         forwarded_allow_ips="*",
         access_log=False,
+        # Conexoes de tempo real (SSE) ficam abertas: no desligamento, espera no
+        # maximo 5 s por elas em vez de travar ate o SIGKILL.
+        timeout_graceful_shutdown=5,
     )
 
 

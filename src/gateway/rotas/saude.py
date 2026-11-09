@@ -1,14 +1,15 @@
 """Rotas de saude: o Gateway esta no ar e como estao os microsservicos.
 
 GET /saude           publica: o Gateway responde e o estado dos circuitos.
-GET /saude/servicos  com token: health check gRPC (grpc.health.v1) de cada
-                     microsservico, com latencia e o estado do circuit breaker.
-                     A tela "Saude" do frontend consulta esta rota.
+GET /saude/servicos  papel cozinha: health check gRPC (grpc.health.v1) de cada
+                     microsservico, com latencia, o estado do circuit breaker e
+                     o stream de tempo real. A tela "Saude" do frontend consulta
+                     esta rota. Cliente recebe 403: e informacao de operacao.
 """
 
 from fastapi import APIRouter, Depends, Request
 
-from ..autenticacao import esquema_bearer
+from ..autenticacao import esquema_bearer, exigir_papel
 
 router = APIRouter(prefix="/saude", tags=["infra"])
 
@@ -20,8 +21,11 @@ def saude(request: Request):
 
 @router.get(
     "/servicos",
-    summary="Health check gRPC e circuito de cada microsservico (200)",
-    dependencies=[Depends(esquema_bearer)],
+    summary="Health check gRPC e circuito de cada microsservico (200; 403 se nao for cozinha)",
+    dependencies=[Depends(esquema_bearer), Depends(exigir_papel("cozinha"))],
 )
 def servicos(request: Request):
-    return {"servicos": request.app.state.grpc.verificar_servicos()}
+    return {
+        "servicos": request.app.state.grpc.verificar_servicos(),
+        "tempo_real": request.app.state.eventos.resumo(),
+    }

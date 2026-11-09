@@ -23,9 +23,11 @@ import argparse
 import json
 import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 ID_INEXISTENTE = "00000000-0000-0000-0000-000000000000"
 SEM_TOKEN = ""
@@ -47,6 +49,23 @@ def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = 
             return erro.code, json.loads(conteudo)
         except ValueError:
             return erro.code, conteudo.decode(errors="replace")
+
+
+def ouvir_eventos(base: str, autorizacao: str, destino: list, pronto: threading.Event) -> None:
+    """Le o fluxo GET /pedidos/eventos (Server-Sent Events) e guarda (evento, dados)."""
+    requisicao = urllib.request.Request(base + "/pedidos/eventos", headers={"Authorization": autorizacao})
+    try:
+        with urllib.request.urlopen(requisicao, timeout=60) as resposta:
+            pronto.set()
+            evento = "message"
+            for linha in resposta:
+                linha = linha.decode("utf-8").rstrip("\r\n")
+                if linha.startswith("event:"):
+                    evento = linha[6:].strip()
+                elif linha.startswith("data:"):
+                    destino.append((evento, json.loads(linha[5:])))
+    except Exception:
+        pronto.set()
 
 
 def main() -> int:
@@ -198,6 +217,69 @@ def main() -> int:
     cenario("Cozinha lista os pedidos de todos", 200, "GET", "/pedidos?limite=50", conferir=cozinha_ve_todos)
     cenario("Cozinha consulta o pedido do cliente", 200, "GET", "/pedidos/" + pedido_cliente)
 
+    # Filtros da listagem (aplicados no banco) --------------------------------
+    def todos(condicao, descricao):
+        def conferir(resposta):
+            pedidos = (resposta or {}).get("pedidos", []) if isinstance(resposta, dict) else []
+            if not pedidos:
+                return "a lista veio vazia"
+            fora = [p.get("pedido_id", "")[:8] for p in pedidos if not condicao(p)]
+            return "pedidos fora do filtro (%s): %s" % (descricao, ", ".join(fora)) if fora else None
+        return conferir
+
+    agora = datetime.now(timezone.utc)
+    cenario("Filtro por etapa", 200, "GET", "/pedidos?etapa=EM_PREPARO",
+            conferir=todos(lambda p: p.get("status") == "EM_PREPARO", "etapa"))
+    cenario("Filtro por prato", 200, "GET", "/pedidos?item=BE01",
+            conferir=todos(lambda p: any(i.get("codigo") == "BE01" for i in p.get("itens", [])), "prato"))
+    cenario("Filtro por periodo (hoje)", 200, "GET", "/pedidos?periodo=hoje",
+            conferir=todos(lambda p: agora - datetime.fromisoformat(p["criado_em"]) < timedelta(days=1), "periodo"))
+    cenario("Filtro por cliente (cozinha)", 200, "GET", "/pedidos?cliente=teste",
+            conferir=todos(lambda p: "teste" in p.get("cliente", "").lower(), "cliente"))
+    cenario("Filtro com etapa invalida", 400, "GET", "/pedidos?etapa=CANCELADO")
+
+    # Historico: horario de cada etapa e previsao de entrega -------------------
+    def historico_completo(resposta):
+        etapas = [e.get("status") for e in (resposta or {}).get("historico", [])] if isinstance(resposta, dict) else []
+        if etapas[:1] != ["RECEBIDO"] or not all(e.get("registrado_em") for e in resposta.get("historico", [])):
+            return "historico sem a etapa RECEBIDO ou sem horario: %s" % etapas
+        if not (resposta or {}).get("previsao_entrega"):
+            return "faltou previsao_entrega"
+        return None
+
+    cenario("Historico com o horario de cada etapa", 200, "GET", "/pedidos/" + pedido_id, conferir=historico_completo)
+
+    # Tempo real: o cliente recebe a mudanca de etapa sem pedir de novo --------
+    eventos_cliente = []
+    conectado = threading.Event()
+    threading.Thread(target=ouvir_eventos, args=(base, bearer_cliente, eventos_cliente, conectado), daemon=True).start()
+    conectado.wait(10)
+    time.sleep(1.0)
+
+    def esperar_evento(pid, status_esperado, segundos=8.0):
+        limite = time.time() + segundos
+        while time.time() < limite:
+            for evento, dados in list(eventos_cliente):
+                pedido = dados.get("pedido", {}) if isinstance(dados, dict) else {}
+                if evento == "pedido" and pedido.get("pedido_id") == pid and pedido.get("status") == status_esperado:
+                    return None
+            time.sleep(0.2)
+        return "o evento nao chegou em %.0f s" % segundos
+
+    cenario("Tempo real: cliente recebe a nova etapa sem recarregar", 200, "PATCH",
+            "/pedidos/%s/status" % pedido_cliente, {"status": "EM_PREPARO"},
+            conferir=lambda r: esperar_evento(pedido_cliente, "EM_PREPARO"))
+
+    def sem_evento_de(pid):
+        def conferir(_resposta):
+            time.sleep(2.0)
+            vistos = [d.get("pedido", {}).get("pedido_id") for e, d in eventos_cliente if e == "pedido"]
+            return "o cliente recebeu evento do pedido de outro usuario" if pid in vistos else None
+        return conferir
+
+    cenario("Tempo real: cliente nao recebe pedido de outro usuario", 200, "PATCH",
+            "/pedidos/%s/status" % pedido_id, {"status": "PRONTO"}, conferir=sem_evento_de(pedido_id))
+
     # Saude: health check gRPC dos tres microsservicos ------------------------
     def todos_no_ar(resposta):
         servicos = (resposta or {}).get("servicos", {}) if isinstance(resposta, dict) else {}
@@ -205,6 +287,7 @@ def main() -> int:
         return "fora do ar: %s" % ", ".join(fora) if fora or len(servicos) != 3 else None
 
     cenario("Health check dos microsservicos", 200, "GET", "/saude/servicos", conferir=todos_no_ar)
+    cenario("Cliente tentando ver a saude dos servicos", 403, "GET", "/saude/servicos", autorizacao=bearer_cliente)
 
     print("\n" + ("Todos os %d cenarios passaram." % total if falhas == 0
                   else "%d de %d cenario(s) nao sairam como esperado." % (falhas, total)))

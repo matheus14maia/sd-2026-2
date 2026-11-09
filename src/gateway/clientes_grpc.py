@@ -161,10 +161,25 @@ class ClientesGrpc:
         requisicao = pedidos_pb2.ObterPedidoRequest(pedido_id=pedido_id, usuario_id=usuario_id)
         return para_dict(self._chamar("pedidos", "ObterPedido", self.pedidos.ObterPedido, requisicao))
 
-    def listar_pedidos(self, limite: int, usuario_id: str) -> list[dict]:
-        requisicao = pedidos_pb2.ListarPedidosRequest(limite=limite, usuario_id=usuario_id)
+    def listar_pedidos(self, limite: int, usuario_id: str, status: list[str] | None = None,
+                       criado_desde: str = "", codigo_item: str = "", cliente: str = "") -> list[dict]:
+        requisicao = pedidos_pb2.ListarPedidosRequest(
+            limite=limite,
+            usuario_id=usuario_id,
+            status=[pedidos_pb2.StatusPedido.Value(s) for s in (status or [])],
+            criado_desde=criado_desde,
+            codigo_item=codigo_item,
+            cliente=cliente,
+        )
         resposta = self._chamar("pedidos", "ListarPedidos", self.pedidos.ListarPedidos, requisicao)
         return para_dict(resposta).get("pedidos", [])
+
+    def acompanhar_pedidos(self):
+        """Abre o stream AcompanharPedidos (todos os pedidos). Sem prazo: fica aberto
+        enquanto houver navegador ouvindo; quem chama itera e pode cancelar."""
+        return self.pedidos.AcompanharPedidos(
+            pedidos_pb2.AcompanharPedidosRequest(), metadata=metadados_trace()
+        )
 
     def atualizar_status(self, pedido_id: str, status: str) -> dict:
         requisicao = pedidos_pb2.AtualizarStatusRequest(

@@ -19,6 +19,13 @@ service PedidoService {
   // Avanca o pedido para a proxima etapa. Pular etapa ou voltar e recusado
   // com FAILED_PRECONDITION.
   rpc AtualizarStatus(AtualizarStatusRequest) returns (Pedido);
+
+  // Fluxo continuo (server streaming): cada pedido criado ou com etapa
+  // alterada vira um EventoPedido, na hora em que acontece. O Gateway mantem
+  // um stream destes por instancia e repassa os eventos aos navegadores
+  // (Server-Sent Events): a tela atualiza sem F5. Sem eventos, o servico
+  // manda um BATIMENTO a cada poucos segundos para manter a conexao viva.
+  rpc AcompanharPedidos(AcompanharPedidosRequest) returns (stream EventoPedido);
 }
 
 // Em proto3 todo enum precisa do valor 0.
@@ -57,6 +64,12 @@ message ItemConfirmado {
   double subtotal = 5;
 }
 
+// Momento em que o pedido entrou numa etapa.
+message EtapaRegistrada {
+  StatusPedido status = 1;
+  string registrado_em = 2;    // ISO 8601
+}
+
 message Pedido {
   string pedido_id = 1;
   string cliente = 2;
@@ -68,6 +81,8 @@ message Pedido {
   string criado_em = 8;        // ISO 8601
   string atualizado_em = 9;    // ISO 8601
   string usuario_id = 10;      // dono do pedido (vazio em pedidos anteriores ao Trabalho 3)
+  repeated EtapaRegistrada historico = 11;   // etapas ja alcancadas, em ordem, com o horario
+  string previsao_entrega = 12;              // ISO 8601: criado_em + tempo_estimado_minutos
 }
 
 message ObterPedidoRequest {
@@ -81,6 +96,12 @@ message ListarPedidosRequest {
   int32 limite = 1;            // 0 = padrao do servico
   // Preenchido: so os pedidos deste usuario. Vazio: todos (papel cozinha).
   string usuario_id = 2;
+  // Filtros opcionais (vazio = sem filtro). Quando varios vem preenchidos,
+  // o pedido precisa atender a todos.
+  repeated StatusPedido status = 3;   // pedido em uma destas etapas
+  string criado_desde = 4;            // ISO 8601: criados a partir deste instante
+  string codigo_item = 5;             // pedidos que tem este item do cardapio
+  string cliente = 6;                 // trecho do nome do cliente (sem diferenciar maiusculas)
 }
 
 message ListarPedidosResponse {
@@ -90,4 +111,21 @@ message ListarPedidosResponse {
 message AtualizarStatusRequest {
   string pedido_id = 1;
   StatusPedido status = 2;
+}
+
+message AcompanharPedidosRequest {
+  // Preenchido: so eventos dos pedidos deste usuario. Vazio: todos.
+  string usuario_id = 1;
+}
+
+enum TipoEvento {
+  EVENTO_DESCONHECIDO = 0;
+  PEDIDO_CRIADO = 1;
+  STATUS_ATUALIZADO = 2;
+  BATIMENTO = 3;               // sem pedido: so mantem o stream vivo
+}
+
+message EventoPedido {
+  TipoEvento tipo = 1;
+  Pedido pedido = 2;           // vazio no BATIMENTO
 }
