@@ -283,6 +283,12 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
               <strong>{detalhe.cliente}</strong>
               <br />
               {detalhe.endereco}
+              {detalhe.telefone && (
+                <>
+                  <br />
+                  Telefone: <a href={`tel:${detalhe.telefone.replace(/[^0-9+]/g, "")}`}>{detalhe.telefone}</a>
+                </>
+              )}
             </p>
 
             <Previsao pedido={detalhe} agora={agora} />

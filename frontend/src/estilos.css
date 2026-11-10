@@ -77,8 +77,14 @@ p {
 }
 
 .app {
+  --altura-trilho-atual: var(--altura-trilho);
   min-height: 100vh;
-  padding-bottom: calc(var(--altura-trilho) + 24px);
+  padding-bottom: calc(var(--altura-trilho-atual) + 24px);
+}
+
+/* Trilho recolhido (padrao do cliente): so uma faixa fina embaixo. */
+.app.trilho-recolhido {
+  --altura-trilho-atual: 40px;
 }
 
 /* ------------------------------------------------------------------ topo */
@@ -300,8 +306,7 @@ p {
 }
 
 /* -------------------------------------------------------------- resultado */
-.resultado,
-.confirmacao {
+.resultado {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -310,11 +315,6 @@ p {
   border-radius: var(--raio);
   border-left: 6px solid;
   background: var(--papel);
-}
-
-.confirmacao {
-  align-items: start;
-  border-color: var(--manjericao);
 }
 
 .resultado-status {
@@ -328,8 +328,7 @@ p {
   border-color: var(--manjericao);
 }
 
-.resultado-ok .resultado-status,
-.confirmacao .resultado-status {
+.resultado-ok .resultado-status {
   color: var(--manjericao);
 }
 
@@ -527,8 +526,12 @@ p {
   transition: transform 350ms ease;
 }
 
-.prato:hover .prato-foto img {
-  transform: scale(1.1);
+/* Zoom so em aparelho com mouse: no toque o "hover" fica grudado e o card
+   mudaria de tamanho embaixo do dedo, tirando o botao + do lugar. */
+@media (hover: hover) and (pointer: fine) {
+  .prato:hover .prato-foto img {
+    transform: scale(1.1);
+  }
 }
 
 .prato-foto-vazia {
@@ -605,13 +608,15 @@ p {
   color: var(--grafite-suave);
 }
 
-/* Zoom discreto no prato sob o mouse. */
-.prato:hover {
-  background: var(--branco);
-  transform: scale(1.012);
-  box-shadow: 0 6px 18px rgba(29, 35, 41, 0.1);
-  position: relative;
-  z-index: 1;
+/* Zoom discreto no prato sob o mouse (so com mouse, ver .prato-foto acima). */
+@media (hover: hover) and (pointer: fine) {
+  .prato:hover {
+    background: var(--branco);
+    transform: scale(1.012);
+    box-shadow: 0 6px 18px rgba(29, 35, 41, 0.1);
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .prato-cabeca {
@@ -690,9 +695,11 @@ p {
   cursor: pointer;
 }
 
-.quantidade button:hover {
-  background: var(--grafite);
-  color: var(--branco);
+@media (hover: hover) {
+  .quantidade button:hover {
+    background: var(--grafite);
+    color: var(--branco);
+  }
 }
 
 .quantidade button:active {
@@ -1821,6 +1828,201 @@ p {
   background: var(--pimenta-escura);
 }
 
+/* ------------------------------------------- trilho recolhido e topo */
+.trilho-fino {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--grafite);
+  border-top: 1px solid #aab4bd;
+  color: #c9d1d8;
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.trilho-alternar {
+  flex: none;
+  white-space: nowrap;
+}
+
+.trilho-alternar,
+.trilho-recolher {
+  background: none;
+  border: 0;
+  color: #c9d1d8;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.trilho-alternar:hover,
+.trilho-recolher:hover {
+  color: var(--branco);
+}
+
+.trilho-recolher {
+  flex: none;
+  align-self: start;
+  margin-top: 14px;
+  padding: 2px 6px;
+  font-size: 1rem;
+}
+
+.trilho-contagem {
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.trilho-ultima {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--fonte-comanda);
+}
+
+.carimbo-mini {
+  font-size: 0.8rem;
+  padding: 0 6px;
+  transform: none;
+}
+
+.usuario-nome {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--branco);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.login-dica-conta {
+  margin: 12px 0 0;
+  color: var(--grafite-suave);
+  font-size: 0.9rem;
+}
+
+/* ------------------------------------------------- sacola em etapas */
+.sacola-vazia {
+  margin: 0;
+}
+
+.sacola-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.sacola-topo h2 {
+  margin: 0 0 6px;
+}
+
+.entrega-resumo {
+  margin: 0 0 10px;
+  color: var(--grafite-suave);
+}
+
+.sacola-itens .sacola-linha {
+  align-items: center;
+}
+
+.sacola-linha-texto {
+  min-width: 0;
+}
+
+.sacola-linha-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.quantidade-sacola {
+  gap: 6px;
+}
+
+.quantidade-sacola button {
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+}
+
+.sacola-valor {
+  min-width: 78px;
+  text-align: right;
+}
+
+.botao-continuar {
+  width: 100%;
+}
+
+.confirmacao-pedido {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.confirmacao-pedido h2 {
+  margin: 8px 0 10px;
+}
+
+.confirmacao-pedido p {
+  margin: 0 0 8px;
+}
+
+.icone-confirmacao {
+  width: 44px;
+  height: 60px;
+  filter: drop-shadow(0 0 8px rgba(255, 196, 60, 0.7));
+}
+
+.confirmacao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  margin-top: 16px;
+}
+
+/* No celular: barra fixa para chegar na sacola, que fica embaixo do cardapio. */
+.barra-sacola {
+  display: none;
+}
+
+/* ------------------------------------------------------------ meus dados */
+.conta-paineis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.conta-paineis h2 {
+  margin: 0 0 14px;
+}
+
+.conta-fixos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 0 0 18px;
+}
+
+.conta-fixos dt {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.conta-fixos dd {
+  margin: 0;
+  font-weight: 650;
+}
+
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
   .prato {
@@ -1852,11 +2054,34 @@ p {
     grid-template-columns: 1fr;
   }
 
+  .barra-sacola {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--altura-trilho-atual) + 10px);
+    z-index: 15;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pimenta);
+    color: var(--branco);
+    font: inherit;
+    font-weight: 700;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+  }
+
+  /* minmax(0, ...): a coluna pode encolher ate a tela; conteudo largo (as abas
+     do cardapio) rola de lado em vez de alargar a pagina inteira. */
   .login,
   .cardapio,
   .pedidos,
   .trilho-detalhe-corpo {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sacola {

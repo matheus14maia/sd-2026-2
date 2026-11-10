@@ -27,6 +27,12 @@ export default function Login() {
       const r = await chamar("POST", "/auth/cadastro", { corpo: form });
       setResposta(r);
       if (r.ok) {
+        // Conta criada: ja entra com o mesmo login e senha, sem digitar de novo.
+        const entrada = await chamar("POST", "/auth/login", { corpo: { login: form.login, senha: form.senha } });
+        if (entrada.ok) {
+          salvarSessao({ token: entrada.dados.access_token, usuario: entrada.dados.usuario });
+          return;
+        }
         setModo("entrar");
         setForm({ ...form, nome: "", senha: "" });
       }
@@ -93,6 +99,11 @@ export default function Login() {
         </button>
         <LegendaObrigatorio />
 
+        {modo === "criar" && (
+          <p className="login-dica-conta">
+            Depois de criar a conta você já entra. Telefone e endereço de entrega ficam em “Meus dados”.
+          </p>
+        )}
         <Resultado
           resposta={resposta}
           sucesso={resposta?.status === 201 ? "Conta criada. Entre com a sua senha." : "Login feito."}

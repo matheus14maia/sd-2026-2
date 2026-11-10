@@ -28,7 +28,13 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   // sabor vira uma linha propria do pedido).
   const [carrinho, setCarrinho] = useState({});
   const [submenus, setSubmenus] = useState({}); // codigo -> submenu aberto
-  const [endereco, setEndereco] = useState("");
+  // Etapas da sacola: "sacola" (escolhendo), "entrega" (endereco e botao de
+  // finalizar) e "confirmado" (depois do fogo). O formulario so aparece quando
+  // ja ha prato escolhido.
+  const [etapa, setEtapa] = useState("sacola");
+  const [entrega, setEntrega] = useState({ endereco: "", telefone: "" });
+  const [conta, setConta] = useState(null); // "Meus dados": preenche a entrega
+  const [guardarNaConta, setGuardarNaConta] = useState(false);
   const [resposta, setResposta] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [chamas, setChamas] = useState(false);
@@ -40,6 +46,10 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   const conhecidos = useRef(new Map());
   const abaAtual = useRef("");
   abaAtual.current = aba;
+  // No celular a sacola fica embaixo do cardapio: a barra "Ver sacola" aparece
+  // enquanto ela esta fora da tela.
+  const sacolaRef = useRef(null);
+  const [sacolaNaTela, setSacolaNaTela] = useState(false);
 
   async function carregar(silencioso = false) {
     const r = await chamar("GET", "/cardapio", { silencioso });
@@ -63,6 +73,16 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", aoVoltar);
     };
+  }, []);
+
+  useEffect(() => {
+    const painel = sacolaRef.current;
+    if (!painel || !("IntersectionObserver" in window)) return undefined;
+    const observador = new IntersectionObserver(([entrada]) => setSacolaNaTela(entrada.isIntersecting), {
+      threshold: 0.1,
+    });
+    observador.observe(painel);
+    return () => observador.disconnect();
   }, []);
 
   const abas = useMemo(() => {
@@ -100,10 +120,17 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     .filter((l) => l.item);
   const comProblema = linhas.some((l) => l.problema);
   const estimado = linhas.filter((l) => !l.problema).reduce((soma, l) => soma + l.item.preco * l.quantidade, 0);
+  const unidades = linhas.reduce((soma, l) => soma + l.quantidade, 0);
+  const nomeDaLinha = (l) => (l.opcao ? `${l.item.nome} ${l.opcao}` : l.item.nome);
 
   const erros = resposta?.status === 400 ? resposta.dados?.erros || {} : {};
 
   function mudarQuantidade(chave, delta) {
+    if (etapa === "confirmado" && delta > 0) {
+      // Escolheu outro prato depois de confirmar: comeca um pedido novo.
+      setEtapa("sacola");
+      setResposta(null);
+    }
     const quantidade = Math.max(0, (carrinho[chave] || 0) + delta);
     setCarrinho((atual) => ({ ...atual, [chave]: quantidade }));
     const item = itens.find((i) => i.codigo === chave.split("|")[0]);
@@ -141,12 +168,32 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     }
   }
 
+  async function irParaEntrega() {
+    setEtapa("entrega");
+    setResposta(null);
+    if (conta) return;
+    // Primeira vez: endereco e telefone salvos em "Meus dados" ja preenchem a entrega.
+    const r = await chamar("GET", "/conta", { silencioso: true });
+    if (!r.ok) return;
+    setConta(r.dados);
+    setEntrega((atual) => ({
+      endereco: atual.endereco || r.dados.endereco || "",
+      telefone: atual.telefone || r.dados.telefone || "",
+    }));
+    setGuardarNaConta(!r.dados.endereco); // primeiro pedido: guarda para os proximos
+  }
+
+  const mudarEntrega = (campo) => (evento) => setEntrega((atual) => ({ ...atual, [campo]: evento.target.value }));
+
   async function fazerPedido(evento) {
     evento.preventDefault();
     setEnviando(true);
+    const endereco = entrega.endereco.trim();
+    const telefone = entrega.telefone.trim();
     // Sem "cliente": o Gateway faz o pedido em nome do dono do token.
     const corpo = {
-      endereco,
+      endereco: entrega.endereco,
+      ...(telefone ? { telefone } : {}),
       itens: linhas.map((l) => ({
         codigo: l.item.codigo,
         quantidade: l.quantidade,
@@ -155,16 +202,30 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     };
     const r = await chamar("POST", "/pedidos", { corpo });
     setResposta(r);
-    if (r.ok) {
-      setCarrinho({});
-      setPrecosVistos({});
-      setChamas(true);
-    } else {
+    setEnviando(false);
+    if (!r.ok) {
       // Recusado (ex.: a cozinha tirou um prato do cardapio): atualiza a tela
       // para a sacola marcar o que mudou.
       carregar(true);
+      return;
     }
-    setEnviando(false);
+    setChamas(true); // o fogo sobe do botao; depois dele, a confirmacao
+    if (guardarNaConta && conta && (endereco !== conta.endereco || telefone !== conta.telefone)) {
+      const salvo = await chamar("PATCH", "/conta", { corpo: { endereco, telefone } });
+      if (salvo.ok) setConta(salvo.dados.usuario);
+    }
+  }
+
+  function terminarFogo() {
+    setChamas(false);
+    setCarrinho({});
+    setPrecosVistos({});
+    setEtapa("confirmado");
+  }
+
+  function novoPedido() {
+    setEtapa("sacola");
+    setResposta(null);
   }
 
   const pedidoCriado = resposta?.ok ? resposta.dados.pedido : null;
@@ -279,92 +340,164 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
         </div>
       </section>
 
-      <aside className="painel sacola" aria-label="Seu pedido">
-        <h2>Seu pedido</h2>
-        {linhas.length === 0 ? (
-          <p className="vazio">Use o + nos pratos para montar o pedido.</p>
-        ) : (
-          <ul className="sacola-itens">
-            {linhas.map((l) => (
-              <li key={l.chave} className={l.problema ? "sacola-linha-problema" : undefined}>
-                <span>
-                  {l.quantidade}× {l.item.nome}
-                  {l.opcao && <span className="sacola-opcao"> · {l.opcao}</span>}
-                  {l.problema && <span className="sacola-motivo">{l.problema}</span>}
-                  {l.precoAntes !== undefined && (
-                    <span className="sacola-preco-mudou">Preço atualizado pela cozinha (antes {formatarPreco(l.precoAntes)})</span>
-                  )}
-                </span>
-                {l.problema ? (
-                  <button type="button" className="botao-texto" onClick={() => retirar(l.chave)} aria-label={`Retirar ${l.item.nome} da sacola`}>
-                    Retirar
-                  </button>
-                ) : (
-                  <span>{formatarPreco(l.item.preco * l.quantidade)}</span>
-                )}
-              </li>
-            ))}
-            <li className="sacola-total">
-              <span>Estimativa</span>
-              <span>{formatarPreco(estimado)}</span>
-            </li>
-          </ul>
-        )}
-
-        <form onSubmit={fazerPedido} noValidate>
-          <p className="pedido-em-nome">
-            Pedido em nome de <strong>{sessao.usuario?.nome}</strong>
-            <span>O nome vem do seu login, não do formulário.</span>
-          </p>
-          <Campo
-            id="endereco"
-            rotulo="Endereço de entrega"
-            obrigatorio
-            value={endereco}
-            onChange={(e) => setEndereco(e.target.value)}
-            erro={erros.endereco}
-            placeholder="Rua, número e bairro"
-            autoComplete="street-address"
-          />
-          {erros.itens && (
-            <p className="campo-erro" role="alert">
-              {traduzirErroCampo("itens", erros.itens)}
+      <aside className="painel sacola" id="sacola" ref={sacolaRef} aria-label="Sua sacola">
+        {etapa === "confirmado" && pedidoCriado ? (
+          <div className="confirmacao-pedido" role="status">
+            <IconeChama className="icone-chama icone-confirmacao" />
+            <h2>Pedido confirmado: as chamas estão acesas!</h2>
+            <p>
+              Pedido <strong>{pedidoCriado.pedido_id.slice(0, 8)}</strong> · total calculado pelo servidor:{" "}
+              <strong>{formatarPreco(pedidoCriado.total)}</strong>
             </p>
-          )}
-          {comProblema && (
-            <p className="sacola-alerta" role="status">
-              A cozinha mudou o cardápio: retire os itens marcados para finalizar o pedido.
+            <p>
+              Previsão de entrega às <strong>{formatarHora(pedidoCriado.previsao_entrega)}</strong> (cerca de{" "}
+              {pedidoCriado.tempo_estimado_minutos} min) em {pedidoCriado.endereco}.
             </p>
-          )}
-          <div className="botao-chamas-area">
-            <button className={chamas ? "botao botao-chamas acesa" : "botao botao-chamas"} type="submit" disabled={enviando}>
-              <IconeChama />
-              <span>{enviando ? "Acendendo as chamas…" : "Finalizar pedido e acender as chamas"}</span>
-            </button>
-            {chamas && <Fogo aoTerminar={() => setChamas(false)} />}
-          </div>
-          <LegendaObrigatorio />
-        </form>
-
-        {pedidoCriado ? (
-          <div className="confirmacao" role="status">
-            <span className="resultado-status">{resposta.status}</span>
-            <div>
-              <strong>Pedido confirmado: as chamas estão acesas!</strong>
-              <p>
-                Total calculado pelo servidor: <strong>{formatarPreco(pedidoCriado.total)}</strong>. Previsão de entrega às{" "}
-                <strong>{formatarHora(pedidoCriado.previsao_entrega)}</strong> (cerca de{" "}
-                {pedidoCriado.tempo_estimado_minutos} min).
-              </p>
-              <button className="botao-texto" onClick={() => aoCriarPedido(pedidoCriado.pedido_id)}>
+            <div className="confirmacao-acoes">
+              <button className="botao" onClick={() => aoCriarPedido(pedidoCriado.pedido_id)}>
                 Acompanhar pedido
+              </button>
+              <button className="botao-secundario" onClick={novoPedido}>
+                Fazer outro pedido
               </button>
             </div>
           </div>
+        ) : etapa === "entrega" && (linhas.length > 0 || chamas) ? (
+          <form onSubmit={fazerPedido} noValidate>
+            <div className="sacola-topo">
+              <button type="button" className="botao-texto" onClick={() => setEtapa("sacola")} disabled={chamas}>
+                ← Sacola
+              </button>
+              <h2>Entrega</h2>
+            </div>
+            <p className="entrega-resumo">
+              {unidades} {unidades === 1 ? "item" : "itens"} na sacola · estimativa{" "}
+              <strong>{formatarPreco(estimado)}</strong>
+            </p>
+            <p className="pedido-em-nome">
+              Pedido em nome de <strong>{sessao.usuario?.nome}</strong>
+              <span>O nome vem do seu login, não do formulário.</span>
+            </p>
+            <Campo
+              id="endereco"
+              rotulo="Endereço de entrega"
+              obrigatorio
+              value={entrega.endereco}
+              onChange={mudarEntrega("endereco")}
+              erro={erros.endereco}
+              placeholder="Rua, número e bairro"
+              autoComplete="street-address"
+            />
+            <Campo
+              id="telefone-entrega"
+              rotulo="Telefone para contato"
+              inputMode="tel"
+              value={entrega.telefone}
+              onChange={mudarEntrega("telefone")}
+              erro={erros.telefone}
+              placeholder="(62) 99999-0000"
+              autoComplete="tel"
+            />
+            {sessao.usuario?.papel === "cliente" &&
+              conta &&
+              (entrega.endereco.trim() !== conta.endereco || entrega.telefone.trim() !== conta.telefone) && (
+                <label className="caixa-marcar">
+                  <input type="checkbox" checked={guardarNaConta} onChange={(e) => setGuardarNaConta(e.target.checked)} />
+                  Guardar em “Meus dados” para os próximos pedidos
+                </label>
+              )}
+            {erros.itens && (
+              <p className="campo-erro" role="alert">
+                {traduzirErroCampo("itens", erros.itens)}
+              </p>
+            )}
+            {comProblema && (
+              <p className="sacola-alerta" role="status">
+                A cozinha mudou o cardápio: volte à sacola e retire os itens marcados.
+              </p>
+            )}
+            <div className="botao-chamas-area">
+              <button className={chamas ? "botao botao-chamas acesa" : "botao botao-chamas"} type="submit" disabled={enviando || chamas}>
+                <IconeChama />
+                <span>{chamas ? "Pedido confirmado!" : enviando ? "Acendendo as chamas…" : "Finalizar pedido e acender as chamas"}</span>
+              </button>
+              {chamas && <Fogo aoTerminar={terminarFogo} />}
+            </div>
+            <LegendaObrigatorio />
+            {!chamas && <Resultado resposta={resposta} />}
+          </form>
         ) : (
-          <Resultado resposta={resposta} />
+          <>
+            <h2>Sua sacola</h2>
+            {linhas.length === 0 ? (
+              <p className="vazio sacola-vazia">
+                Sua sacola está vazia. Escolha os pratos no cardápio com o <strong>+</strong>.
+              </p>
+            ) : (
+              <>
+                <ul className="sacola-itens">
+                  {linhas.map((l) => (
+                    <li key={l.chave} className={l.problema ? "sacola-linha sacola-linha-problema" : "sacola-linha"}>
+                      <span className="sacola-linha-texto">
+                        {l.item.nome}
+                        {l.opcao && <span className="sacola-opcao"> · {l.opcao}</span>}
+                        {l.problema && <span className="sacola-motivo">{l.problema}</span>}
+                        {l.precoAntes !== undefined && (
+                          <span className="sacola-preco-mudou">
+                            Preço atualizado pela cozinha (antes {formatarPreco(l.precoAntes)})
+                          </span>
+                        )}
+                      </span>
+                      {l.problema ? (
+                        <button type="button" className="botao-texto" onClick={() => retirar(l.chave)} aria-label={`Retirar ${l.item.nome} da sacola`}>
+                          Retirar
+                        </button>
+                      ) : (
+                        <span className="sacola-linha-acoes">
+                          <span className="quantidade quantidade-sacola">
+                            <button aria-label={`Tirar um ${nomeDaLinha(l)} da sacola`} onClick={() => mudarQuantidade(l.chave, -1)}>
+                              −
+                            </button>
+                            <span aria-live="polite">{l.quantidade}</span>
+                            <button aria-label={`Mais um ${nomeDaLinha(l)}`} onClick={() => mudarQuantidade(l.chave, 1)}>
+                              +
+                            </button>
+                          </span>
+                          <span className="sacola-valor">{formatarPreco(l.item.preco * l.quantidade)}</span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                  <li className="sacola-total">
+                    <span>Estimativa</span>
+                    <span>{formatarPreco(estimado)}</span>
+                  </li>
+                </ul>
+                {comProblema && (
+                  <p className="sacola-alerta" role="status">
+                    A cozinha mudou o cardápio: retire os itens marcados para continuar.
+                  </p>
+                )}
+                <button className="botao botao-continuar" onClick={irParaEntrega}>
+                  Continuar para a entrega
+                </button>
+              </>
+            )}
+          </>
         )}
       </aside>
+
+      {linhas.length > 0 && etapa !== "confirmado" && !sacolaNaTela && (
+        <button
+          className="barra-sacola"
+          onClick={() => sacolaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        >
+          <span>Ver sacola</span>
+          <span>
+            {unidades} {unidades === 1 ? "item" : "itens"} · {formatarPreco(estimado)}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

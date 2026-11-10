@@ -2,22 +2,31 @@ import { useCallback, useEffect, useState } from "react";
 import { API_URL, NOME_ETAPA, aoMudarSessao, assinarEventos, encerrarSessao, formatarPreco, lerSessao } from "./api.js";
 import Trilho from "./componentes/Trilho.jsx";
 import Cardapio from "./telas/Cardapio.jsx";
+import Conta from "./telas/Conta.jsx";
 import Cozinha from "./telas/Cozinha.jsx";
 import Login from "./telas/Login.jsx";
 import Pedidos from "./telas/Pedidos.jsx";
 import Saude from "./telas/Saude.jsx";
 import Testes from "./telas/Testes.jsx";
 
-// Abas com papel so aparecem para quem tem o papel. Esconder e conveniencia:
-// quem barra de verdade e o Gateway (403). Saude e testes sao ferramentas de
-// operacao e de demonstracao, entao ficam so para a cozinha.
-const ABAS = [
-  { id: "cardapio", nome: "Cardápio" },
-  { id: "pedidos", nome: "Pedidos" },
-  { id: "cozinha", nome: "Cozinha", papel: "cozinha" },
-  { id: "saude", nome: "Saúde dos serviços", papel: "cozinha" },
-  { id: "testes", nome: "Testes de segurança", papel: "cozinha" },
-];
+// Abas de cada papel, na ordem do topo. A primeira e a tela inicial depois do
+// login: o cliente chega no cardapio, a cozinha nos pedidos (o trabalho dela).
+// Esconder aba e conveniencia: quem barra de verdade e o Gateway (403). Saude e
+// testes sao ferramentas de operacao e de demonstracao, so da cozinha.
+const ABAS_POR_PAPEL = {
+  cliente: [
+    { id: "cardapio", nome: "Cardápio" },
+    { id: "pedidos", nome: "Meus pedidos" },
+    { id: "conta", nome: "Meus dados" },
+  ],
+  cozinha: [
+    { id: "pedidos", nome: "Pedidos" },
+    { id: "cardapio", nome: "Cardápio" },
+    { id: "cozinha", nome: "Cozinha" },
+    { id: "saude", nome: "Saúde dos serviços" },
+    { id: "testes", nome: "Testes de segurança" },
+  ],
+};
 const DURACAO_AVISO_MS = 6000;
 
 // Texto do aviso de um evento em tempo real (ou null para nao avisar).
@@ -39,15 +48,26 @@ function textoDoEvento({ tipo, pedido }, usuario) {
 
 export default function App() {
   const [sessao, setSessao] = useState(lerSessao);
-  const [aba, setAba] = useState("cardapio");
+  const [aba, setAba] = useState(""); // "" = tela inicial do papel
   const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
   const [avisos, setAvisos] = useState([]);
+  const [trilhoAberto, setTrilhoAberto] = useState(null); // null = padrao do papel
 
   useEffect(() => aoMudarSessao(() => setSessao(lerSessao())), []);
 
   const papel = sessao?.usuario?.papel;
-  const abasVisiveis = ABAS.filter((a) => !a.papel || a.papel === papel);
-  const abaAtual = abasVisiveis.some((a) => a.id === aba) ? aba : "cardapio";
+  const abasVisiveis = ABAS_POR_PAPEL[papel] || ABAS_POR_PAPEL.cliente;
+  const abaAtual = abasVisiveis.some((a) => a.id === aba) ? aba : abasVisiveis[0].id;
+  // Trilho de requisicoes: aberto para a cozinha (demonstracao), recolhido para
+  // o cliente e na tela de login. Qualquer um abre e fecha.
+  const trilhoVisivel = trilhoAberto ?? papel === "cozinha";
+
+  // Outra pessoa entrou (ou saiu): volta para a tela inicial do papel.
+  useEffect(() => {
+    setAba("");
+    setPedidoEmFoco(null);
+    setTrilhoAberto(null);
+  }, [sessao?.usuario?.id]);
 
   const abrirPedido = useCallback((id) => {
     setPedidoEmFoco(id);
@@ -74,7 +94,7 @@ export default function App() {
   }, [sessao?.token, sessao?.usuario, removerAviso]);
 
   return (
-    <div className="app">
+    <div className={trilhoVisivel ? "app" : "app trilho-recolhido"}>
       <header className="topo">
         <div className="marca">
           <span className="marca-selo" aria-hidden="true">HK</span>
@@ -95,12 +115,20 @@ export default function App() {
           </nav>
         )}
         <div className="topo-direita">
-          <span className="gateway" title="Todas as chamadas vão para este endereço">
-            Gateway <strong>{API_URL.replace(/^https?:\/\//, "")}</strong>
-          </span>
+          {papel === "cozinha" && (
+            <span className="gateway" title="Todas as chamadas vão para este endereço">
+              Gateway <strong>{API_URL.replace(/^https?:\/\//, "")}</strong>
+            </span>
+          )}
           {sessao && (
             <span className="usuario">
-              {sessao.usuario?.nome}
+              {papel === "cliente" ? (
+                <button className="usuario-nome" onClick={() => setAba("conta")} title="Meus dados">
+                  {sessao.usuario?.nome}
+                </button>
+              ) : (
+                sessao.usuario?.nome
+              )}
               <span className="papel">{papel}</span>
               <button className="botao-texto" onClick={encerrarSessao}>
                 Sair
@@ -117,6 +145,7 @@ export default function App() {
           <Pedidos emFoco={pedidoEmFoco} aoFocar={setPedidoEmFoco} podeAvancar={papel === "cozinha"} />
         )}
         {sessao && abaAtual === "cozinha" && <Cozinha />}
+        {sessao && abaAtual === "conta" && <Conta />}
         {sessao && abaAtual === "saude" && <Saude />}
         {sessao && abaAtual === "testes" && <Testes />}
       </main>
@@ -139,7 +168,7 @@ export default function App() {
         </div>
       )}
 
-      <Trilho />
+      <Trilho aberto={trilhoVisivel} aoAlternar={() => setTrilhoAberto(!trilhoVisivel)} />
     </div>
   );
 }

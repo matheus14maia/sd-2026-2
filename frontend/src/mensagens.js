@@ -25,6 +25,8 @@ const ERROS_CAMPO = {
   "JSON malformado": "Dados malformados.",
   "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)": "Código inválido: use 2 letras e de 2 a 4 dígitos (ex.: PR01).",
   "informe ao menos um campo para alterar": "Nada para alterar.",
+  "as senhas nao conferem": "As senhas não conferem.",
+  "telefone invalido: use DDD e numero (ex.: (62) 99999-0000)": "Telefone inválido: use DDD e número, ex.: (62) 99999-0000.",
   "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)":
     "Use de 3 a 30 letras, números, ponto ou sublinhado (ex.: maria.silva).",
 };
@@ -45,6 +47,11 @@ const etapa = (nome) => NOME_ETAPA[nome] || nome;
 const REGRAS = [
   [/^Dados da requisicao invalidos$/, () => "Confira os campos destacados."],
   [/^Login ou senha invalidos\.$/, () => "Login ou senha inválidos."],
+  [/^Senha atual incorreta\.$/, () => "A senha atual está incorreta."],
+  [/^A nova senha precisa ser diferente da atual\.$/, () => "A nova senha precisa ser diferente da atual."],
+  [/^Usuario nao encontrado\.$/, () => "Usuário não encontrado. Entre novamente."],
+  [/^Informe o nome\.$/, () => "Informe o seu nome."],
+  [/^O endereco passa de (\d+) caracteres\.$/, (m) => `O endereço passa de ${m[1]} caracteres.`],
   [/^O login '(.+)' ja esta em uso\.$/, (m) => `O login “${m[1]}” já está em uso. Escolha outro.`],
   [/^Item '(.+)' \((.+)\) esta indisponivel hoje\.$/, (m) => `${m[2]} está indisponível hoje. Remova o prato para continuar.`],
   [/^Item '(.+)' nao existe no cardapio\.$/, (m) => `O item ${m[1]} não existe no cardápio.`],

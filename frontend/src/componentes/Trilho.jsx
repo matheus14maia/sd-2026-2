@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { assinarRegistros } from "../api.js";
 
 // Trilho de comandas: cada chamada ao Gateway vira uma comanda com o status
-// carimbado. Clicar numa comanda mostra o que foi enviado e o que voltou.
+// carimbo. Clicar numa comanda mostra o que foi enviado e o que voltou.
+// Recolhido, vira uma faixa fina com a ultima chamada (padrao para o cliente).
 
 export function classeStatus(status) {
   if (status === 401) return "carimbo-401";
@@ -20,13 +21,31 @@ function formatar(texto) {
   }
 }
 
-export default function Trilho() {
+export default function Trilho({ aberto: trilhoAberto, aoAlternar }) {
   const [registros, setRegistros] = useState([]);
   const [aberto, setAberto] = useState(null);
 
   useEffect(() => assinarRegistros(setRegistros), []);
 
   const selecionado = registros.find((r) => r.id === aberto);
+  const ultimo = registros[0];
+
+  if (!trilhoAberto) {
+    return (
+      <section className="trilho trilho-fino" aria-label="Requisições feitas ao Gateway">
+        <button className="trilho-alternar" onClick={aoAlternar} aria-expanded="false">
+          <span aria-hidden="true">▴</span> Requisições ao Gateway
+          {registros.length > 0 && <span className="trilho-contagem">{registros.length}</span>}
+        </button>
+        {ultimo && (
+          <span className="trilho-ultima">
+            Última: {ultimo.metodo} {ultimo.rota}{" "}
+            <span className={`carimbo carimbo-mini ${classeStatus(ultimo.status)}`}>{ultimo.status || "---"}</span>
+          </span>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="trilho" aria-label="Requisições feitas ao Gateway">
@@ -61,6 +80,10 @@ export default function Trilho() {
       )}
 
       <div className="trilho-barra">
+        <button className="trilho-recolher" onClick={aoAlternar} aria-expanded="true" title="Recolher">
+          <span aria-hidden="true">▾</span>
+          <span className="so-leitor">Recolher as requisições</span>
+        </button>
         <span className="trilho-titulo">Requisições ao Gateway</span>
         {registros.length === 0 && (
           <span className="trilho-vazio">Cada chamada feita pela tela aparece aqui com o status HTTP.</span>
