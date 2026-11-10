@@ -9,6 +9,7 @@ import uuid
 import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from ..comum.rastreamento import rastrear_banco
 
 COLUNAS = "id::text AS id, login, nome, papel, criado_em"
 
@@ -21,6 +22,7 @@ class RepositorioUsuarios:
     def __init__(self, pool: ConnectionPool) -> None:
         self.pool = pool
 
+    @rastrear_banco("usuarios.inserir")
     def inserir(self, login: str, nome: str, senha_hash: str) -> dict:
         try:
             with self.pool.connection() as conexao:
@@ -36,6 +38,7 @@ class RepositorioUsuarios:
         except psycopg.errors.UniqueViolation as erro:
             raise LoginDuplicado(login) from erro
 
+    @rastrear_banco("usuarios.buscar_por_login")
     def buscar_por_login(self, login: str) -> dict | None:
         """Linha do usuario com o senha_hash, ou None se o login nao existe."""
         with self.pool.connection() as conexao:

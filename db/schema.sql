@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS itens_cardapio (
     atualizado_em TIMESTAMPTZ    NOT NULL DEFAULT now()
 );
 
+-- Opcoes do item (submenu: sabor do refrigerante, agua com ou sem gas).
+-- Vazio = item sem escolha. Em ALTER separado para bancos que ja tinham a tabela.
+ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS opcoes TEXT[] NOT NULL DEFAULT '{}';
+
 -- Pedidos -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS pedidos (
     id                     UUID           PRIMARY KEY,
@@ -54,6 +58,9 @@ CREATE TABLE IF NOT EXISTS itens_pedido (
     subtotal       NUMERIC(10, 2) NOT NULL,
     PRIMARY KEY (pedido_id, linha)
 );
+
+-- Opcao escolhida em cada linha (snapshot, como nome e preco).
+ALTER TABLE itens_pedido ADD COLUMN IF NOT EXISTS opcao TEXT NOT NULL DEFAULT '';
 
 -- Dono do pedido (id do usuario do token). Em ALTER separado porque o banco do
 -- Trabalho 2 ja tinha a tabela; pedidos antigos ficam com NULL e so a cozinha

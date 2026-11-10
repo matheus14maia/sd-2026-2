@@ -1,0 +1,7 @@
+# Rastreamento distribuido (OpenTelemetry): spans exportados para o Cloud Trace
+# no Google Cloud ou por OTLP (Jaeger) no computador. Ver docs/08-rastreamento.md.
+opentelemetry-api==1.45.2
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-exporter-gcp-trace==1.15.0
+opentelemetry-propagator-gcp==1.15.0

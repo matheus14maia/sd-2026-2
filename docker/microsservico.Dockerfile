@@ -25,7 +25,7 @@ RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 # So os arquivos de dependencia: a camada fica em cache enquanto eles nao mudam,
 # e mudar o codigo nao reinstala nada.
-COPY requirements/comum.txt requirements/banco.txt requirements/servicos.txt /tmp/requirements/
+COPY requirements/comum.txt requirements/banco.txt requirements/rastreamento.txt requirements/servicos.txt /tmp/requirements/
 # O pip so serve para instalar: sai do venv antes de ele ir para a imagem final.
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r /tmp/requirements/servicos.txt \
     && pip uninstall -y pip

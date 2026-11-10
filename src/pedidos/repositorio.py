@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+from ..comum.rastreamento import rastrear_banco
 
 CANAL_EVENTOS = "pedidos"
 
@@ -23,7 +24,7 @@ COLUNAS_PEDIDO = """
     status, total::float8 AS total, tempo_estimado_minutos, criado_em, atualizado_em
 """
 COLUNAS_ITEM = """
-    codigo, nome, quantidade, preco_unitario::float8 AS preco_unitario,
+    codigo, nome, opcao, quantidade, preco_unitario::float8 AS preco_unitario,
     subtotal::float8 AS subtotal
 """
 # Filtro opcional pelo dono: com usuario_id NULL o filtro nao restringe nada.
@@ -64,6 +65,7 @@ class RepositorioPedidos:
     def __init__(self, pool: ConnectionPool) -> None:
         self.pool = pool
 
+    @rastrear_banco("pedidos.inserir")
     def inserir(self, pedido_id: str, usuario_id: str, cliente: str, endereco: str, status: str,
                 itens: list[dict], total: float, tempo_estimado_minutos: int) -> bool:
         """Grava pedido + itens + primeira etapa. Devolve False se ja existia pedido com este id."""
@@ -83,11 +85,11 @@ class RepositorioPedidos:
                 cursor.executemany(
                     """
                     INSERT INTO itens_pedido
-                        (pedido_id, linha, codigo, nome, quantidade, preco_unitario, subtotal)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (pedido_id, linha, codigo, nome, opcao, quantidade, preco_unitario, subtotal)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     [
-                        (pedido_id, numero, i["codigo"], i["nome"], i["quantidade"],
+                        (pedido_id, numero, i["codigo"], i["nome"], i.get("opcao", ""), i["quantidade"],
                          i["preco_unitario"], i["subtotal"])
                         for numero, i in enumerate(itens, start=1)
                     ],
@@ -124,6 +126,7 @@ class RepositorioPedidos:
             pedido.update(por_pedido[pedido["pedido_id"]])
         return pedidos
 
+    @rastrear_banco("pedidos.buscar")
     def buscar(self, pedido_id: str, usuario_id: str | None = None) -> dict | None:
         """Pedido com itens e historico. Com usuario_id, so encontra se o pedido for dele."""
         with self.pool.connection() as conexao:
@@ -136,6 +139,7 @@ class RepositorioPedidos:
                     return None
                 return self._completar(cursor, [pedido])[0]
 
+    @rastrear_banco("pedidos.listar")
     def listar(self, limite: int, filtros: FiltrosListagem | None = None) -> list[dict]:
         """Pedidos mais recentes que atendem a todos os filtros preenchidos."""
         filtros = filtros or FiltrosListagem()
@@ -156,6 +160,7 @@ class RepositorioPedidos:
                 ).fetchall()
                 return self._completar(cursor, pedidos)
 
+    @rastrear_banco("pedidos.atualizar_status")
     def atualizar_status(self, pedido_id: str, status_atual: str, novo_status: str, usuario_id: str) -> bool:
         """UPDATE condicional: so altera se o status ainda for o esperado.
 

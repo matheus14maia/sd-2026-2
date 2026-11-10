@@ -3,7 +3,7 @@
 
 So usa a biblioteca padrao (urllib). Com a pilha local no ar (docker compose):
 
-    python scripts/testar_resiliencia.py --url http://localhost:8000
+    python scripts/testar_resiliencia.py --url http://127.0.0.1:8000
 
 Passos (cada um imprime OK/ERRO):
 
@@ -63,7 +63,7 @@ def rodar(comando):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--url", default="http://localhost:8000")
+    parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument("--login", default=os.getenv("DEMO_LOGIN", "professor"))
     parser.add_argument("--senha", default=os.getenv("DEMO_SENHA", ""),
                         help="senha do usuario da cozinha (padrao: variavel DEMO_SENHA)")

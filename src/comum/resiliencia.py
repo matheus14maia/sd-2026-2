@@ -38,6 +38,7 @@ from typing import Callable, TypeVar
 
 import grpc
 
+from .rastreamento import SpanKind, Status, StatusCode, metadados, tracer
 from .registro import log
 
 T = TypeVar("T")
@@ -171,71 +172,110 @@ class ClienteResiliente:
         idempotente: bool = True,
         prazo: float | None = None,
     ) -> T:
-        """Chama `funcao(timeout=..., wait_for_ready=...)` com retry.
+        """Chama `funcao(timeout=..., wait_for_ready=..., metadata=...)` com retry.
 
         `prazo` (s) limita o total das tentativas; padrao GRPC_PRAZO_TOTAL.
         Na chamada de teste do circuito (MEIO_ABERTO) usa wait_for_ready: se o
         canal ainda estiver reconectando, a chamada espera a conexao (ate o
         timeout) em vez de falhar na hora e reabrir o circuito a toa.
-        """
-        chamada_de_teste = self.disjuntor.antes_da_chamada()
-        limite = time.monotonic() + (prazo if prazo is not None else self.prazo_total)
-        nome = "%s.%s" % (self.servico, operacao)
 
-        tentativa = 0
-        while True:
-            tentativa += 1
-            restante = limite - time.monotonic()
-            timeout = min(self.timeout, restante)
+        Rastreamento: um span para a chamada inteira (com os eventos de retry e
+        de circuito) e um span CLIENT filho por tentativa; o contexto de cada
+        tentativa vai nos metadados gRPC (`metadata`).
+        """
+        nome = "%s.%s" % (self.servico, operacao)
+        with tracer.start_as_current_span(
+            nome,
+            attributes={"rpc.service": self.servico, "rpc.method": operacao,
+                        "resiliencia.idempotente": idempotente},
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
             try:
+                chamada_de_teste = self.disjuntor.antes_da_chamada()
+            except CircuitoAberto as erro:
+                span.add_event("circuito aberto: chamada recusada sem ir a rede",
+                               {"reabre_em_segundos": erro.segundos})
+                span.set_status(Status(StatusCode.ERROR, "circuito aberto"))
+                raise
+            if chamada_de_teste:
+                span.add_event("chamada de teste do circuito (meio aberto)")
+            limite = time.monotonic() + (prazo if prazo is not None else self.prazo_total)
+
+            tentativa = 0
+            while True:
+                tentativa += 1
+                span.set_attribute("resiliencia.tentativas", tentativa)
+                timeout = min(self.timeout, limite - time.monotonic())
                 if timeout <= 0.05:
-                    raise _SemTempo()
-                resultado = funcao(timeout=timeout, wait_for_ready=chamada_de_teste)
-            except _SemTempo:
-                log("%s: prazo total esgotado antes da tentativa %d" % (nome, tentativa), "ERROR", operacao=nome)
-                self.disjuntor.falha()
-                raise grpc_erro_prazo(nome)
-            except grpc.RpcError as erro:
-                codigo = erro.code()
-                dependencia = falha_de_dependencia(erro)
-                if dependencia or codigo not in FALHAS_DO_SERVICO:
-                    # O servico respondeu: erro de negocio ou falha de uma dependencia dele.
-                    self.disjuntor.sucesso()
-                    raise
-                repetivel = codigo in SEMPRE_REPETIR or (idempotente and codigo in REPETIR_SE_IDEMPOTENTE)
-                espera = self._espera(tentativa)
-                tem_tempo = limite - time.monotonic() - espera > 0.05
-                if repetivel and tentativa < self.tentativas and tem_tempo:
+                    log("%s: prazo total esgotado antes da tentativa %d" % (nome, tentativa), "ERROR", operacao=nome)
+                    span.add_event("prazo total esgotado")
+                    span.set_status(Status(StatusCode.ERROR, "prazo esgotado"))
+                    self.disjuntor.falha()
+                    raise grpc_erro_prazo(nome)
+                try:
+                    resultado = self._tentar(nome, tentativa, funcao, timeout, chamada_de_teste)
+                except grpc.RpcError as erro:
+                    codigo = erro.code()
+                    dependencia = falha_de_dependencia(erro)
+                    if dependencia or codigo not in FALHAS_DO_SERVICO:
+                        # O servico respondeu: erro de negocio ou falha de uma dependencia dele.
+                        if dependencia:
+                            span.add_event("falha de dependencia do servico chamado", {"dependencia": dependencia})
+                        self.disjuntor.sucesso()
+                        raise
+                    repetivel = codigo in SEMPRE_REPETIR or (idempotente and codigo in REPETIR_SE_IDEMPOTENTE)
+                    espera = self._espera(tentativa)
+                    tem_tempo = limite - time.monotonic() - espera > 0.05
+                    if repetivel and tentativa < self.tentativas and tem_tempo:
+                        log(
+                            "%s falhou com %s (tentativa %d/%d); repetindo em %d ms"
+                            % (nome, codigo.name, tentativa, self.tentativas, espera * 1000),
+                            "WARNING",
+                            operacao=nome,
+                            codigo_grpc=codigo.name,
+                            tentativa=tentativa,
+                        )
+                        span.add_event("nova tentativa",
+                                       {"depois_de": codigo.name, "proxima_tentativa": tentativa + 1,
+                                        "espera_ms": round(espera * 1000)})
+                        time.sleep(espera)
+                        continue
                     log(
-                        "%s falhou com %s (tentativa %d/%d); repetindo em %d ms"
-                        % (nome, codigo.name, tentativa, self.tentativas, espera * 1000),
-                        "WARNING",
+                        "%s falhou com %s apos %d tentativa(s): %s"
+                        % (nome, codigo.name, tentativa, (erro.details() or "")[:200]),
+                        "ERROR",
                         operacao=nome,
                         codigo_grpc=codigo.name,
                         tentativa=tentativa,
                     )
-                    time.sleep(espera)
-                    continue
-                log(
-                    "%s falhou com %s apos %d tentativa(s): %s"
-                    % (nome, codigo.name, tentativa, (erro.details() or "")[:200]),
-                    "ERROR",
-                    operacao=nome,
-                    codigo_grpc=codigo.name,
-                    tentativa=tentativa,
-                )
-                self.disjuntor.falha()
-                raise
-            else:
+                    span.set_status(Status(StatusCode.ERROR, "%s apos %d tentativa(s)" % (codigo.name, tentativa)))
+                    self.disjuntor.falha()
+                    raise
                 if tentativa > 1:
                     log("%s respondeu na tentativa %d" % (nome, tentativa), "NOTICE", operacao=nome,
                         tentativa=tentativa)
                 self.disjuntor.sucesso()
                 return resultado
 
-
-class _SemTempo(Exception):
-    pass
+    @staticmethod
+    def _tentar(nome: str, tentativa: int, funcao: Callable[..., T], timeout: float, esperar_conexao: bool) -> T:
+        """Uma tentativa = um span CLIENT; o contexto dele vai nos metadados da chamada."""
+        with tracer.start_as_current_span(
+            "%s tentativa %d" % (nome, tentativa),
+            kind=SpanKind.CLIENT,
+            attributes={"rpc.system": "grpc", "resiliencia.tentativa": tentativa,
+                        "rpc.timeout_segundos": round(timeout, 2)},
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            try:
+                return funcao(timeout=timeout, wait_for_ready=esperar_conexao, metadata=metadados())
+            except grpc.RpcError as erro:
+                span.set_attribute("rpc.grpc.status_code", erro.code().value[0])
+                if erro.code() in FALHAS_DO_SERVICO and not falha_de_dependencia(erro):
+                    span.set_status(Status(StatusCode.ERROR, erro.code().name))
+                raise
 
 
 class _ErroPrazo(grpc.RpcError):

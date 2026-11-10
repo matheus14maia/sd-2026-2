@@ -21,7 +21,7 @@ RUN python scripts/gerar_stubs.py
 FROM python:${PYTHON}-slim AS deps
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
-COPY requirements/comum.txt requirements/gateway.txt /tmp/requirements/
+COPY requirements/comum.txt requirements/rastreamento.txt requirements/gateway.txt /tmp/requirements/
 # O pip so serve para instalar: sai do venv antes de ele ir para a imagem final.
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r /tmp/requirements/gateway.txt \
     && pip uninstall -y pip
@@ -39,7 +39,7 @@ WORKDIR /app
 
 COPY --from=deps /opt/venv /opt/venv
 COPY src/__init__.py src/__init__.py
-COPY src/comum/__init__.py src/comum/canal.py src/comum/registro.py src/comum/resiliencia.py src/comum/
+COPY src/comum/__init__.py src/comum/canal.py src/comum/rastreamento.py src/comum/registro.py src/comum/resiliencia.py src/comum/
 COPY --from=stubs /build/src/gerado/ src/gerado/
 COPY src/gateway/ src/gateway/
 RUN python -m compileall -q src

@@ -23,6 +23,10 @@
 #   CATALOGO_FALHA_PERCENTUAL=50     no .env + `docker compose up -d catalogo`:
 #                                    metade das chamadas falha de proposito
 #   CATALOGO_FALHA_ATRASO_MS=6000    idem, mas cada chamada demora 6 s (timeout)
+#
+# Rastreamento (ver docs/08-rastreamento.md): com RASTREAMENTO=otlp no .env e o
+# profile "rastreamento", os spans vao para o Jaeger (http://127.0.0.1:16686).
+# No Google Cloud, RASTREAMENTO=gcp manda os mesmos spans para o Cloud Trace.
 
 x-banco: &banco
   DB_HOST: "${DB_HOST:-postgres}"
@@ -41,6 +45,11 @@ x-resiliencia: &resiliencia
   RETRY_TENTATIVAS: "${RETRY_TENTATIVAS:-3}"
   DISJUNTOR_FALHAS: "${DISJUNTOR_FALHAS:-3}"
   DISJUNTOR_ABERTO_SEGUNDOS: "${DISJUNTOR_ABERTO_SEGUNDOS:-15}"
+
+# Para onde vao os spans do OpenTelemetry (vazio = nenhum lugar).
+x-rastreamento: &rastreamento
+  RASTREAMENTO: "${RASTREAMENTO:-}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}"
 
 x-imagem-servico: &imagem-servico
   context: .
@@ -87,7 +96,7 @@ services:
     profiles: ["servicos"]
     container_name: delivery-usuarios
     environment:
-      <<: *banco
+      <<: [*banco, *rastreamento]
       PORTA: "9092"
       FALHA_PERCENTUAL: "${USUARIOS_FALHA_PERCENTUAL:-0}"
       FALHA_ATRASO_MS: "${USUARIOS_FALHA_ATRASO_MS:-0}"
@@ -108,7 +117,7 @@ services:
     profiles: ["servicos"]
     container_name: delivery-catalogo
     environment:
-      <<: *banco
+      <<: [*banco, *rastreamento]
       PORTA: "9091"
       FALHA_PERCENTUAL: "${CATALOGO_FALHA_PERCENTUAL:-0}"
       FALHA_ATRASO_MS: "${CATALOGO_FALHA_ATRASO_MS:-0}"
@@ -127,7 +136,7 @@ services:
     profiles: ["servicos"]
     container_name: delivery-pedidos
     environment:
-      <<: [*banco, *resiliencia]
+      <<: [*banco, *resiliencia, *rastreamento]
       PORTA: "9090"
       FALHA_PERCENTUAL: "${PEDIDOS_FALHA_PERCENTUAL:-0}"
       FALHA_ATRASO_MS: "${PEDIDOS_FALHA_ATRASO_MS:-0}"
@@ -149,7 +158,7 @@ services:
     profiles: ["gateway"]
     container_name: delivery-gateway
     environment:
-      <<: *resiliencia
+      <<: [*resiliencia, *rastreamento]
       USUARIOS_HOST: "${USUARIOS_HOST:-usuarios}"
       USUARIOS_PORTA: "${USUARIOS_PORTA:-9092}"
       CATALOGO_HOST: "${CATALOGO_HOST:-catalogo}"
@@ -160,8 +169,11 @@ services:
       JWT_EXPIRACAO_MINUTOS: "${JWT_EXPIRACAO_MINUTOS:-60}"
       CORS_ORIGENS: "${CORS_ORIGENS:-*}"
       TZ: "America/Sao_Paulo"
+    # Porta publicada so em IPv4 (0.0.0.0). No Docker Desktop do Windows o
+    # caminho IPv6 (localhost -> ::1) pode cortar ou travar a conexao; sem
+    # porta em IPv6, o navegador usa o 127.0.0.1, que funciona.
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8000:8000"
     restart: always
 
   # ---------------------------------------------------------------- frontend
@@ -171,9 +183,20 @@ services:
     container_name: delivery-frontend
     environment:
       # Endereco do Gateway que o navegador vai chamar (entregue em /config.js).
-      API_URL: "${API_URL:-http://localhost:8000}"
+      API_URL: "${API_URL:-http://127.0.0.1:8000}"
     ports:
-      - "${FRONTEND_PORTA:-80}:8080"
+      - "0.0.0.0:${FRONTEND_PORTA:-80}:8080"
+    restart: always
+
+  # ------------------------------------------------------------- rastreamento
+  # Visualizador de traces no computador (o papel do Cloud Trace no Google
+  # Cloud). Recebe OTLP/HTTP na 4318; interface em http://127.0.0.1:16686.
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    profiles: ["rastreamento"]
+    container_name: delivery-jaeger
+    ports:
+      - "127.0.0.1:16686:16686"
     restart: always
 
 volumes:

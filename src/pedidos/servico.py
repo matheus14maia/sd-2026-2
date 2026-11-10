@@ -129,7 +129,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
 
     # ------------------------------------------------------------ CriarPedido
     def CriarPedido(self, request, context):
-        linhas = [(i.codigo.strip().upper(), i.quantidade) for i in request.itens]
+        linhas = [(i.codigo.strip().upper(), i.quantidade, i.opcao.strip()) for i in request.itens]
         usuario_id = request.usuario_id.strip()
         pedido_id = request.pedido_id.strip() or str(uuid.uuid4())
         log("CriarPedido: pedido=%s usuario=%s cliente=%r itens=%s"
@@ -147,7 +147,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Informe o endereco de entrega.")
         if not linhas:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "O pedido precisa de pelo menos um item.")
-        for codigo, quantidade in linhas:
+        for codigo, quantidade, _ in linhas:
             if quantidade <= 0:
                 context.abort(
                     grpc.StatusCode.INVALID_ARGUMENT,
@@ -164,7 +164,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
 
         try:
             catalogo = self.catalogo.consultar(
-                sorted({codigo for codigo, _ in linhas}), prazo=context.time_remaining()
+                sorted({codigo for codigo, _, _ in linhas}), prazo=context.time_remaining()
             )
         except (grpc.RpcError, CircuitoAberto) as erro:
             motivo = erro.code().name if isinstance(erro, grpc.RpcError) else "circuito aberto"
@@ -183,7 +183,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
         confirmados = []
         total = 0.0
         unidades = 0
-        for codigo, quantidade in linhas:
+        for codigo, quantidade, opcao in linhas:
             item = catalogo.get(codigo)
             if item is None:
                 context.abort(
@@ -195,6 +195,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
                     grpc.StatusCode.FAILED_PRECONDITION,
                     "Item '%s' (%s) esta indisponivel hoje." % (item.codigo, item.nome),
                 )
+            opcao = self._opcao_valida(item, opcao, context)
             subtotal = round(item.preco * quantidade, 2)
             total += subtotal
             unidades += quantidade
@@ -202,6 +203,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
                 {
                     "codigo": item.codigo,
                     "nome": item.nome,
+                    "opcao": opcao,
                     "quantidade": quantidade,
                     "preco_unitario": item.preco,
                     "subtotal": subtotal,
@@ -226,6 +228,28 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
             % (pedido_id, len(confirmados), unidades, pedido["total"])
         )
         return _para_proto(pedido)
+
+    @staticmethod
+    def _opcao_valida(item, opcao: str, context) -> str:
+        """Confere a opcao escolhida com as opcoes que o Catalogo informa para o item.
+
+        Item com opcoes (ex.: sabor do refrigerante) exige uma delas; item sem
+        opcoes nao aceita nenhuma. Devolve a opcao com a grafia do Catalogo.
+        """
+        if not item.opcoes:
+            if opcao:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT,
+                              "O item %s (%s) nao tem opcoes." % (item.codigo, item.nome))
+            return ""
+        lista = ", ".join(item.opcoes)
+        if not opcao:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT,
+                          "Escolha uma opcao para %s (%s): %s." % (item.codigo, item.nome, lista))
+        for valida in item.opcoes:
+            if valida.casefold() == opcao.casefold():
+                return valida
+        context.abort(grpc.StatusCode.INVALID_ARGUMENT,
+                      "Opcao '%s' nao existe para %s (%s). Use uma de: %s." % (opcao, item.codigo, item.nome, lista))
 
     def _repeticao(self, pedido: dict, usuario_id: str, context):
         if pedido["usuario_id"] != usuario_id:

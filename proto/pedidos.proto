@@ -41,6 +41,9 @@ enum StatusPedido {
 message ItemPedido {
   string codigo = 1;
   int32 quantidade = 2;
+  // Obrigatoria quando o item tem opcoes no Catalogo (ex.: "Guarana"); vazia
+  // quando nao tem. O Pedidos confere com o Catalogo.
+  string opcao = 3;
 }
 
 message CriarPedidoRequest {
@@ -62,6 +65,7 @@ message ItemConfirmado {
   int32 quantidade = 3;
   double preco_unitario = 4;
   double subtotal = 5;
+  string opcao = 6;            // opcao escolhida (snapshot, como nome e preco)
 }
 
 // Momento em que o pedido entrou numa etapa.

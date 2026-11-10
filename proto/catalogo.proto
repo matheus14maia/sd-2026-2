@@ -27,6 +27,9 @@ message ItemCardapio {
   string categoria = 4;    // Entradas, Pratos, Bebidas, Sobremesas
   double preco = 5;        // em reais
   bool disponivel = 6;
+  // Escolhas do item (submenu), ex.: sabores do refrigerante ou agua com/sem
+  // gas. Vazio = item sem escolha. Quem pede manda uma delas em ItemPedido.opcao.
+  repeated string opcoes = 7;
 }
 
 message ListarItensRequest {

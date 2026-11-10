@@ -25,7 +25,8 @@ from google.protobuf.json_format import MessageToDict
 from grpc_health.v1 import health_pb2, health_pb2_grpc
 
 from ..comum.canal import criar_canal
-from ..comum.registro import log, metadados_trace
+from ..comum.rastreamento import metadados
+from ..comum.registro import log
 from ..comum.resiliencia import FALHAS_DO_SERVICO, CircuitoAberto, ClienteResiliente
 from ..gerado import (
     catalogo_pb2,
@@ -77,10 +78,10 @@ class ClientesGrpc:
         return ", ".join("%s em %s:%s" % (nome, host, porta) for nome, (host, porta) in DESTINOS.items())
 
     def _chamar(self, servico: str, operacao: str, metodo, requisicao, idempotente: bool = True):
-        metadados = metadados_trace()
+        # timeout, wait_for_ready e metadata (com o trace) vem do ClienteResiliente.
         return self.resiliencia[servico].chamar(
             operacao,
-            lambda **opcoes: metodo(requisicao, metadata=metadados, **opcoes),
+            lambda **opcoes: metodo(requisicao, **opcoes),
             idempotente=idempotente,
         )
 
@@ -153,7 +154,10 @@ class ClientesGrpc:
             usuario_id=usuario_id,
             cliente=cliente,
             endereco=endereco,
-            itens=[pedidos_pb2.ItemPedido(codigo=i["codigo"], quantidade=i["quantidade"]) for i in itens],
+            itens=[
+                pedidos_pb2.ItemPedido(codigo=i["codigo"], quantidade=i["quantidade"], opcao=i.get("opcao") or "")
+                for i in itens
+            ],
         )
         return para_dict(self._chamar("pedidos", "CriarPedido", self.pedidos.CriarPedido, requisicao))
 
@@ -178,7 +182,7 @@ class ClientesGrpc:
         """Abre o stream AcompanharPedidos (todos os pedidos). Sem prazo: fica aberto
         enquanto houver navegador ouvindo; quem chama itera e pode cancelar."""
         return self.pedidos.AcompanharPedidos(
-            pedidos_pb2.AcompanharPedidosRequest(), metadata=metadados_trace()
+            pedidos_pb2.AcompanharPedidosRequest(), metadata=metadados()
         )
 
     def atualizar_status(self, pedido_id: str, status: str) -> dict:
@@ -193,14 +197,14 @@ class ClientesGrpc:
 
     def verificar_servicos(self) -> dict:
         """Health check gRPC (grpc.health.v1) dos tres servicos, em paralelo."""
-        metadados = metadados_trace()
+        cabecalhos = metadados()
 
         def verificar(nome: str) -> tuple[str, dict]:
             host, porta = DESTINOS[nome]
             inicio = time.perf_counter()
             try:
                 resposta = self._saude[nome].Check(
-                    health_pb2.HealthCheckRequest(service=""), timeout=TIMEOUT_SAUDE_SEGUNDOS, metadata=metadados
+                    health_pb2.HealthCheckRequest(service=""), timeout=TIMEOUT_SAUDE_SEGUNDOS, metadata=cabecalhos
                 )
                 status = health_pb2.HealthCheckResponse.ServingStatus.Name(resposta.status)
                 detalhe = ""

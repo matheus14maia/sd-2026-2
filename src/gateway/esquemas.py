@@ -35,6 +35,11 @@ class Entrada(BaseModel):
 class ItemEntrada(Entrada):
     codigo: CodigoItem = Field(examples=["PR01"])
     quantidade: Annotated[StrictInt, Field(gt=0, le=99, examples=[2])]
+    # Escolha do submenu (ex.: sabor do refrigerante). Quem confere se o item
+    # tem opcoes e se esta e uma delas e o Pedidos, com os dados do Catalogo.
+    opcao: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] | None = Field(
+        default=None, examples=["Guaraná"]
+    )
 
 
 class PedidoEntrada(Entrada):

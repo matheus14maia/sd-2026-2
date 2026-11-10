@@ -15,14 +15,15 @@ Ordem das camadas de uma requisicao (de fora para dentro):
 
 import os
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 import grpc
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..comum.registro import log, novo_trace, trace_atual, trace_de_cabecalhos
+from ..comum.rastreamento import SpanKind, Status, StatusCode, configurar, encerrar, extrair, tracer
+from ..comum.registro import ids_atuais, log
 from ..comum.resiliencia import CircuitoAberto
 from . import erros
 from .autenticacao import SEGREDO_DEFINIDO, AcessoNegado, MiddlewareJWT
@@ -33,6 +34,11 @@ from .rotas import auth, cardapio, pedidos, saude
 # Origens do frontend que o navegador pode usar para chamar o Gateway, separadas
 # por virgula. "*" basta porque o token vai no cabecalho Authorization, nao em cookie.
 CORS_ORIGENS = [o.strip() for o in os.getenv("CORS_ORIGENS", "*").split(",") if o.strip()]
+# Sondas de saude (HEALTHCHECK a cada 15 s, tela Saude a cada 3 s) nao viram
+# trace: seriam milhares de traces iguais escondendo as requisicoes de verdade.
+SEM_RASTREAMENTO = ("/saude",)
+
+DESTINO_RASTREAMENTO = configurar(os.getenv("NOME_SERVICO", "gateway"))
 
 
 @asynccontextmanager
@@ -41,11 +47,13 @@ async def ciclo_de_vida(app: FastAPI):
     app.state.eventos = RetransmissorEventos(app.state.grpc)
     log("Gateway -> " + ClientesGrpc.destinos())
     log("CORS liberado para: " + ", ".join(CORS_ORIGENS))
+    log("Rastreamento: " + DESTINO_RASTREAMENTO)
     if not SEGREDO_DEFINIDO:
         log("JWT_SEGREDO nao definido; segredo sorteado nesta subida.", "WARNING")
     yield
     app.state.eventos.encerrar()
     app.state.grpc.fechar()
+    encerrar()
 
 
 app = FastAPI(
@@ -77,34 +85,54 @@ app.add_middleware(MiddlewareJWT)
 
 @app.middleware("http")
 async def registrar_requisicao(request: Request, chamar_proxima):
-    """Trace da requisicao + uma linha de log: metodo, caminho, status, duracao e usuario.
+    """Span da requisicao + uma linha de log: metodo, caminho, status, duracao e usuario.
 
-    O trace vem do cabecalho que o Cloud Run injeta (ou e sorteado aqui), segue
-    para os microsservicos nos metadados gRPC e volta para o navegador no
+    O span (SERVER) continua o trace que o Cloud Run informa nos cabecalhos (ou
+    comeca um novo) e e o pai de tudo o que esta requisicao fizer: as chamadas
+    gRPC levam o contexto nos metadados. O trace id volta para o navegador no
     cabecalho X-Requisicao-Id: com ele se acha a requisicao nos logs de todos
-    os servicos.
+    os servicos e no Cloud Trace.
     """
-    trace = trace_de_cabecalhos(request.headers.get) or novo_trace()
-    marca = trace_atual.set(trace)
-    inicio = time.perf_counter()
-    try:
+    caminho = request.url.path
+    if caminho.startswith(SEM_RASTREAMENTO):
+        contexto_span = nullcontext(None)
+    else:
+        contexto_span = tracer.start_as_current_span(
+            f"{request.method} {caminho}",
+            context=extrair(request.headers),
+            kind=SpanKind.SERVER,
+            attributes={"http.request.method": request.method, "url.path": caminho},
+        )
+    with contexto_span as span:
+        inicio = time.perf_counter()
         resposta = await chamar_proxima(request)
         duracao_ms = (time.perf_counter() - inicio) * 1000
         usuario = getattr(request.state, "usuario", None)
+        if span is not None:
+            # Nome pela rota (/pedidos/{pedido_id}), nao pelo caminho com o id.
+            rota = getattr(request.scope.get("route"), "path", None)
+            if rota:
+                span.update_name(f"{request.method} {rota}")
+                span.set_attribute("http.route", rota)
+            span.set_attribute("http.response.status_code", resposta.status_code)
+            if usuario:
+                span.set_attribute("enduser.id", usuario["login"])
+            if resposta.status_code >= 500:
+                span.set_status(Status(StatusCode.ERROR, "HTTP %d" % resposta.status_code))
         quem = f" [{usuario['login']}]" if usuario else ""
         log(
-            f"{request.method} {request.url.path} -> {resposta.status_code} ({duracao_ms:.0f} ms){quem}",
+            f"{request.method} {caminho} -> {resposta.status_code} ({duracao_ms:.0f} ms){quem}",
             "ERROR" if resposta.status_code >= 500 else "INFO",
             metodo=request.method,
-            caminho=request.url.path,
+            caminho=caminho,
             status=resposta.status_code,
             duracao_ms=round(duracao_ms),
             usuario=usuario["login"] if usuario else "",
         )
-        resposta.headers["X-Requisicao-Id"] = trace
+        trace_id = ids_atuais()[0]
+        if trace_id:
+            resposta.headers["X-Requisicao-Id"] = trace_id
         return resposta
-    finally:
-        trace_atual.reset(marca)
 
 
 app.add_middleware(

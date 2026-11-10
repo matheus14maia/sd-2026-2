@@ -4,7 +4,7 @@
 So usa a biblioteca padrao (urllib), entao roda em qualquer maquina com Python,
 sem instalar nada:
 
-    python scripts/testar_gateway.py --url http://localhost:8000
+    python scripts/testar_gateway.py --url http://127.0.0.1:8000
     python scripts/testar_gateway.py --url http://IP_DA_VM:8000
 
 Primeiro faz login com o usuario da cozinha (senha em DEMO_SENHA ou --senha) e
@@ -70,7 +70,7 @@ def ouvir_eventos(base: str, autorizacao: str, destino: list, pronto: threading.
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--url", default="http://localhost:8000")
+    parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument("--resumido", action="store_true", help="nao imprime o corpo das respostas")
     parser.add_argument("--login", default=os.getenv("DEMO_LOGIN", "professor"))
     parser.add_argument("--senha", default=os.getenv("DEMO_SENHA", ""),
@@ -173,6 +173,27 @@ def main() -> int:
     cenario("Item indisponivel (PR05)", 409, "POST", "/pedidos",
             {"endereco": "Rua 10", "itens": [{"codigo": "PR05", "quantidade": 1}]})
 
+    # Opcoes do item (submenu): o Pedidos confere a escolha com o Catalogo -----
+    cenario("Refrigerante sem escolher o sabor", 400, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "BE01", "quantidade": 1}]})
+    cenario("Sabor que nao existe no cardapio", 400, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "BE01", "quantidade": 1, "opcao": "Fanta Morango"}]})
+    cenario("Opcao em prato sem opcoes", 400, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "PR01", "quantidade": 1, "opcao": "Grande"}]})
+
+    def opcoes_gravadas(esperadas):
+        def conferir(resposta):
+            itens = (resposta or {}).get("pedido", {}).get("itens", []) if isinstance(resposta, dict) else []
+            gravadas = [i.get("opcao") for i in itens]
+            return None if gravadas == esperadas else "opcoes gravadas %s, esperadas %s" % (gravadas, esperadas)
+        return conferir
+
+    cenario("Agua com gas e dois sabores de refrigerante", 201, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "com gás"},
+                                             {"codigo": "BE01", "quantidade": 2, "opcao": "Coca-Cola Zero"},
+                                             {"codigo": "BE01", "quantidade": 1, "opcao": "Fanta Uva"}]},
+            conferir=opcoes_gravadas(["Com gás", "Coca-Cola Zero", "Fanta Uva"]))
+
     cenario("Consulta do pedido criado", 200, "GET", "/pedidos/" + pedido_id)
     cenario("Pedido inexistente", 404, "GET", "/pedidos/" + ID_INEXISTENTE)
     cenario("Avanca status RECEBIDO -> EM_PREPARO", 200, "PATCH", "/pedidos/%s/status" % pedido_id, {"status": "EM_PREPARO"})
@@ -186,7 +207,7 @@ def main() -> int:
     # Posse dos pedidos: cliente so ve os seus, cozinha ve todos ----------------
     criado_cliente = cenario(
         "Cliente faz o proprio pedido", 201, "POST", "/pedidos",
-        {"endereco": "Av. Universitaria, 1", "itens": [{"codigo": "BE01", "quantidade": 1}]},
+        {"endereco": "Av. Universitaria, 1", "itens": [{"codigo": "BE01", "quantidade": 1, "opcao": "Guaraná"}]},
         autorizacao=bearer_cliente, conferir=dono_e(cliente),
     )
     pedido_cliente = (criado_cliente or {}).get("pedido", {}).get("pedido_id", ID_INEXISTENTE)

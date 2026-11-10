@@ -14,7 +14,6 @@ Cloud Run: CATALOGO_HOST=<servico>.run.app, CATALOGO_PORTA=443 (TLS + ID token).
 import os
 
 from ..comum.canal import criar_canal
-from ..comum.registro import metadados_trace
 from ..comum.resiliencia import ClienteResiliente
 from ..gerado import catalogo_pb2 as catalogo_pb
 from ..gerado import catalogo_pb2_grpc as catalogo_grpc
@@ -40,12 +39,12 @@ class ClienteCatalogo:
         Pode lancar grpc.RpcError ou CircuitoAberto.
         """
         requisicao = catalogo_pb.ConsultarItensRequest(codigos=codigos)
-        metadados = metadados_trace()
         if prazo is not None:
             prazo = max(0.1, prazo - FOLGA_SEGUNDOS)
+        # timeout, wait_for_ready e metadata (com o trace) vem do ClienteResiliente.
         resposta = self.resiliencia.chamar(
             "ConsultarItens",
-            lambda **opcoes: self.stub.ConsultarItens(requisicao, metadata=metadados, **opcoes),
+            lambda **opcoes: self.stub.ConsultarItens(requisicao, **opcoes),
             prazo=prazo,
         )
         return {item.codigo: item for item in resposta.itens}
