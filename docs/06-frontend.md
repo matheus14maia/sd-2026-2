@@ -8,9 +8,10 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 
 | Tela | O que faz | Chamadas ao Gateway |
 |---|---|---|
-| Entrar / Criar conta | login e cadastro; campos obrigatorios com asterisco (dica "Campo obrigatorio" ao passar o mouse); os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo | `POST /auth/login`, `POST /auth/cadastro` |
-| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), foto de cada prato com zoom, submenu de opcoes (sabor do refrigerante, agua sem ou com gas) em que cada opcao vira uma linha da sacola, pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com fogo de particulas ao confirmar; o cardapio se atualiza a cada 30 s e a sacola marca o que a cozinha mudou; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos`, `GET /cardapio/{codigo}/foto` |
-| Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; filtros por etapa, periodo, prato e (cozinha) cliente; horario de cada etapa, previsao de entrega com o tempo que falta; a cozinha avanca a etapa e pode tentar pular uma (409); tudo se atualiza sozinho | `GET /pedidos?...`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status`, `GET /pedidos/eventos` |
+| Entrar / Criar conta | login e cadastro (quem cria a conta ja entra); campos obrigatorios com asterisco (dica "Campo obrigatorio" ao passar o mouse); os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo. Depois de entrar, o cliente cai no Cardapio e a cozinha em Pedidos | `POST /auth/login`, `POST /auth/cadastro` |
+| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), foto de cada prato com zoom, submenu de opcoes (sabor do refrigerante, agua sem ou com gas) em que cada opcao vira uma linha da sacola, pedido em etapas na sacola (ver abaixo); botao "Finalizar pedido e acender as chamas" so na etapa de entrega, com fogo de particulas ao confirmar; o cardapio se atualiza a cada 30 s e a sacola marca o que a cozinha mudou; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos`, `GET /cardapio/{codigo}/foto` |
+| Meus dados (so papel `cliente`) | nome, telefone e endereco de entrega padrao (preenchem a entrega do pedido) e troca de senha com a senha atual; o nome do topo tambem leva a esta aba | `GET /conta`, `PATCH /conta`, `PUT /conta/senha` |
+| Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; telefone de contato no detalhe; filtros por etapa, periodo, prato e (cozinha) cliente; horario de cada etapa, previsao de entrega com o tempo que falta; a cozinha avanca a etapa e pode tentar pular uma (409); tudo se atualiza sozinho | `GET /pedidos?...`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status`, `GET /pedidos/eventos` |
 | Cozinha (so papel `cozinha`) | lista os pratos por categoria com foto, preco e o interruptor "Disponivel"; "Novo prato" e "Editar" abrem um formulario (nome, categoria, preco, descricao que o cliente le, opcoes, disponivel hoje e foto); "Excluir prato" pede confirmacao | `GET /cardapio`, `POST /cardapio`, `PATCH /cardapio/{codigo}`, `DELETE /cardapio/{codigo}`, `PUT` e `DELETE /cardapio/{codigo}/foto` |
 | Saude dos servicos (so papel `cozinha`) | a cada 3 s, health check gRPC de cada microsservico, o estado do circuit breaker no Gateway e da conexao de tempo real; botoes para carregar o cardapio e fazer um pedido de teste durante uma falha (ver [07-resiliencia.md](07-resiliencia.md)) | `GET /saude/servicos`, `GET /cardapio`, `POST /pedidos` |
 | Testes de seguranca (so papel `cozinha`) | botoes que mandam requisicoes erradas de proposito: sem token, token adulterado, token editado, senha errada (401), cliente mudando preco ou vendo a saude (403), payload invalido (400), item inexistente (400), item indisponivel (409), pedido em nome de outra pessoa (400), cliente vendo pedido de outro (404) | varias |
@@ -55,7 +56,24 @@ No rodape fica o **trilho de comandas**: cada chamada feita ao Gateway aparece
 como uma comanda com horario, metodo, rota, duracao, se foi com token e o status
 HTTP carimbado (verde 2xx, laranja 4xx, vermelho 401). Clicar numa comanda mostra
 o corpo enviado, a resposta do Gateway e o id da requisicao (`X-Requisicao-Id`),
-que serve para achar a mesma requisicao nos logs de todos os servicos.
+que serve para achar a mesma requisicao nos logs de todos os servicos. Ele abre
+sozinho para a cozinha (demonstracao); para o cliente e na tela de login fica
+recolhido numa faixa fina com a ultima chamada, e qualquer um abre e fecha.
+
+**Fluxo do pedido.** A sacola tem tres etapas, e o formulario so aparece quando
+ja ha prato escolhido:
+
+1. **Sacola.** Vazia, so diz como escolher. Com pratos, mostra cada linha com
+   - e + (cada sabor e uma linha), a estimativa e "Continuar para a entrega".
+2. **Entrega.** Endereco (obrigatorio) e telefone ja vem de "Meus dados"; no
+   primeiro pedido a caixa "Guardar em Meus dados" vem marcada. Aqui fica o
+   botao "Finalizar pedido e acender as chamas".
+3. **Confirmado.** Depois do fogo: numero do pedido, total calculado pelo
+   servidor, previsao de entrega, "Acompanhar pedido" e "Fazer outro pedido".
+
+No celular a sacola fica embaixo do cardapio: enquanto ela esta fora da tela,
+uma barra "Ver sacola · N itens · R$" leva ate ela. O zoom dos cards so existe
+com mouse (no toque o card nao muda de tamanho embaixo do dedo).
 
 ## Como ele chama o Gateway
 

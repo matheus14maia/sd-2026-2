@@ -70,6 +70,9 @@ Deploy do Trabalho 2 no GCP (VMs; ligado so para demonstracao, com `scripts/gcp/
 | `POST /auth/cadastro` | nao | Usuarios | **201** | 400, 409 login em uso |
 | `POST /auth/login` | nao | Usuarios | 200 + token | 400, **401** senha errada |
 | `GET /auth/eu` | sim | - | 200 | 401 |
+| `GET /conta` | sim | Usuarios | 200 (dados de quem esta logado) | 401 |
+| `PATCH /conta` | sim | Usuarios | 200 + token novo (nome, telefone, endereco) | 400, 401 |
+| `PUT /conta/senha` | sim | Usuarios | 200 | 400 senha atual errada ou confirmacao diferente, 401 |
 | `GET /cardapio?categoria=` | sim | Catalogo | 200 | 401, 404 categoria inexistente |
 | `POST /cardapio` | sim, papel `cozinha` | Catalogo | **201** (codigo gerado pela categoria) | 400, 401, **403** |
 | `PATCH /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 (so os campos enviados mudam) | 400, 401, **403**, 404 |
@@ -117,10 +120,11 @@ python scripts/testar_resiliencia.py      # derruba e religa o Catalogo e confer
   falha ao vivo), Gateway em `http://127.0.0.1:8000`. No Windows, se o
   `localhost` nao abrir, use `http://127.0.0.1` (ver
   [problemas comuns](docs/03-execucao-local.md#problemas-comuns)).
-- O teste ponta a ponta roda 66 cenarios (200/201/400/401/403/404/409/413/415)
+- O teste ponta a ponta roda 77 cenarios (200/201/400/401/403/404/409/413/415)
   e confere status e conteudo de cada um, inclusive o dono dos pedidos, os
-  filtros, o historico de etapas, a atualizacao em tempo real e o cardapio da
-  cozinha (cadastro, edicao, foto e exclusao de prato).
+  filtros, o historico de etapas, a atualizacao em tempo real, o cardapio da
+  cozinha (cadastro, edicao, foto e exclusao de prato) e a conta do cliente
+  (dados, token novo, telefone no pedido e troca de senha).
 
 Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 

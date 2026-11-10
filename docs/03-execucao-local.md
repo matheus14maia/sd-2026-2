@@ -90,7 +90,7 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
-### Teste ponta a ponta (66 cenarios)
+### Teste ponta a ponta (77 cenarios)
 
 PowerShell:
 
@@ -176,8 +176,19 @@ OK  Tempo real: cliente recebe a nova etapa sem recarregar  (esperado 200, receb
 OK  Tempo real: cliente nao recebe pedido de outro usuario  (esperado 200, recebido 200)
 OK  Health check dos microsservicos  (esperado 200, recebido 200)
 OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)
+OK  Conta sem token  (esperado 401, recebido 401)
+OK  Cliente ve os proprios dados  (esperado 200, recebido 200)
+OK  Telefone invalido  (esperado 400, recebido 400)
+OK  Conta sem nenhum campo  (esperado 400, recebido 400)
+OK  Cliente muda nome, telefone e endereco (volta um token novo)  (esperado 200, recebido 200)
+OK  Pedido com o token novo sai com o nome novo e o telefone  (esperado 201, recebido 201)
+OK  Trocar a senha com a atual errada  (esperado 400, recebido 400)
+OK  Confirmacao diferente da nova senha  (esperado 400, recebido 400)
+OK  Cliente troca a senha  (esperado 200, recebido 200)
+OK  Senha antiga nao entra mais  (esperado 401, recebido 401)
+OK  Senha nova entra  (esperado 200, recebido 200)
 
-Todos os 66 cenarios passaram.
+Todos os 77 cenarios passaram.
 ```
 
 ### Teste de tolerancia a falhas

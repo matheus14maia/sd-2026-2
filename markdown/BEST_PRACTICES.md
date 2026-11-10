@@ -339,6 +339,16 @@ nada que nao esteja no contrato.
   disponibilidade (que a cozinha muda pela API).
 - **Texto da interface com acento** (e o que o usuario le); codigo, mensagens da
   API e documentacao seguem sem acento.
+- **Formulario so aparece quando tem uso.** A sacola vazia nao mostra endereco
+  nem botao de finalizar; o pedido segue sacola -> entrega -> confirmado. Cada
+  papel cai na tela do seu trabalho (cliente no Cardapio, cozinha em Pedidos).
+- **Celular e toque.** Coluna de grid com `minmax(0, 1fr)` (conteudo largo rola,
+  nao alarga a pagina) e efeito de `:hover` que mexe em tamanho so dentro de
+  `@media (hover: hover)`. Conferir com Playwright no `devices['iPhone 13']`:
+  `document.documentElement.scrollWidth` igual a `innerWidth`.
+- **Conta do usuario so pelo token** (`/conta`, sem id na URL). Mudou o nome,
+  o Gateway devolve um token novo e o frontend troca o da sessao; troca de
+  senha confere a atual no Usuarios e a confirmacao no Gateway.
 
 ## Deploy em varias VMs
 

@@ -17,6 +17,9 @@ aquele servico na mesma alteracao.
 |---|---|---|---|---|---|
 | `CadastrarUsuario` | `CadastrarUsuarioRequest{login, nome, senha}` | `Usuario` | Gateway (`POST /auth/cadastro`) | `INSERT` em `usuarios` com o hash bcrypt da senha | `INVALID_ARGUMENT`, `ALREADY_EXISTS` |
 | `VerificarCredenciais` | `VerificarCredenciaisRequest{login, senha}` | `Usuario` | Gateway (`POST /auth/login`) | `SELECT` pelo login e `bcrypt.checkpw` | `UNAUTHENTICATED` |
+| `ObterUsuario` | `ObterUsuarioRequest{id}` | `Usuario` | Gateway (`GET /conta`, id do token) | `SELECT` pelo id | `NOT_FOUND` |
+| `AtualizarUsuario` | `AtualizarUsuarioRequest{id, optional nome, optional telefone, optional endereco}` | `Usuario` | Gateway (`PATCH /conta`) | `UPDATE` so dos campos presentes | `INVALID_ARGUMENT`, `NOT_FOUND` |
+| `TrocarSenha` | `TrocarSenhaRequest{id, senha_atual, nova_senha}` | `Usuario` | Gateway (`PUT /conta/senha`) | `bcrypt.checkpw` da atual e `UPDATE` do hash novo | `INVALID_ARGUMENT` (senha atual errada, nova curta ou igual) |
 
 `Usuario`:
 
@@ -87,7 +90,7 @@ aquele servico na mesma alteracao.
 
 | RPC | Request | Response | O que faz no banco | Erros |
 |---|---|---|---|---|
-| `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[], usuario_id, pedido_id}` | `Pedido` | `INSERT ... ON CONFLICT (id) DO NOTHING` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE`, `ALREADY_EXISTS` |
+| `CriarPedido` | `CriarPedidoRequest{cliente, endereco, itens[], usuario_id, pedido_id, telefone}` | `Pedido` | `INSERT ... ON CONFLICT (id) DO NOTHING` em `pedidos` + `itens_pedido` numa transacao | `INVALID_ARGUMENT`, `FAILED_PRECONDITION`, `UNAVAILABLE`, `ALREADY_EXISTS` |
 | `ObterPedido` | `ObterPedidoRequest{pedido_id, usuario_id}` | `Pedido` | `SELECT` do pedido (filtrado pelo dono quando `usuario_id` vem preenchido) e das linhas | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | `ListarPedidos` | `ListarPedidosRequest{limite, usuario_id}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT` (sem filtro quando `usuario_id` vem vazio) | `INVALID_ARGUMENT` |
 | `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` + linha em `etapas_pedido` + `NOTIFY` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |

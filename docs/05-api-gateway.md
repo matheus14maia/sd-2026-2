@@ -35,6 +35,9 @@ da requisicao).
 | `POST /auth/cadastro` | publica | `{"login", "nome", "senha"}` | **201** `{"mensagem", "usuario"}` | `UsuarioService.CadastrarUsuario` |
 | `POST /auth/login` | publica | `{"login", "senha"}` | 200 `{"access_token", "token_type", "expira_em_segundos", "usuario"}` | `UsuarioService.VerificarCredenciais` |
 | `GET /auth/eu` | token | - | 200 dados do token | - |
+| `GET /conta` | token | - | 200 `{id, login, nome, papel, telefone, endereco, criado_em}` de quem esta logado | `UsuarioService.ObterUsuario` |
+| `PATCH /conta` | token | qualquer combinacao de `nome`, `telefone`, `endereco` (`""` apaga telefone ou endereco) | 200 `{access_token, ..., usuario}`: token novo com o nome atual | `UsuarioService.AtualizarUsuario` |
+| `PUT /conta/senha` | token | `{"senha_atual", "nova_senha", "confirmar_senha"}` | 200 `{"mensagem": "Senha alterada."}` (400 se a atual estiver errada ou a confirmacao nao conferir) | `UsuarioService.TrocarSenha` |
 | `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
 | `POST /cardapio` | token + papel `cozinha` | `{"nome", "categoria", "preco", "descricao"?, "disponivel"?, "opcoes"?}` | **201** item com o codigo gerado | `CatalogoService.CriarItem` |
 | `PATCH /cardapio/{codigo}` | token + papel `cozinha` | qualquer combinacao de `disponivel`, `preco`, `nome`, `descricao`, `categoria`, `opcoes` | 200 item alterado | `CatalogoService.AtualizarItem` |
@@ -42,7 +45,7 @@ da requisicao).
 | `PUT /cardapio/{codigo}/foto` | token + papel `cozinha` | bytes da foto, `Content-Type: image/jpeg`, `image/png` ou `image/webp` | 200 item com a URL nova em `foto` | `CatalogoService.SalvarFoto` |
 | `DELETE /cardapio/{codigo}/foto` | token + papel `cozinha` | - | 200 item com `foto: null` | `CatalogoService.RemoverFoto` |
 | `GET /cardapio/{codigo}/foto?v=` | **publica** | - | 200 bytes da foto (304 se o navegador ja tem) | `CatalogoService.ObterFoto` |
-| `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade", "opcao"?}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
+| `POST /pedidos` | token | `{"endereco", "telefone"?, "itens": [{"codigo", "quantidade", "opcao"?}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
 | `GET /pedidos?limite=20&etapa=&periodo=&item=&cliente=` | token | - | 200 `{"escopo": "meus"/"todos", "filtros": {...}, "pedidos": [...]}` | `PedidoService.ListarPedidos` |
 | `GET /pedidos/eventos` | token | - | 200 `text/event-stream` (ver [Tempo real](#tempo-real-server-sent-events)) | `PedidoService.AcompanharPedidos` (stream) |
 | `GET /pedidos/{id}` | token | - | 200 pedido com `historico` e `previsao_entrega` (cliente: so os seus; outro usuario -> 404) | `PedidoService.ObterPedido` |
@@ -121,6 +124,22 @@ todos os preenchidos):
 
 Valor fora da lista responde **400** (`"erros": {"etapa": "valor nao permitido; use um de: ..."}`).
 A resposta repete os filtros aplicados em `"filtros"`.
+
+## Conta de quem esta logado ("Meus dados")
+
+- **Sempre a do dono do token.** `/conta` nao tem id na URL: o Gateway usa o
+  `sub` do token, entao ninguem le nem altera a conta de outra pessoa.
+- **Nome novo, token novo.** O nome vai no token (e dele sai o nome dos pedidos
+  novos). `PATCH /conta` devolve, alem do `usuario`, um `access_token` com o nome
+  atual; o frontend troca o token da sessao. Os pedidos antigos continuam com o
+  nome da epoca (snapshot).
+- **Telefone.** Vazio apaga; preenchido precisa de DDD e numero (10 a 13
+  digitos, com espaco, parenteses, `+` e `-`), senao 400. O mesmo formato vale
+  no `telefone` do `POST /pedidos`, que vai junto com o pedido para a cozinha.
+- **Senha.** `PUT /conta/senha` confere a senha atual no Usuarios e a
+  confirmacao no Gateway (400 `confirmar_senha: "as senhas nao conferem"`). O
+  token em uso continua valido ate expirar. Para o usuario da cozinha a senha
+  vem de `DEMO_SENHA`: o migrador a restaura a cada subida.
 
 ## Cardapio da cozinha (pratos e fotos)
 
@@ -313,7 +332,7 @@ $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda os 66 cenarios em
+O teste `python scripts/testar_gateway.py --url $URL` roda os 77 cenarios em
 sequencia, inclusive os de 401, 403, dono do pedido, filtros, tempo real e o
 cardapio da cozinha (cadastro, edicao, foto com 415 para arquivo errado e
-exclusao idempotente).
+exclusao idempotente) e a conta do cliente (token novo, telefone, senha).

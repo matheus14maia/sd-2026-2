@@ -22,6 +22,27 @@
 
 ## 2026-11-10
 
+### No celular o cardapio fica mais largo que a tela e o + nao responde
+
+**Sintoma:** no Playwright com `devices['iPhone 13']` (390 px), o clique no `+`
+de um prato falhava por 30 s com `<div class="prato-pe"> intercepts pointer
+events` (e `<header class="topo">`, `<ul class="pratos">`). Medindo:
+`document.documentElement.scrollWidth` = 749 e `innerWidth` = 749 numa tela de
+390 px: a pagina inteira estava mais larga que o celular e reduzida para caber.
+
+**Causa:** a fileira de abas do cardapio (Todos, Entradas, Pratos principais...)
+nao quebra linha. No desktop a coluna e `minmax(0, 1fr)`, mas a regra do
+celular trocava para `1fr`, que nao deixa a coluna encolher abaixo do conteudo:
+as abas forcavam a coluna (e a pagina) a 733 px. Por cima, o zoom do card no
+`:hover` (que no toque fica "grudado") mudava o tamanho do card embaixo do dedo.
+
+**Solucao:** colunas do celular com `minmax(0, 1fr)` (as abas, que ja tinham
+`overflow-x: auto`, passam a rolar de lado) e o zoom do card e o `:hover` dos
+botoes de quantidade so dentro de `@media (hover: hover)`. Conferido: largura da
+pagina = 390, `+` responde, barra "Ver sacola" aparece e leva a sacola.
+
+**Arquivos:** `frontend/src/estilos.css`.
+
 ### Fogo do botao nao aparece: a animacao termina no primeiro quadro
 
 **Sintoma:** depois de confirmar o pedido, o `<canvas class="fogo">` aparecia

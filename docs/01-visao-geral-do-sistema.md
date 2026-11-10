@@ -10,6 +10,8 @@ API HTTP) e possivel:
 - montar um pedido com varios itens e a quantidade de cada um, sempre em nome
   de quem esta logado (o nome e o dono vem do token, nao de um campo livre);
 - consultar e listar os proprios pedidos (a cozinha ve os de todos);
+- editar os proprios dados em "Meus dados": nome, telefone e endereco de entrega
+  padrao (que ja preenchem o pedido) e a senha;
 - com o papel `cozinha`: avancar o status do pedido
   (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`) e cuidar
   do cardapio: cadastrar, editar e excluir pratos (nome, categoria, preco,
@@ -149,6 +151,8 @@ depender de quem o chama (defesa em profundidade).
 | Fotos dos pratos no PostgreSQL (`fotos_itens`) | o Cloud Run nao tem disco permanente e pode ter varias instancias: foto gravada no container sumiria. No banco ela funciona igual no compose e no Cloud SQL, sem outro servico. Para muitas fotos o caminho seria o Cloud Storage; para um cardapio de dezenas de pratos o banco basta |
 | URL da foto com a versao (hash) | foto nova = URL nova: o navegador guarda cada foto para sempre (`immutable`) sem nunca mostrar uma foto velha |
 | Exclusao logica de prato | pedidos antigos tem o snapshot e continuam certos; o codigo nunca e reaproveitado; excluir de novo nao e erro (idempotente); e a carga inicial nao "ressuscita" o prato |
+| Nome novo devolve token novo | o nome vai no token e dele sai o nome do pedido; em vez de consultar o Usuarios a cada pedido, o `PATCH /conta` emite um token com o nome atual |
+| Conta sem id na URL (`/conta`) | o Gateway usa o `sub` do token: nao existe rota que leia ou altere a conta de outra pessoa |
 | Carga inicial nao sobrescreve a cozinha | o `seed.sql` so atualiza item que a cozinha nunca editou (`editado_em` nulo): o que foi mudado pela tela sobrevive a todo deploy |
 | Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
 | Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |
