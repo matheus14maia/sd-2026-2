@@ -45,7 +45,7 @@ echo "== Configurando o .env do papel $PAPEL"
 case "$PAPEL" in
   servicos)
     # O .env desta VM ja tem DB_* do Cloud SQL; so o profile muda.
-    grep -q '^DB_HOST=' .env || { echo "ERRO: .env sem DB_HOST (ver .env.exemplo)"; exit 1; }
+    grep -q '^DB_HOST=' .env || { echo "ERRO: .env sem DB_HOST (ver docs/04-deploy-gcp-vm.md)"; exit 1; }
     definir COMPOSE_PROFILES servicos
     definir GRPC_BIND 0.0.0.0
     # Senha do usuario da cozinha: gerada uma vez e guardada so nesta VM.

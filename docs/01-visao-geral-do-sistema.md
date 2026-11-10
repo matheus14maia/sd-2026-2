@@ -107,6 +107,8 @@ O filtro e feito no banco (`WHERE usuario_id = ...`), pelo Pedidos.
 | campo desconhecido (ex.: `preco`) | Gateway | - | 400 | `"campo nao permitido"` |
 | codigo valido mas inexistente (`XX99`) | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'XX99' nao existe no cardapio.` |
 | item indisponivel (`PR05` na carga inicial) | Pedidos | `FAILED_PRECONDITION` | 409 | `Item 'PR05' (Moqueca de peixe) esta indisponivel hoje.` |
+| refrigerante (`BE01`) ou agua (`BE03`) sem escolher a opcao | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Escolha uma opcao para BE01 (Refrigerante lata): Coca-Cola, ...` |
+| opcao que nao existe, ou opcao num prato sem opcoes | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Opcao 'Fanta Morango' nao existe para BE01 (...)` |
 | pedido inexistente | Pedidos | `NOT_FOUND` | 404 | `Pedido '...' nao encontrado.` |
 | id de pedido malformado | Pedidos | `INVALID_ARGUMENT` | 400 | `Id de pedido invalido: '...'.` |
 | pular ou voltar etapa do status | Pedidos | `FAILED_PRECONDITION` | 409 | `Nao e possivel mudar de EM_PREPARO para ENTREGUE: a proxima etapa e PRONTO.` |
@@ -138,5 +140,7 @@ depender de quem o chama (defesa em profundidade).
 | Dono do pedido vem do token | o professor apontou que o nome do cliente era texto livre e a lista nao filtrava pelo usuario; agora o pedido guarda o `usuario_id` do token e o cliente so ve os seus |
 | Retry, circuit breaker e fallback no cliente gRPC | uma falha de um microsservico nao derruba o sistema inteiro nem trava o usuario (ver [07-resiliencia.md](07-resiliencia.md)) |
 | Tempo real com NOTIFY + gRPC streaming + SSE | a tela acompanha o pedido sem F5; o aviso nasce no banco (funciona com varias instancias) e o Gateway abre um so stream por instancia, nao um por navegador |
+| Opcoes do item no Catalogo, conferidas pelo Pedidos | o sabor do refrigerante e dado do cardapio (`itens_cardapio.opcoes`), nao regra fixa no codigo; a cozinha ou a carga mudam as opcoes sem mexer no Pedidos |
+| Rastreamento com OpenTelemetry | o mesmo codigo manda os spans para o Jaeger no computador e para o Cloud Trace no Google Cloud (ver [08-rastreamento.md](08-rastreamento.md)) |
 | Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
 | Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |

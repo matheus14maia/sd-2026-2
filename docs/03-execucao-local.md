@@ -65,10 +65,13 @@ Servicos esperados (`docker compose ps`):
 O `(healthy)` vem do `HEALTHCHECK` de cada imagem: os microsservicos respondem
 ao health check gRPC, o Gateway ao `GET /saude` e o nginx a pagina inicial.
 
-- **Frontend:** `http://localhost` (login `professor` com a `DEMO_SENHA` do `.env`, ou crie uma conta).
-- **Gateway:** `http://localhost:8000`, Swagger em `http://localhost:8000/docs`.
+- **Frontend:** `http://localhost` ou `http://127.0.0.1` (login `professor` com a
+  `DEMO_SENHA` do `.env`, ou crie uma conta). No Windows, se o `localhost` der
+  `ERR_CONNECTION_RESET` ou ficar carregando, use o `127.0.0.1` (ver
+  [problemas comuns](#problemas-comuns)).
+- **Gateway:** `http://127.0.0.1:8000`, Swagger em `http://127.0.0.1:8000/docs`.
 - A porta 80 ocupada na maquina? Troque `FRONTEND_PORTA=3000` no `.env`, rode
-  `docker compose up -d frontend` e use `http://localhost:3000`.
+  `docker compose up -d frontend` e use `http://127.0.0.1:3000`.
 - As portas gRPC ficam so em `127.0.0.1`: da para usar o `grpcurl` local, mas
   nada na rede alcanca os microsservicos.
 
@@ -87,19 +90,19 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
-### Teste ponta a ponta (46 cenarios)
+### Teste ponta a ponta (50 cenarios)
 
 PowerShell:
 
 ```powershell
 $env:DEMO_SENHA = "a-senha-do-.env"
-python scripts\testar_gateway.py --url http://localhost:8000 --resumido
+python scripts\testar_gateway.py --url http://127.0.0.1:8000 --resumido
 ```
 
 Bash:
 
 ```bash
-DEMO_SENHA=a-senha-do-.env python scripts/testar_gateway.py --url http://localhost:8000 --resumido
+DEMO_SENHA=a-senha-do-.env python scripts/testar_gateway.py --url http://127.0.0.1:8000 --resumido
 ```
 
 O script so usa a biblioteca padrao do Python, entao roda sem instalar nada. Ele
@@ -130,6 +133,10 @@ OK  Lista de itens vazia  (esperado 400, recebido 400)
 OK  JSON malformado  (esperado 400, recebido 400)
 OK  Item que nao existe no banco  (esperado 400, recebido 400)
 OK  Item indisponivel (PR05)  (esperado 409, recebido 409)
+OK  Refrigerante sem escolher o sabor  (esperado 400, recebido 400)
+OK  Sabor que nao existe no cardapio  (esperado 400, recebido 400)
+OK  Opcao em prato sem opcoes  (esperado 400, recebido 400)
+OK  Agua com gas e dois sabores de refrigerante  (esperado 201, recebido 201)
 OK  Consulta do pedido criado  (esperado 200, recebido 200)
 OK  Pedido inexistente  (esperado 404, recebido 404)
 OK  Avanca status RECEBIDO -> EM_PREPARO  (esperado 200, recebido 200)
@@ -154,7 +161,7 @@ OK  Tempo real: cliente nao recebe pedido de outro usuario  (esperado 200, receb
 OK  Health check dos microsservicos  (esperado 200, recebido 200)
 OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)
 
-Todos os 46 cenarios passaram.
+Todos os 50 cenarios passaram.
 ```
 
 ### Teste de tolerancia a falhas
@@ -232,8 +239,13 @@ por papel (o Gateway nao leva driver de banco, os servicos nao levam FastAPI);
 usuario sem root; `HEALTHCHECK`; `.dockerignore` em lista de permissao.
 
 Comparacao medida no `docker image inspect` (inclui a base `python:3.12-slim`):
-a imagem unica do Trabalho 2 tinha **308 MB**; agora gateway **229 MB**,
-microsservicos **233 MB**, migrador **208 MB** e frontend **82 MB**.
+a imagem unica do Trabalho 2 tinha **308 MB**; agora gateway **276 MB**,
+microsservicos **281 MB**, migrador **208 MB** e frontend **82 MB**. Cerca de
+48 MB do Gateway e dos microsservicos sao o OpenTelemetry com o exportador do
+Cloud Trace (`requirements/rastreamento.txt`); sem ele eram 229 e 233 MB.
+
+Para ver os traces de cada requisicao no Jaeger, ver
+[08-rastreamento.md](08-rastreamento.md).
 
 ## Sem Docker (desenvolvimento)
 
@@ -273,5 +285,7 @@ docker compose down -v   # remove tambem o volume (zera o banco)
 | `error during connect` / `Cannot connect to the Docker daemon` | Docker Desktop fechado | abra o Docker Desktop e espere ficar pronto |
 | `Bind for 0.0.0.0:80 failed: port is already allocated` | outro programa usa a porta 80 | `FRONTEND_PORTA=3000` no `.env` e `docker compose up -d frontend` |
 | Login do `professor` responde 401 | `DEMO_SENHA` vazia ou trocada depois do primeiro `up` | defina a senha no `.env` e rode `docker compose up -d migrador` (ele atualiza a senha) |
-| Frontend abre, mas toda acao da "Gateway fora do ar" | Gateway parado ou `API_URL` errado | `docker compose ps` e `curl http://localhost:8000/saude` |
+| Frontend abre, mas toda acao da "Gateway fora do ar" | Gateway parado ou `API_URL` errado | `docker compose ps` e `curl.exe http://127.0.0.1:8000/saude`; no `.env`, `API_URL=http://127.0.0.1:8000` e `docker compose up -d` |
+| Windows: `http://localhost` da `ERR_CONNECTION_RESET` ou fica carregando, com todos os containers `healthy`, mas `http://127.0.0.1` abre | o `localhost` foi para o IPv6 (`::1`) e o Docker Desktop nao encaminhou por esse caminho (comum com redes extras do Hyper-V, VPN ou antivirus) | acesse `http://127.0.0.1`; no `.env`, `API_URL=http://127.0.0.1:8000` e `docker compose up -d` (ver TROUBLESHOOTING 2026-11-09) |
+| Login do `professor` diz "Login ou senha invalidos" e o log do migrador diz `DEMO_SENHA ausente ou curta` | a senha foi escrita numa linha comentada (com `#`) ou tem `$`, que o compose corta | deixe uma linha `DEMO_SENHA=sua-senha` sem `#` e sem `$`; depois `docker compose up -d --force-recreate migrador` |
 | `delivery-migrador` reiniciando | banco ainda subindo | espere; o migrador tenta de novo sozinho |

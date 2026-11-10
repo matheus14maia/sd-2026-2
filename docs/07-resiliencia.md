@@ -76,7 +76,7 @@ apague a linha (ou ponha `0`) e rode o mesmo comando.
 
 Com a pilha no ar (`docker compose up -d --build`, ver
 [03-execucao-local.md](03-execucao-local.md)), entre no frontend
-(`http://localhost`) e abra a aba **Saude dos servicos**. Ela mostra, a cada 3 s,
+(`http://localhost` ou `http://127.0.0.1`) e abra a aba **Saude dos servicos**. Ela mostra, a cada 3 s,
 o health check gRPC de cada microsservico e o estado do circuito no Gateway.
 
 ### 1. Queda de um microsservico
@@ -172,6 +172,10 @@ delivery-pedidos   | [12:49:28] [e99430b1] Pedido c841893b-... gravado: 1 itens,
 No frontend, clique numa comanda do rodape para ver o id; depois
 `docker compose logs | grep e99430b1` (PowerShell: `| Select-String e99430b1`).
 
-Com `LOG_JSON=1` cada linha sai em JSON com `severity`, `message` e o trace no
-campo `logging.googleapis.com/trace`, o formato que o Cloud Logging do GCP
-entende (usado quando o sistema for para o Cloud Run).
+Com `LOG_JSON=1` cada linha sai em JSON com `severity`, `message` e o trace nos
+campos `logging.googleapis.com/trace` e `.../spanId`, o formato que o Cloud
+Logging do GCP entende (usado quando o sistema for para o Cloud Run).
+
+O mesmo id e o do trace: no Jaeger (local) ou no Cloud Trace da para ver cada
+tentativa do retry como um span separado, com a falha simulada marcada (ver
+[08-rastreamento.md](08-rastreamento.md)).

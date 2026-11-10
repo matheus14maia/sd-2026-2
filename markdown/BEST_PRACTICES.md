@@ -233,6 +233,41 @@ nada que nao esteja no contrato.
   `.env`, `.git` ou `docs/` no build.
 - Sem a linha `# syntax=docker/dockerfile:1`: o BuildKit embutido ja entende
   `RUN --mount=type=cache`, e a diretiva so faria o build baixar mais uma imagem.
+- **Portas publicadas so em IPv4** (`0.0.0.0:8000:8000`) e **URLs locais com
+  `127.0.0.1`**, nao `localhost`. No Docker Desktop do Windows o caminho IPv6 do
+  `localhost` (`::1`) pode aceitar a conexao e nao entregar ao container (ver
+  TROUBLESHOOTING 2026-11-09).
+- **O `.env.exemplo` traz so o que se usa no computador**, nesta ordem:
+  obrigatorio (`DEMO_SENHA`), ja configurado e opcional (comentado). Exemplo de
+  outro ambiente (VMs, nuvem) vai para a documentacao do deploy, nao para o
+  modelo: duas linhas com a mesma variavel, uma delas comentada, ja fizeram a
+  senha ser preenchida na linha errada.
+
+## Rastreamento
+
+- **Span nos pontos de passagem, nao espalhado.** O middleware do Gateway, o
+  `ClienteResiliente`, o `InterceptadorServidor` e o `@rastrear_banco` dos
+  repositorios ja cobrem toda requisicao. Codigo novo que chama outro servico
+  passa pelo `ClienteResiliente` e ganha os spans de graca.
+- **O contexto vai nos metadados que o `ClienteResiliente` monta**
+  (`metadata=metadados()` dentro do span da tentativa). Quem chama passa so
+  `lambda **opcoes: stub.Metodo(requisicao, **opcoes)`, sem `metadata` proprio.
+- **Erro de negocio nao e erro de span.** `context.abort()` levanta uma excecao
+  generica; os spans usam `record_exception=False` e o status sai do codigo
+  gRPC (`_anotar_status`). So falha do servico marca o span como erro.
+- **Sondas nao viram trace** (`SEM_RASTREAMENTO` no `app.py`), e o
+  `@rastrear_banco` so cria span dentro de uma requisicao rastreada.
+- **O log nunca depende do rastreamento:** `registro.py` funciona sem o
+  OpenTelemetry instalado (o migrador nao instala).
+
+## Opcoes do item
+
+- **Opcao e dado do cardapio** (`itens_cardapio.opcoes`), conferida pelo Pedidos
+  com o Catalogo, como o preco. O Gateway so valida o formato (texto ate 50).
+- **Cada opcao e uma linha do pedido** (`itens_pedido.opcao`, snapshot): dois
+  sabores do mesmo refrigerante sao duas linhas.
+- **A carga atualiza as opcoes** (`ON CONFLICT ... SET opcoes = EXCLUDED.opcoes`),
+  como nome e descricao; preco e disponibilidade continuam so com a cozinha.
 
 ## Tempo real
 

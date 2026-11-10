@@ -14,6 +14,16 @@
 
 ---
 
+## 2026-11-10
+
+| Horario | Task | Detalhe |
+|---------|------|---------|
+| 09:23 | Correcao: desligamento dos microsservicos | O `docker stop` terminava com `TypeError` depois de receber o sinal: em `servidor_grpc.py` o tratador de sinal local se chamava `encerrar`, o mesmo nome da funcao importada do `rastreamento.py`, e o `ao_encerrar` do servico nao rodava. Import renomeado para `encerrar_rastreamento` e tratador para `ao_receber_sinal`; conferido com `docker stop` nos tres servicos (saida 0, spans pendentes enviados). Arquivo: `src/comum/servidor_grpc.py`. |
+| 09:15 | Documentacao: rastreamento e plano do Google Cloud | `docs/08-rastreamento.md` (spans, Jaeger local, Cloud Trace, variaveis) e `docs/09-plano-cloud-run.md` (cada componente num servico gerenciado, senhas no Secret Manager com `--set-secrets`, variaveis por servico, contas de servico e papeis, ordem do deploy; plano, ainda nao executado). `README`, `docs/01`, `02`, `03`, `05`, `06` e `07` com as opcoes, as fotos, o rastreamento e os 50 cenarios. |
+| 09:05 | Rastreamento distribuido (OpenTelemetry) | `src/comum/rastreamento.py`: spans no Gateway (requisicao HTTP), no `ClienteResiliente` (chamada inteira com eventos de retry e de circuito + um span por tentativa), no servidor gRPC (com falha simulada e banco indisponivel como eventos) e nos repositorios (`@rastrear_banco`). Contexto nos metadados gRPC em W3C e `X-Cloud-Trace-Context`; o trace id substitui o id proprio da requisicao nos logs e no `X-Requisicao-Id`, e o log JSON ganhou `logging.googleapis.com/spanId`. Destino por `RASTREAMENTO`: `gcp` (Cloud Trace), `otlp` (Jaeger do novo profile `rastreamento`, `http://127.0.0.1:16686`), `console` ou nenhum. `/saude` nao vira trace. Imagens: +48 MB no Gateway e nos microsservicos (276/281 MB). Validado: trace completo Gateway -> Pedidos -> Catalogo -> banco no Jaeger, retry visivel com falha injetada, 50 cenarios e roteiro de resiliencia com o rastreamento ligado. |
+| 08:55 | Opcoes de item e fotos dos pratos | `itens_cardapio.opcoes` (sabores do refrigerante: Coca-Cola, Coca-Cola Zero, Guarana, Fanta Uva, Fanta Laranja, Schweppes; agua: Sem gas, Com gas) e `itens_pedido.opcao`; `catalogo.proto` com `opcoes`, `pedidos.proto` com `opcao` em `ItemPedido` e `ItemConfirmado`. O Pedidos confere a opcao com o Catalogo (400 se faltar, nao existir ou vier em prato sem opcoes). Frontend com submenu de opcoes no card (cada sabor e uma linha da sacola), foto de cada prato em `frontend/public/pratos/<CODIGO>.jpg` com zoom e as iniciais no lugar enquanto nao ha foto, rota `/pratos/` no nginx com 404 para foto que falta. `testar_gateway.py`: 50 cenarios. |
+| 08:40 | Acesso local pelo IPv4 e `.env.exemplo` enxuto | Num Windows com redes extras do Hyper-V, `http://localhost` dava `ERR_CONNECTION_RESET` (porta 80) e ficava carregando (porta 8000) com todos os containers `healthy`, e `http://127.0.0.1` funcionava. Gateway e frontend publicam a porta so em IPv4 (`0.0.0.0:`); `API_URL` padrao e `--url` dos scripts viraram `http://127.0.0.1:8000`. O `.env.exemplo` ficou so com o que se usa no computador (obrigatorio, ja configurado, opcional), depois de a `DEMO_SENHA` ter sido preenchida na linha comentada das VMs; o `.env` de cada VM do Trabalho 2 foi para o `docs/04`. |
+
 ## 2026-11-09
 
 | Horario | Task | Detalhe |

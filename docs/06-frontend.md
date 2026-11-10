@@ -9,7 +9,7 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 | Tela | O que faz | Chamadas ao Gateway |
 |---|---|---|
 | Entrar / Criar conta | login e cadastro; campos obrigatorios com asterisco (dica "Campo obrigatorio" ao passar o mouse); os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo | `POST /auth/login`, `POST /auth/cadastro` |
-| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), sacola e pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com animacao de chamas; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos` |
+| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), foto de cada prato com zoom, submenu de opcoes (sabor do refrigerante, agua sem ou com gas) em que cada opcao vira uma linha da sacola, pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com animacao de chamas; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos` |
 | Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; filtros por etapa, periodo, prato e (cozinha) cliente; horario de cada etapa, previsao de entrega com o tempo que falta; a cozinha avanca a etapa e pode tentar pular uma (409); tudo se atualiza sozinho | `GET /pedidos?...`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status`, `GET /pedidos/eventos` |
 | Cozinha (so papel `cozinha`) | liga e desliga pratos do cardapio do dia e ajusta preco | `GET /cardapio`, `PATCH /cardapio/{codigo}` |
 | Saude dos servicos (so papel `cozinha`) | a cada 3 s, health check gRPC de cada microsservico, o estado do circuit breaker no Gateway e da conexao de tempo real; botoes para carregar o cardapio e fazer um pedido de teste durante uma falha (ver [07-resiliencia.md](07-resiliencia.md)) | `GET /saude/servicos`, `GET /cardapio`, `POST /pedidos` |
@@ -20,6 +20,11 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 topo mostra "Ao vivo" (ou "Reconectando..."), a lista e o detalhe do pedido se
 atualizam sozinhos, e aparecem avisos: a cozinha e avisada de cada pedido novo e
 o cliente de cada etapa do pedido dele.
+
+**Fotos dos pratos.** Cada prato mostra `frontend/public/pratos/<CODIGO>.jpg`
+(ex.: `PR01.jpg`), servida pelo nginx em `/pratos/PR01.jpg`. Prato sem foto
+mostra as iniciais no lugar (o nginx responde 404 para foto que nao existe).
+Depois de colocar fotos novas: `docker compose up -d --build frontend`.
 
 **Mensagens.** A API responde sem acento (convencao do backend); o
 `src/mensagens.js` transforma as mensagens conhecidas em frases com acento para a
@@ -69,7 +74,7 @@ porta 8080 do container, publicada na `FRONTEND_PORTA` da maquina).
 
 | Variavel (`.env`) | Padrao | Uso |
 |---|---|---|
-| `API_URL` | `http://localhost:8000` | endereco do Gateway entregue ao navegador |
+| `API_URL` | `http://127.0.0.1:8000` | endereco do Gateway entregue ao navegador (`127.0.0.1` e nao `localhost`: no Windows o `localhost` pode ir para o IPv6 e falhar) |
 | `FRONTEND_PORTA` | `80` | porta publicada na maquina |
 
 Desenvolvimento, com recarga automatica:
@@ -91,6 +96,7 @@ frontend/
   src/mensagens.js                 mensagens da API -> texto da tela (com acento)
   src/App.jsx                      cabecalho, abas e escolha da tela
   src/telas/                       Login, Cardapio, Pedidos, Cozinha, Saude, Testes
-  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama
+  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama, FotoPrato
+  public/pratos/                   fotos dos pratos: <CODIGO>.jpg (ver LEIA-ME.txt na pasta)
   src/estilos.css                  identidade visual
 ```

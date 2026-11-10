@@ -103,14 +103,16 @@ Precisa do Docker Desktop (Windows/macOS) ou Docker Engine + Compose (Linux).
 ```bash
 cp .env.exemplo .env          # PowerShell: Copy-Item .env.exemplo .env ; depois troque DEMO_SENHA
 docker compose up -d --build
-DEMO_SENHA=<a senha do .env> python scripts/testar_gateway.py --url http://localhost:8000
+DEMO_SENHA=<a senha do .env> python scripts/testar_gateway.py --url http://127.0.0.1:8000
 python scripts/testar_resiliencia.py      # derruba e religa o Catalogo e confere a reacao
 ```
 
 - O `.env.exemplo` ja vem com `COMPOSE_PROFILES=banco-local,servicos,gateway,frontend`.
 - Frontend em `http://localhost` (aba **Saude dos servicos** para acompanhar uma
-  falha ao vivo), Gateway em `http://localhost:8000`.
-- O teste ponta a ponta roda 46 cenarios (200/201/400/401/403/404/409) e confere
+  falha ao vivo), Gateway em `http://127.0.0.1:8000`. No Windows, se o
+  `localhost` nao abrir, use `http://127.0.0.1` (ver
+  [problemas comuns](docs/03-execucao-local.md#problemas-comuns)).
+- O teste ponta a ponta roda 50 cenarios (200/201/400/401/403/404/409) e confere
   status e conteudo de cada um, inclusive o dono dos pedidos, os filtros, o
   historico de etapas e a atualizacao em tempo real.
 
@@ -127,6 +129,8 @@ Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 | [docs/05-api-gateway.md](docs/05-api-gateway.md) | rotas, JWT, papeis, validacao, formato de erro e exemplos |
 | [docs/06-frontend.md](docs/06-frontend.md) | telas do frontend, como ele chama o Gateway e como roda |
 | [docs/07-resiliencia.md](docs/07-resiliencia.md) | tolerancia a falhas: retry, circuit breaker, fallback, idempotencia e como demonstrar |
+| [docs/08-rastreamento.md](docs/08-rastreamento.md) | rastreamento distribuido: spans de cada requisicao no Jaeger (local) e no Cloud Trace |
+| [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md) | plano do Trabalho 3 no Google Cloud: Cloud Run, Secret Manager, Cloud Trace, contas de servico |
 | [apresentacao/](apresentacao/) | slides da arquitetura (`.pptx` e `.pdf`) |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
@@ -143,9 +147,10 @@ src/gateway/                 API Gateway FastAPI (autenticacao, rotas, esquemas,
 src/usuarios/                microsservico de Usuarios (servidor, servico, repositorio)
 src/catalogo/                microsservico de Catalogo (servidor, servico, repositorio)
 src/pedidos/                 microsservico de Pedidos (servidor, servico, repositorio, cliente do Catalogo)
-src/comum/                   banco, servidor gRPC, resiliencia (retry + circuit breaker), canal gRPC e log
+src/comum/                   banco, servidor gRPC, resiliencia (retry + circuit breaker), canal gRPC, log e rastreamento
 src/gerado/                  stubs gerados no build (nao versionados)
 frontend/                    frontend React (Vite) + Dockerfile (Node no build, nginx sem root na entrega)
+frontend/public/pratos/      fotos dos pratos, uma por codigo (EN01.jpg, PR01.jpg...)
 docker/                      Dockerfiles multi-stage do Gateway, dos microsservicos e do migrador
 requirements/                dependencias Python separadas por papel (gateway, servicos, migrador, build)
 scripts/gerar_stubs.py       gera os stubs a partir de proto/*.proto

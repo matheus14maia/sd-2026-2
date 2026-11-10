@@ -53,6 +53,7 @@ aquele servico na mesma alteracao.
 | `categoria` | string | 4 | Entradas, Pratos, Bebidas, Sobremesas |
 | `preco` | double | 5 | em reais; `NUMERIC(10,2)` no banco |
 | `disponivel` | bool | 6 | `false` = fora do cardapio do dia |
+| `opcoes` | repeated string | 7 | submenu do item: sabores do refrigerante (`BE01`), agua sem ou com gas (`BE03`); vazio = sem escolha |
 
 - **`ConsultarItens` nao falha por codigo inexistente.** O codigo simplesmente
   nao aparece na resposta, e quem chama decide o que fazer: o Pedidos responde
@@ -70,6 +71,12 @@ aquele servico na mesma alteracao.
 | `ListarPedidos` | `ListarPedidosRequest{limite, usuario_id}` | `ListarPedidosResponse{pedidos[]}` | `SELECT ... WHERE usuario_id = ? ORDER BY criado_em DESC LIMIT` (sem filtro quando `usuario_id` vem vazio) | `INVALID_ARGUMENT` |
 | `AtualizarStatus` | `AtualizarStatusRequest{pedido_id, status}` | `Pedido` | `UPDATE ... WHERE id = ? AND status = atual` + linha em `etapas_pedido` + `NOTIFY` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` |
 | `AcompanharPedidos` | `AcompanharPedidosRequest{usuario_id}` | `stream EventoPedido` | `LISTEN` no canal `pedidos`; para cada aviso, `SELECT` do pedido | `INVALID_ARGUMENT` |
+
+**Opcoes do item.** `ItemPedido.opcao` (tag 3) leva a escolha do submenu e
+`ItemConfirmado.opcao` (tag 6) a grava no pedido, como o nome e o preco. O
+Pedidos confere com as `opcoes` que o Catalogo devolve: item com opcoes exige
+uma delas (sem diferenciar maiusculas; grava a grafia do cardapio), item sem
+opcoes nao aceita nenhuma. Os dois casos respondem `INVALID_ARGUMENT`.
 
 `AcompanharPedidos` e **server streaming**: a resposta e uma sequencia de
 `EventoPedido{tipo, pedido}` que so termina quando quem chamou fecha. `tipo` e
@@ -109,7 +116,7 @@ nome que esta no token: o corpo HTTP do `POST /pedidos` nao tem mais esse campo.
 | `cliente` | string | 2 | nome do dono no momento da compra |
 | `endereco` | string | 3 | |
 | `status` | `StatusPedido` | 4 | enum |
-| `itens` | repeated `ItemConfirmado` | 5 | `codigo, nome, quantidade, preco_unitario, subtotal` |
+| `itens` | repeated `ItemConfirmado` | 5 | `codigo, nome, quantidade, preco_unitario, subtotal, opcao` |
 | `total` | double | 6 | soma dos subtotais, arredondada |
 | `tempo_estimado_minutos` | int32 | 7 | `15 + 3 x unidades` |
 | `criado_em` | string | 8 | ISO 8601 com fuso (`2026-09-24T20:43:57-03:00`) |

@@ -20,7 +20,91 @@
 
 ---
 
+## 2026-11-10
+
+### Microsservico termina com `TypeError` no `docker stop`
+
+**Sintoma:** com o rastreamento ligado, o `docker stop` de um microsservico
+terminava assim (os testes passavam, porque so olham as respostas):
+
+```text
+Encerrando o servidor...
+    encerrar()  # envia os spans que ainda estao na fila
+TypeError: executar.<locals>.encerrar() missing 2 required positional arguments: '_sinal' and '_frame'
+```
+
+O `ao_encerrar` do servico (fechar o pool e o canal com o Catalogo) nao rodava
+e o "Servidor encerrado." nao aparecia.
+
+**Causa:** `servidor_grpc.py` importava `encerrar` do `rastreamento.py` e, dentro
+do `executar()`, definia o tratador de sinal tambem como `encerrar(_sinal,
+_frame)`. O nome local escondia o importado: a chamada `encerrar()` depois do
+`wait_for_termination()` ia para o tratador de sinal, sem os dois argumentos.
+
+**Solucao:** importar como `encerrar_rastreamento` e chamar o tratador de
+`ao_receber_sinal`. Conferido com `docker stop` nos tres servicos: codigo de
+saida 0 e "Servidor encerrado." no log.
+
+**Arquivos:** `src/comum/servidor_grpc.py`.
+
+### Login do `professor` recusado: `DEMO_SENHA ausente ou curta`
+
+**Sintoma:** depois de `docker compose up -d --build`, o login com `professor`
+respondia "Login ou senha invalidos", e o log do migrador dizia:
+
+```text
+  DEMO_SENHA ausente ou curta: usuario da cozinha nao criado.
+```
+
+`findstr DEMO_SENHA .env` mostrava a senha preenchida.
+
+**Causa:** o `.env.exemplo` tinha duas linhas `DEMO_SENHA`: a que vale, vazia,
+no bloco local, e outra comentada (`# DEMO_SENHA=<senha da cozinha>`) na secao
+das VMs do Trabalho 2. A senha foi escrita na linha comentada.
+
+**Solucao:** no `.env`, uma linha `DEMO_SENHA=...` sem `#` e
+`docker compose up -d --force-recreate migrador` (o migrador cria ou atualiza o
+usuario). Para nao acontecer de novo, o `.env.exemplo` passou a ter so o bloco
+do computador, com a `DEMO_SENHA` no topo (obrigatorio), e o exemplo de cada VM
+foi para o `docs/04`. A senha tambem nao pode ter `$`: o compose le como
+variavel e corta o valor.
+
+**Arquivos:** `.env.exemplo`, `docs/03-execucao-local.md`, `docs/04-deploy-gcp-vm.md`.
+
 ## 2026-11-09
+
+### No Windows, `localhost` nao abre, mas `127.0.0.1` abre
+
+**Sintoma:** num Windows com Docker Desktop (WSL 2) e duas redes extras criadas
+no Hyper-V, todos os containers `Up (healthy)` e as portas publicadas
+(`0.0.0.0:80->8080/tcp, [::]:80->8080/tcp`), mas no navegador:
+
+```text
+http://localhost            Nao e possivel acessar esse site. A conexao foi redefinida. ERR_CONNECTION_RESET
+http://localhost:8000/saude pagina em branco, carregando sem fim
+http://127.0.0.1:8000/saude {"status":"ok", ...}
+```
+
+**Causa:** o navegador resolve `localhost` primeiro para o IPv6 `::1`. O Docker
+Desktop tambem publica as portas em IPv6 (`[::]:80`) e aceita a conexao, mas
+nessa maquina o encaminhamento IPv6 ate o container nao funcionava: a conexao
+era cortada (porta 80) ou ficava pendurada (porta 8000), e o navegador nao tenta
+o IPv4 depois de uma conexao aceita. Pelo IPv4 (`127.0.0.1`) tudo funciona. O
+frontend aberto pelo `127.0.0.1` ainda falhava no login, porque o `/config.js`
+mandava o navegador chamar o Gateway em `http://localhost:8000` (60 s esperando
+e "Gateway fora do ar").
+
+**Solucao:** as portas do Gateway e do frontend sao publicadas so em IPv4
+(`0.0.0.0:8000:8000` e `0.0.0.0:${FRONTEND_PORTA}:8080`): sem porta em IPv6, o
+`::1` e recusado na hora e o navegador passa para o `127.0.0.1`. O `API_URL`
+padrao e o `--url` padrao dos scripts de teste viraram `http://127.0.0.1:8000`.
+Quem ja tem um `.env` precisa trocar a linha `API_URL` para
+`http://127.0.0.1:8000` e recriar o frontend
+(`docker compose up -d --force-recreate frontend`; `restart` nao rele o `.env`).
+
+**Arquivos:** `docker-compose.yml`, `.env.exemplo`, `scripts/testar_gateway.py`,
+`scripts/testar_resiliencia.py`, `README.md`, `docs/03-execucao-local.md`,
+`docs/05-api-gateway.md`, `docs/06-frontend.md`, `docs/07-resiliencia.md`.
 
 ### Catalogo volta, mas o Gateway continua sem conseguir chamar ele
 

@@ -37,7 +37,7 @@ da requisicao).
 | `GET /auth/eu` | token | - | 200 dados do token | - |
 | `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
 | `PATCH /cardapio/{codigo}` | token + papel `cozinha` | `{"disponivel": true, "preco": 82.5}` (`preco` opcional) | 200 item alterado | `CatalogoService.AtualizarItem` |
-| `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade"}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
+| `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade", "opcao"?}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
 | `GET /pedidos?limite=20&etapa=&periodo=&item=&cliente=` | token | - | 200 `{"escopo": "meus"/"todos", "filtros": {...}, "pedidos": [...]}` | `PedidoService.ListarPedidos` |
 | `GET /pedidos/eventos` | token | - | 200 `text/event-stream` (ver [Tempo real](#tempo-real-server-sent-events)) | `PedidoService.AcompanharPedidos` (stream) |
 | `GET /pedidos/{id}` | token | - | 200 pedido com `historico` e `previsao_entrega` (cliente: so os seus; outro usuario -> 404) | `PedidoService.ObterPedido` |
@@ -161,6 +161,7 @@ desconhecido (`extra="forbid"`).
 | `itens` | obrigatorio, lista com 1 a 30 itens |
 | `itens[].codigo` | 2 letras + 2 digitos; aceita minusculo e normaliza para maiusculo |
 | `itens[].quantidade` | inteiro estrito (`"2"` e `1.5` sao recusados), de 1 a 99 |
+| `itens[].opcao` | opcional, texto ate 50 caracteres. Obrigatoria para item com `opcoes` no cardapio (ex.: `"Guaraná"` no `BE01`, `"Com gás"` no `BE03`); o Pedidos confere com o Catalogo e responde 400 se faltar, nao existir ou vier num item sem opcoes |
 | `status` | um de `RECEBIDO`, `EM_PREPARO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `ENTREGUE` |
 | `disponivel` | booleano estrito |
 | `preco` | opcional, maior que zero |
@@ -234,7 +235,7 @@ de esconde-lo como falha de rede.
 Bash (curl + jq):
 
 ```bash
-URL=http://localhost:8000
+URL=http://127.0.0.1:8000
 
 # 401: sem token
 curl -i "$URL/cardapio"
@@ -263,12 +264,12 @@ PowerShell (`Invoke-WebRequest` lanca excecao em 4xx; no 5.1 use `curl.exe`
 para ver o status):
 
 ```powershell
-$URL = "http://localhost:8000"
+$URL = "http://127.0.0.1:8000"
 $sessao = Invoke-RestMethod "$URL/auth/login" -Method Post -ContentType "application/json" `
   -Body (@{ login = "professor"; senha = $env:DEMO_SENHA } | ConvertTo-Json)
 $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda os 46 cenarios em
+O teste `python scripts/testar_gateway.py --url $URL` roda os 50 cenarios em
 sequencia, inclusive os de 401, 403, dono do pedido, filtros e tempo real.
