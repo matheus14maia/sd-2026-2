@@ -17,6 +17,84 @@ const OPCOES_PERIODO = [
 ];
 const FILTROS_VAZIOS = { etapa: "", periodo: "", item: "", cliente: "" };
 const UM_MINUTO = 60000;
+// Sem filtro de etapa a lista vem em duas consultas: os pedidos abertos (todos,
+// para nenhum ficar de fora) e so os ultimos entregues.
+const LIMITE_ABERTOS = "200";
+const LIMITE_FINALIZADOS = "20";
+
+// Minutos de atraso de um pedido aberto (0 se ainda esta no prazo).
+function minutosDeAtraso(pedido, agora) {
+  if (pedido.status === "ENTREGUE" || !pedido.previsao_entrega) return 0;
+  return Math.max(0, Math.floor((agora - new Date(pedido.previsao_entrega).getTime()) / UM_MINUTO));
+}
+
+const porPrevisao = (a, b) => new Date(a.previsao_entrega) - new Date(b.previsao_entrega);
+
+// "25 min", "3 h 10 min", "2 dias": atraso legivel mesmo quando e grande.
+export function textoAtraso(minutos) {
+  if (minutos < 60) return `${minutos} min`;
+  if (minutos < 24 * 60) {
+    const horas = Math.floor(minutos / 60);
+    const resto = minutos % 60;
+    return resto ? `${horas} h ${resto} min` : `${horas} h`;
+  }
+  const dias = Math.floor(minutos / (24 * 60));
+  return dias === 1 ? "1 dia" : `${dias} dias`;
+}
+
+// Uma secao da lista (novos, em andamento, finalizados).
+function SecaoPedidos({ id, titulo, descricao, pedidos, classe, emFoco, aoFocar, agora, mostrarCliente, acao }) {
+  if (pedidos.length === 0) return null;
+  return (
+    <section className={`secao-pedidos ${classe || ""}`} aria-labelledby={`titulo-${id}`}>
+      <h2 id={`titulo-${id}`} className="secao-pedidos-titulo">
+        {classe === "secao-novos" && <span className="ponto-novo" aria-hidden="true" />}
+        {titulo}
+        <span className="secao-contagem">{pedidos.length}</span>
+      </h2>
+      {descricao && <p className="secao-pedidos-descricao">{descricao}</p>}
+      <table className="tabela">
+        <thead>
+          <tr>
+            <th>Pedido</th>
+            {mostrarCliente && <th>Cliente</th>}
+            <th>Etapa</th>
+            <th className="num">Total</th>
+            <th>Feito em</th>
+            <th>Previsão</th>
+            {acao && <th aria-label="Ação" />}
+          </tr>
+        </thead>
+        <tbody>
+          {pedidos.map((p) => {
+            const atraso = minutosDeAtraso(p, agora);
+            const classes = [p.pedido_id === emFoco && "linha-ativa", atraso > 0 && "linha-atrasada"].filter(Boolean).join(" ");
+            return (
+              <tr key={p.pedido_id} className={classes || undefined} onClick={() => aoFocar(p.pedido_id)}>
+                <td>
+                  <button className="botao-texto" onClick={() => aoFocar(p.pedido_id)}>
+                    {p.pedido_id.slice(0, 8)}
+                  </button>
+                </td>
+                {mostrarCliente && <td>{p.cliente}</td>}
+                <td>
+                  <span className={`etapa etapa-${p.status.toLowerCase()}`}>{NOME_ETAPA[p.status]}</span>
+                </td>
+                <td className="num">{formatarPreco(p.total)}</td>
+                <td>{formatarData(p.criado_em)}</td>
+                <td>
+                  {p.status === "ENTREGUE" ? "Entregue" : formatarHora(p.previsao_entrega)}
+                  {atraso > 0 && <span className="selo-atraso">Atrasado {textoAtraso(atraso)}</span>}
+                </td>
+                {acao && <td onClick={(e) => e.stopPropagation()}>{acao(p)}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}
 
 // Previsao de entrega: horario, tempo que falta e barra de progresso.
 function Previsao({ pedido, agora }) {
@@ -46,7 +124,7 @@ function Previsao({ pedido, agora }) {
         {faltam > 1 && `faltam cerca de ${faltam} min`}
         {faltam === 1 && "falta cerca de 1 min"}
         {faltam === 0 && "chegando agora"}
-        {faltam < 0 && `atrasado ${-faltam} min`}
+        {faltam < 0 && `atrasado ${textoAtraso(-faltam)}`}
       </span>
       <div className="previsao-barra" aria-hidden="true">
         <span style={{ width: `${progresso}%` }} />
@@ -83,24 +161,32 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
     return () => clearTimeout(timer);
   }, [clienteDigitado]);
 
-  const consulta = useMemo(() => {
-    const parametros = new URLSearchParams({ limite: "50" });
-    Object.entries(filtros).forEach(([chave, valor]) => valor && parametros.set(chave, valor));
-    return parametros.toString();
+  const consultas = useMemo(() => {
+    const montar = (extra) => {
+      const parametros = new URLSearchParams();
+      Object.entries({ ...filtros, ...extra }).forEach(([chave, valor]) => valor && parametros.set(chave, valor));
+      return parametros.toString();
+    };
+    if (filtros.etapa) return [montar({ limite: "50" })];
+    return [
+      montar({ etapa: "EM_ANDAMENTO", limite: LIMITE_ABERTOS }),
+      montar({ etapa: "ENTREGUE", limite: LIMITE_FINALIZADOS }),
+    ];
   }, [filtros]);
 
   const carregarLista = useCallback(
     async (silencioso = false) => {
-      const r = await chamar("GET", `/pedidos?${consulta}`, { silencioso });
-      if (r.ok) {
-        setPedidos(r.dados.pedidos);
-        setEscopo(r.dados.escopo);
-        setErroLista(null);
-      } else {
-        setErroLista(r);
+      const respostas = await Promise.all(consultas.map((c) => chamar("GET", `/pedidos?${c}`, { silencioso })));
+      const falha = respostas.find((r) => !r.ok);
+      if (falha) {
+        setErroLista(falha);
+        return;
       }
+      setPedidos(respostas.flatMap((r) => r.dados.pedidos));
+      setEscopo(respostas[0].dados.escopo);
+      setErroLista(null);
     },
-    [consulta],
+    [consultas],
   );
 
   const carregarDetalhe = useCallback(async (id) => {
@@ -132,14 +218,22 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
     return () => window.removeEventListener("hk-pedido", aoEvento);
   }, [carregarLista]);
 
-  async function mudarStatus(status) {
-    const r = await chamar("PATCH", `/pedidos/${detalhe.pedido_id}/status`, { corpo: { status } });
+  async function mudarStatus(status, pedidoId = detalhe.pedido_id) {
+    const r = await chamar("PATCH", `/pedidos/${pedidoId}/status`, { corpo: { status } });
     setResposta(r);
     if (r.ok) {
-      setDetalhe(r.dados.pedido);
+      setDetalhe((atual) => (atual && atual.pedido_id === pedidoId ? r.dados.pedido : atual));
       carregarLista(true);
     }
   }
+
+  // Secoes: a cozinha ve os novos (RECEBIDO, ainda nao aceitos) em destaque;
+  // abertos ficam pela previsao (o mais urgente primeiro), entregues por ultimo.
+  const abertos = pedidos.filter((p) => p.status !== "ENTREGUE").sort(porPrevisao);
+  const novos = podeAvancar ? abertos.filter((p) => p.status === "RECEBIDO") : [];
+  const andamento = podeAvancar ? abertos.filter((p) => p.status !== "RECEBIDO") : abertos;
+  const finalizados = pedidos.filter((p) => p.status === "ENTREGUE");
+  const atrasados = abertos.filter((p) => minutosDeAtraso(p, agora) > 0).length;
 
   function mudarFiltro(chave, valor) {
     setFiltros((f) => ({ ...f, [chave]: valor }));
@@ -225,6 +319,7 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
         <p className="contagem-pedidos">
           {pedidos.length === 1 ? "1 pedido" : `${pedidos.length} pedidos`}
           {filtrosAtivos ? " com esses filtros" : ""}
+          {atrasados > 0 && <span className="selo-atraso">{atrasados === 1 ? "1 atrasado" : `${atrasados} atrasados`}</span>}
         </p>
 
         {pedidos.length === 0 ? (
@@ -232,40 +327,43 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
             {filtrosAtivos ? "Nenhum pedido com esses filtros." : "Nenhum pedido ainda. Monte um no cardápio."}
           </p>
         ) : (
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th>Etapa</th>
-                <th className="num">Total</th>
-                <th>Feito em</th>
-                <th>Previsão</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedidos.map((p) => (
-                <tr
-                  key={p.pedido_id}
-                  className={p.pedido_id === emFoco ? "linha-ativa" : undefined}
-                  onClick={() => aoFocar(p.pedido_id)}
-                >
-                  <td>
-                    <button className="botao-texto" onClick={() => aoFocar(p.pedido_id)}>
-                      {p.pedido_id.slice(0, 8)}
-                    </button>
-                  </td>
-                  <td>{p.cliente}</td>
-                  <td>
-                    <span className={`etapa etapa-${p.status.toLowerCase()}`}>{NOME_ETAPA[p.status]}</span>
-                  </td>
-                  <td className="num">{formatarPreco(p.total)}</td>
-                  <td>{formatarData(p.criado_em)}</td>
-                  <td>{p.status === "ENTREGUE" ? "Entregue" : formatarHora(p.previsao_entrega)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <SecaoPedidos
+              id="novos"
+              titulo="Novos: aguardando a cozinha aceitar"
+              descricao="Pedidos que chegaram e ninguém aceitou ainda. Aceite para começar o preparo."
+              classe="secao-novos"
+              pedidos={novos}
+              emFoco={emFoco}
+              aoFocar={aoFocar}
+              agora={agora}
+              mostrarCliente
+              acao={(p) => (
+                <button className="botao botao-pequeno" onClick={() => mudarStatus("EM_PREPARO", p.pedido_id)}>
+                  Aceitar
+                </button>
+              )}
+            />
+            <SecaoPedidos
+              id="andamento"
+              titulo="Em andamento"
+              pedidos={andamento}
+              emFoco={emFoco}
+              aoFocar={aoFocar}
+              agora={agora}
+              mostrarCliente={podeAvancar}
+            />
+            <SecaoPedidos
+              id="finalizados"
+              titulo="Finalizados"
+              classe="secao-finalizados"
+              pedidos={finalizados}
+              emFoco={emFoco}
+              aoFocar={aoFocar}
+              agora={agora}
+              mostrarCliente={podeAvancar}
+            />
+          </>
         )}
       </section>
 
@@ -328,10 +426,17 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
             </ul>
 
             <div className="acoes">
-              {!podeAvancar && proxima && <p className="vazio">A cozinha avança as etapas; esta tela acompanha sozinha.</p>}
+              {!podeAvancar && detalhe.status === "RECEBIDO" && (
+                <p className="vazio">Pedido recebido: aguardando a cozinha aceitar.</p>
+              )}
+              {!podeAvancar && proxima && detalhe.status !== "RECEBIDO" && (
+                <p className="vazio">A cozinha avança as etapas; esta tela acompanha sozinha.</p>
+              )}
               {podeAvancar && proxima && (
                 <button className="botao" onClick={() => mudarStatus(proxima)}>
-                  Avançar para {NOME_ETAPA[proxima].toLowerCase()}
+                  {detalhe.status === "RECEBIDO"
+                    ? "Aceitar pedido e começar o preparo"
+                    : `Avançar para ${NOME_ETAPA[proxima].toLowerCase()}`}
                 </button>
               )}
               {podeAvancar && pulo && (

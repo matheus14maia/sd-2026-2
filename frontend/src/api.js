@@ -6,6 +6,7 @@ export const API_URL = (window.API_URL || URL_PADRAO).replace(/\/$/, "");
 
 const CHAVE_SESSAO = "hk.sessao";
 const EVENTO_SESSAO = "hk-sessao";
+const CHAVE_AVISO_LOGIN = "hk.aviso-login";
 
 // ---------------------------------------------------------------- sessao
 export function lerSessao() {
@@ -25,13 +26,26 @@ export function salvarSessao(sessao) {
   window.dispatchEvent(new Event(EVENTO_SESSAO));
 }
 
-export function encerrarSessao() {
+// `aviso` aparece na tela de login (ex.: "Senha alterada. Entre com a nova senha.").
+export function encerrarSessao(aviso = "") {
   try {
     sessionStorage.removeItem(CHAVE_SESSAO);
+    if (aviso) sessionStorage.setItem(CHAVE_AVISO_LOGIN, aviso);
   } catch {
     // ignora
   }
   window.dispatchEvent(new Event(EVENTO_SESSAO));
+}
+
+// Le e apaga o aviso deixado por encerrarSessao.
+export function tirarAvisoDeLogin() {
+  try {
+    const aviso = sessionStorage.getItem(CHAVE_AVISO_LOGIN) || "";
+    sessionStorage.removeItem(CHAVE_AVISO_LOGIN);
+    return aviso;
+  } catch {
+    return "";
+  }
 }
 
 export function aoMudarSessao(funcao) {

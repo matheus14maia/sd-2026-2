@@ -1902,6 +1902,14 @@ p {
   cursor: pointer;
 }
 
+.aviso-login {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 5px solid var(--manjericao);
+  background: #e8f3ec;
+  font-weight: 650;
+}
+
 .login-dica-conta {
   margin: 12px 0 0;
   color: var(--grafite-suave);
@@ -1992,6 +2000,142 @@ p {
 /* No celular: barra fixa para chegar na sacola, que fica embaixo do cardapio. */
 .barra-sacola {
   display: none;
+}
+
+/* --------------------------------------- opcoes fora do dia (dois lados) */
+.submenu-opcao-fora > span:first-child {
+  color: var(--grafite-suave);
+}
+
+.submenu-opcao-fora .etiqueta-indisponivel {
+  margin-left: 8px;
+}
+
+.quantidade button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cozinha-opcoes-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.opcao-chip {
+  border: 2px solid var(--manjericao);
+  border-radius: 999px;
+  background: #e8f3ec;
+  color: var(--manjericao);
+  padding: 2px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.opcao-chip-fora {
+  border-color: var(--pimenta);
+  background: var(--branco);
+  color: var(--pimenta);
+  text-decoration: line-through;
+}
+
+/* --------------------------------------------- pedidos: secoes e atrasos */
+.secao-pedidos {
+  margin-bottom: 26px;
+  overflow-x: auto; /* tabela larga rola dentro da secao, sem sair do quadro */
+}
+
+.secao-pedidos-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.secao-contagem {
+  min-width: 26px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--grafite);
+  color: var(--branco);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.secao-pedidos-descricao {
+  margin: 0 0 8px;
+  color: var(--grafite-suave);
+  font-size: 0.92rem;
+}
+
+/* Novos (cozinha): ainda ninguem aceitou, entao chamam atencao. */
+.secao-novos {
+  padding: 14px 16px 6px;
+  border: 2px solid var(--pimenta);
+  border-radius: 12px;
+  background: #fff4f2;
+}
+
+.secao-novos .secao-contagem {
+  background: var(--pimenta);
+}
+
+.ponto-novo {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--pimenta);
+  animation: piscar-novo 1.2s ease-in-out infinite;
+}
+
+@keyframes piscar-novo {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+}
+
+.secao-finalizados .tabela {
+  opacity: 0.8;
+}
+
+.linha-atrasada td {
+  background: #fdecea;
+}
+
+.selo-atraso {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.botao-pequeno {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+}
+
+.aba-alerta {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 /* ------------------------------------------------------------ meus dados */
@@ -2132,6 +2276,7 @@ p {
   .detalhe-conteudo,
   .chama-fora,
   .chama-miolo,
+  .ponto-novo,
   .aviso-tempo-real {
     animation: none;
   }

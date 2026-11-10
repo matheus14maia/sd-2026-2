@@ -327,6 +327,15 @@ export default function Cozinha() {
     setSucesso(mensagem);
   }
 
+  // Liga ou desliga uma opcao so (ex.: acabou a agua com gas, a sem gas continua).
+  async function alternarOpcao(item, opcao) {
+    const fora = item.opcoes_indisponiveis || [];
+    const novas = fora.includes(opcao) ? fora.filter((o) => o !== opcao) : [...fora, opcao];
+    const r = await chamar("PATCH", `/cardapio/${item.codigo}`, { corpo: { opcoes_indisponiveis: novas } });
+    avisar(r, r.ok ? `${opcao} (${item.nome}) agora está ${novas.includes(opcao) ? "indisponível" : "disponível"}.` : "");
+    if (r.ok) setItens((atual) => atual.map((i) => (i.codigo === item.codigo ? r.dados : i)));
+  }
+
   async function alternar(item) {
     const r = await chamar("PATCH", `/cardapio/${item.codigo}`, { corpo: { disponivel: !item.disponivel } });
     avisar(r, r.ok ? `${item.nome} agora está ${r.dados.disponivel ? "disponível" : "indisponível"} no cardápio.` : "");
@@ -382,7 +391,25 @@ export default function Cozinha() {
                     <span className="prato-codigo">{item.codigo}</span>
                   </div>
                   <p className="cozinha-descricao">{item.descricao || "Sem descrição para o cliente."}</p>
-                  {item.opcoes?.length > 0 && <span className="cozinha-opcoes">Opções: {item.opcoes.join(" · ")}</span>}
+                  {item.opcoes?.length > 0 && (
+                    <div className="cozinha-opcoes-lista" role="group" aria-label={`Opções de ${item.nome} hoje`}>
+                      {item.opcoes.map((opcao) => {
+                        const fora = item.opcoes_indisponiveis?.includes(opcao);
+                        return (
+                          <button
+                            key={opcao}
+                            role="switch"
+                            aria-checked={!fora}
+                            className={fora ? "opcao-chip opcao-chip-fora" : "opcao-chip"}
+                            onClick={() => alternarOpcao(item, opcao)}
+                            title={fora ? "Indisponível hoje: clique para voltar" : "Disponível: clique para tirar do dia"}
+                          >
+                            {opcao}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <span className="cozinha-preco">{formatarPreco(item.preco)}</span>
                 <button

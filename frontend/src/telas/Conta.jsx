@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { chamar, formatarData, lerSessao, salvarSessao } from "../api.js";
+import { chamar, encerrarSessao, formatarData, lerSessao, salvarSessao } from "../api.js";
 import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
 
 // "Meus dados": o cliente ve e altera nome, telefone e endereco de entrega
@@ -54,8 +54,12 @@ export default function Conta() {
     evento.preventDefault();
     setEnviando("senha");
     const r = await chamar("PUT", "/conta/senha", { corpo: senhas });
+    if (r.ok) {
+      // Senha nova: a sessao acaba e a pessoa entra de novo com ela.
+      encerrarSessao("Senha alterada. Entre com a nova senha.");
+      return;
+    }
     setRespostaSenha(r);
-    if (r.ok) setSenhas(SENHAS_VAZIAS);
     setEnviando("");
   }
 
@@ -148,7 +152,7 @@ export default function Conta() {
               erro={errosSenha.confirmar_senha}
               autoComplete="new-password"
             />
-            <p className="dica">Pelo menos 6 caracteres. Você continua conectado depois de trocar.</p>
+            <p className="dica">Pelo menos 6 caracteres. Depois de trocar, você entra de novo com a senha nova.</p>
             <button className="botao" type="submit" disabled={enviando === "senha"}>
               {enviando === "senha" ? "Alterando…" : "Alterar senha"}
             </button>

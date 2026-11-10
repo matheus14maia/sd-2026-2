@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_URL, NOME_ETAPA, aoMudarSessao, assinarEventos, encerrarSessao, formatarPreco, lerSessao } from "./api.js";
+import { API_URL, NOME_ETAPA, aoMudarSessao, assinarEventos, chamar, encerrarSessao, formatarPreco, lerSessao } from "./api.js";
 import Trilho from "./componentes/Trilho.jsx";
 import Cardapio from "./telas/Cardapio.jsx";
 import Conta from "./telas/Conta.jsx";
@@ -52,6 +52,7 @@ export default function App() {
   const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
   const [avisos, setAvisos] = useState([]);
   const [trilhoAberto, setTrilhoAberto] = useState(null); // null = padrao do papel
+  const [novosPedidos, setNovosPedidos] = useState(0); // cozinha: pedidos ainda nao aceitos
 
   useEffect(() => aoMudarSessao(() => setSessao(lerSessao())), []);
 
@@ -61,6 +62,29 @@ export default function App() {
   // Trilho de requisicoes: aberto para a cozinha (demonstracao), recolhido para
   // o cliente e na tela de login. Qualquer um abre e fecha.
   const trilhoVisivel = trilhoAberto ?? papel === "cozinha";
+
+  // Cozinha: quantos pedidos chegaram e ninguem aceitou (etapa RECEBIDO). O
+  // numero fica na aba "Pedidos" em qualquer tela; atualiza a cada evento de
+  // pedido (tempo real) e, por garantia, a cada minuto.
+  useEffect(() => {
+    if (papel !== "cozinha") {
+      setNovosPedidos(0);
+      return undefined;
+    }
+    let ativo = true;
+    const contar = () =>
+      chamar("GET", "/pedidos?etapa=RECEBIDO&limite=200", { silencioso: true }).then(
+        (r) => ativo && r.ok && setNovosPedidos(r.dados.pedidos.length),
+      );
+    contar();
+    window.addEventListener("hk-pedido", contar);
+    const timer = setInterval(contar, 60000);
+    return () => {
+      ativo = false;
+      window.removeEventListener("hk-pedido", contar);
+      clearInterval(timer);
+    };
+  }, [papel, sessao?.token]);
 
   // Outra pessoa entrou (ou saiu): volta para a tela inicial do papel.
   useEffect(() => {
@@ -110,6 +134,11 @@ export default function App() {
                 onClick={() => setAba(a.id)}
               >
                 {a.nome}
+                {a.id === "pedidos" && novosPedidos > 0 && (
+                  <span className="aba-alerta" aria-label={`${novosPedidos} pedido(s) novo(s) aguardando aceite`}>
+                    {novosPedidos}
+                  </span>
+                )}
               </button>
             ))}
           </nav>

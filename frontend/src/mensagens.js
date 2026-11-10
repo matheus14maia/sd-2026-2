@@ -26,6 +26,8 @@ const ERROS_CAMPO = {
   "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)": "Código inválido: use 2 letras e de 2 a 4 dígitos (ex.: PR01).",
   "informe ao menos um campo para alterar": "Nada para alterar.",
   "as senhas nao conferem": "As senhas não conferem.",
+  "nome invalido: use so letras, espaco, apostrofo e hifen (ex.: Maria da Silva)":
+    "Use só letras no nome (espaço, apóstrofo e hífen valem), ex.: Maria da Silva.",
   "telefone invalido: use DDD e numero (ex.: (62) 99999-0000)": "Telefone inválido: use DDD e número, ex.: (62) 99999-0000.",
   "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)":
     "Use de 3 a 30 letras, números, ponto ou sublinhado (ex.: maria.silva).",
@@ -51,6 +53,7 @@ const REGRAS = [
   [/^A nova senha precisa ser diferente da atual\.$/, () => "A nova senha precisa ser diferente da atual."],
   [/^Usuario nao encontrado\.$/, () => "Usuário não encontrado. Entre novamente."],
   [/^Informe o nome\.$/, () => "Informe o seu nome."],
+  [/^O nome so pode ter letras/, () => "Use só letras no nome (espaço, apóstrofo e hífen valem)."],
   [/^O endereco passa de (\d+) caracteres\.$/, (m) => `O endereço passa de ${m[1]} caracteres.`],
   [/^O login '(.+)' ja esta em uso\.$/, (m) => `O login “${m[1]}” já está em uso. Escolha outro.`],
   [/^Item '(.+)' \((.+)\) esta indisponivel hoje\.$/, (m) => `${m[2]} está indisponível hoje. Remova o prato para continuar.`],
@@ -61,6 +64,11 @@ const REGRAS = [
     (m) => `A opção “${m[1]}” não existe para ${m[2]}. Escolha uma destas: ${m[3]}.`,
   ],
   [/^O item \w+ \((.+)\) nao tem opcoes\.$/, (m) => `${m[1]} não tem opções para escolher.`],
+  [
+    /^A opcao '(.+)' de \w+ \((.+)\) esta indisponivel hoje\.$/,
+    (m) => `${m[2]} ${m[1].toLowerCase()} está indisponível hoje. Escolha outra opção ou retire da sacola.`,
+  ],
+  [/^A opcao '(.+)' nao existe para (\w+)\. Use uma de: (.+)\.$/, (m) => `A opção “${m[1]}” não existe para ${m[2]}. Use uma destas: ${m[3]}.`],
   [/^(Pedido '.+' nao encontrado|Id de pedido invalido)/, () => "Pedido não encontrado."],
   [
     /^Nao e possivel mudar de (\w+) para (\w+): a proxima etapa e (\w+)\.$/,

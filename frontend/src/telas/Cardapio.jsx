@@ -112,6 +112,8 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
       if (!atual) problema = "Saiu do cardápio";
       else if (!atual.disponivel) problema = "Indisponível hoje";
       else if (opcao && !atual.opcoes?.some((o) => o.toLowerCase() === opcao.toLowerCase())) problema = "Opção não existe mais";
+      else if (opcao && atual.opcoes_indisponiveis?.some((o) => o.toLowerCase() === opcao.toLowerCase()))
+        problema = "Opção indisponível hoje";
       else if (!opcao && atual.opcoes?.length) problema = "Escolha uma opção no cardápio";
       const antes = precosVistos[chave];
       const precoAntes = atual && antes !== undefined && antes !== atual.preco ? antes : undefined;
@@ -298,7 +300,12 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
                                   <span aria-live="polite">{carrinho[item.codigo]}</span>
                                 </>
                               )}
-                              <button aria-label={`Adicionar ${item.nome}`} onClick={() => mudarQuantidade(item.codigo, 1)}>
+                              <button
+                                aria-label={`Adicionar ${item.nome}`}
+                                onClick={() => mudarQuantidade(item.codigo, 1)}
+                                disabled={!item.disponivel}
+                                title={item.disponivel ? undefined : "Indisponível hoje"}
+                              >
                                 +
                               </button>
                             </div>
@@ -309,9 +316,14 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
                             {item.opcoes.map((opcao) => {
                               const chave = `${item.codigo}|${opcao}`;
                               const quantidade = carrinho[chave] || 0;
+                              // A cozinha pode tirar so uma opcao do dia (ex.: a agua com gas).
+                              const fora = !item.disponivel || item.opcoes_indisponiveis?.includes(opcao);
                               return (
-                                <li key={opcao} className="submenu-opcao">
-                                  <span>{opcao}</span>
+                                <li key={opcao} className={fora ? "submenu-opcao submenu-opcao-fora" : "submenu-opcao"}>
+                                  <span>
+                                    {opcao}
+                                    {fora && <span className="etiqueta-indisponivel">Indisponível hoje</span>}
+                                  </span>
                                   <div className="quantidade">
                                     {quantidade > 0 && (
                                       <>
@@ -321,7 +333,12 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
                                         <span aria-live="polite">{quantidade}</span>
                                       </>
                                     )}
-                                    <button aria-label={`Adicionar ${item.nome} ${opcao}`} onClick={() => mudarQuantidade(chave, 1)}>
+                                    <button
+                                      aria-label={`Adicionar ${item.nome} ${opcao}`}
+                                      onClick={() => mudarQuantidade(chave, 1)}
+                                      disabled={fora}
+                                      title={fora ? "Indisponível hoje" : undefined}
+                                    >
                                       +
                                     </button>
                                   </div>

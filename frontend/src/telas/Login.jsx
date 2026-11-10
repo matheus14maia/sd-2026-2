@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { chamar, salvarSessao } from "../api.js";
+import { chamar, salvarSessao, tirarAvisoDeLogin } from "../api.js";
 import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
   const [form, setForm] = useState({ login: "", nome: "", senha: "" });
   const [resposta, setResposta] = useState(null);
+  // Aviso de quem saiu de proposito (ex.: depois de trocar a senha).
+  const [aviso] = useState(tirarAvisoDeLogin);
   const [enviando, setEnviando] = useState(false);
 
   const erros = resposta?.status === 400 ? resposta.dados?.erros || {} : {};
@@ -27,12 +29,8 @@ export default function Login() {
       const r = await chamar("POST", "/auth/cadastro", { corpo: form });
       setResposta(r);
       if (r.ok) {
-        // Conta criada: ja entra com o mesmo login e senha, sem digitar de novo.
-        const entrada = await chamar("POST", "/auth/login", { corpo: { login: form.login, senha: form.senha } });
-        if (entrada.ok) {
-          salvarSessao({ token: entrada.dados.access_token, usuario: entrada.dados.usuario });
-          return;
-        }
+        // Conta criada: a pessoa entra digitando a senha (o cadastro nao abre
+        // sessao sozinho). O login ja fica preenchido.
         setModo("entrar");
         setForm({ ...form, nome: "", senha: "" });
       }
@@ -101,9 +99,10 @@ export default function Login() {
 
         {modo === "criar" && (
           <p className="login-dica-conta">
-            Depois de criar a conta você já entra. Telefone e endereço de entrega ficam em “Meus dados”.
+            Depois de criar a conta, entre com o seu login e senha. Telefone e endereço de entrega ficam em “Meus dados”.
           </p>
         )}
+        {aviso && !resposta && <p className="aviso-login" role="status">{aviso}</p>}
         <Resultado
           resposta={resposta}
           sucesso={resposta?.status === 201 ? "Conta criada. Entre com a sua senha." : "Login feito."}
