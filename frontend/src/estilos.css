@@ -1467,38 +1467,6 @@ p {
 }
 
 /* ------------------------------------------------------------ tempo real */
-.ao-vivo {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-weight: 650;
-  color: #f3b4ae;
-}
-
-.ao-vivo.ligado {
-  color: #b2f2bb;
-}
-
-.ao-vivo-ponto {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.ao-vivo.ligado .ao-vivo-ponto {
-  animation: pulsar 1.6s ease-out infinite;
-}
-
-@keyframes pulsar {
-  0% {
-    box-shadow: 0 0 0 0 rgba(178, 242, 187, 0.7);
-  }
-  100% {
-    box-shadow: 0 0 0 9px rgba(178, 242, 187, 0);
-  }
-}
-
 .avisos-tempo-real {
   position: fixed;
   top: 84px;
@@ -1614,7 +1582,6 @@ p {
   .detalhe-conteudo,
   .botao-chamas:hover .icone-chama,
   .chama,
-  .ao-vivo.ligado .ao-vivo-ponto,
   .aviso-tempo-real {
     animation: none;
   }

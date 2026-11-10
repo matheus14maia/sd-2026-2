@@ -16,10 +16,10 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 | Testes de seguranca (so papel `cozinha`) | botoes que mandam requisicoes erradas de proposito: sem token, token adulterado, token editado, senha errada (401), cliente mudando preco ou vendo a saude (403), payload invalido (400), item inexistente (400), item indisponivel (409), pedido em nome de outra pessoa (400), cliente vendo pedido de outro (404) | varias |
 
 **Tempo real.** Depois do login o app abre uma conexao com `GET /pedidos/eventos`
-(ver [05-api-gateway.md](05-api-gateway.md#tempo-real-server-sent-events)). O
-topo mostra "Ao vivo" (ou "Reconectando..."), a lista e o detalhe do pedido se
-atualizam sozinhos, e aparecem avisos: a cozinha e avisada de cada pedido novo e
-o cliente de cada etapa do pedido dele.
+(ver [05-api-gateway.md](05-api-gateway.md#tempo-real-server-sent-events)). A
+lista e o detalhe do pedido se atualizam sozinhos e aparecem avisos: a cozinha e
+avisada de cada pedido novo e o cliente de cada etapa do pedido dele. O estado
+dessa conexao aparece so na aba "Saude dos servicos" (cozinha).
 
 **Fotos dos pratos.** Cada prato mostra `frontend/public/pratos/<CODIGO>.jpg`
 (ex.: `PR01.jpg`), servida pelo nginx em `/pratos/PR01.jpg`. Prato sem foto

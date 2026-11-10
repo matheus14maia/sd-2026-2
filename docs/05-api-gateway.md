@@ -139,8 +139,9 @@ data: {"tipo": "status", "pedido": {"pedido_id": "...", "status": "EM_PREPARO", 
 - **Dono do pedido.** Cliente so recebe os eventos dos proprios pedidos; a
   cozinha recebe todos.
 - **Falhas.** Se o Pedidos cair, o Gateway tenta de novo com espera crescente
-  (1 s, 2 s, 4 s... ate 15 s) e manda `estado: {"conectado": false}`; o frontend
-  mostra "Reconectando..." e volta sozinho. Sem eventos, sai um comentario
+  (1 s, 2 s, 4 s... ate 15 s) e manda `estado: {"conectado": false}`; o
+  navegador continua conectado e volta a receber os eventos sozinho (a aba
+  Saude mostra o estado pelo `GET /saude/servicos`). Sem eventos, sai um comentario
   `: ping` a cada 15 s para a conexao nao ser fechada por inatividade.
 - **Token.** O `EventSource` do navegador nao manda o cabecalho
   `Authorization`; o frontend le o fluxo com `fetch`, que manda o Bearer como em

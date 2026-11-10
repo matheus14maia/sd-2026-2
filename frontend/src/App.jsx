@@ -41,7 +41,6 @@ export default function App() {
   const [sessao, setSessao] = useState(lerSessao);
   const [aba, setAba] = useState("cardapio");
   const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
-  const [aoVivo, setAoVivo] = useState(false);
   const [avisos, setAvisos] = useState([]);
 
   useEffect(() => aoMudarSessao(() => setSessao(lerSessao())), []);
@@ -60,14 +59,9 @@ export default function App() {
   // Tempo real: uma conexao por sessao com GET /pedidos/eventos. Cada evento vira
   // um "hk-pedido" para as telas e, quando interessa ao usuario, um aviso.
   useEffect(() => {
-    if (!sessao?.token) {
-      setAoVivo(false);
-      return undefined;
-    }
+    if (!sessao?.token) return undefined;
     return assinarEventos({
-      aoEstado: setAoVivo,
       aoPedido: (evento) => {
-        setAoVivo(true);
         window.dispatchEvent(new CustomEvent("hk-pedido", { detail: evento }));
         const texto = textoDoEvento(evento, sessao.usuario);
         if (texto) {
@@ -101,19 +95,6 @@ export default function App() {
           </nav>
         )}
         <div className="topo-direita">
-          {sessao && (
-            <span
-              className={aoVivo ? "ao-vivo ligado" : "ao-vivo"}
-              title={
-                aoVivo
-                  ? "Pedidos atualizam sozinhos (conexão em tempo real ativa)"
-                  : "Reconectando a atualização em tempo real…"
-              }
-            >
-              <span className="ao-vivo-ponto" aria-hidden="true" />
-              {aoVivo ? "Ao vivo" : "Reconectando…"}
-            </span>
-          )}
           <span className="gateway" title="Todas as chamadas vão para este endereço">
             Gateway <strong>{API_URL.replace(/^https?:\/\//, "")}</strong>
           </span>

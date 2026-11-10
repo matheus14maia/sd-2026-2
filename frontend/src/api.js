@@ -128,7 +128,9 @@ export async function chamar(metodo, rota, opcoes = {}) {
 // Authorization, entao a leitura e feita com fetch + leitor de stream, levando
 // o Bearer como nas outras chamadas. Caiu a conexao? Tenta de novo com espera
 // crescente (1 s, 2 s, 4 s... ate 30 s). Devolve a funcao que encerra.
-export function assinarEventos({ aoPedido, aoEstado }) {
+// O evento "estado" (conexao do Gateway com o Pedidos) e ignorado aqui: a aba
+// Saude mostra esse estado pelo GET /saude/servicos.
+export function assinarEventos({ aoPedido }) {
   let parar = false;
   let controle = null;
   let espera = 1000;
@@ -144,7 +146,6 @@ export function assinarEventos({ aoPedido, aoEstado }) {
     try {
       const conteudo = JSON.parse(dados.join("\n"));
       if (evento === "pedido") aoPedido?.(conteudo);
-      if (evento === "estado") aoEstado?.(Boolean(conteudo.conectado));
     } catch {
       // bloco incompleto ou invalido: ignora
     }
@@ -181,7 +182,6 @@ export function assinarEventos({ aoPedido, aoEstado }) {
       } catch {
         if (parar) return;
       }
-      aoEstado?.(false);
       await new Promise((resolver) => setTimeout(resolver, espera));
       espera = Math.min(espera * 2, 30000);
     }
