@@ -11,12 +11,15 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from ..comum.rastreamento import rastrear_banco
 
-COLUNAS = "codigo, nome, descricao, categoria, preco::float8 AS preco, disponivel, opcoes, foto_versao"
+COLUNAS = (
+    "codigo, nome, descricao, categoria, preco::float8 AS preco, disponivel, opcoes, foto_versao, opcoes_indisponiveis"
+)
 # Ordem do cardapio: prefixo da categoria e depois o numero (PR09 < PR10 < PR100).
 ORDEM = "left(codigo, 2), length(codigo), codigo"
 # Mudar um destes campos conta como edicao: a carga inicial deixa o item em paz.
 CAMPOS_CONTEUDO = {"nome", "descricao", "categoria", "opcoes"}
-CAMPOS_EDITAVEIS = CAMPOS_CONTEUDO | {"preco", "disponivel"}
+# Disponibilidade (do item e de cada opcao) e preco nao contam como edicao.
+CAMPOS_EDITAVEIS = CAMPOS_CONTEUDO | {"preco", "disponivel", "opcoes_indisponiveis"}
 # Trava transacional (pg_advisory_xact_lock) que serializa a escolha do proximo
 # codigo: dois cadastros ao mesmo tempo nao pegam o mesmo PR06.
 TRAVA_CODIGO = 7310001
@@ -59,6 +62,12 @@ class RepositorioCatalogo:
         ]
         if CAMPOS_CONTEUDO & campos.keys():
             atribuicoes.append(sql.SQL("editado_em = now()"))
+        if "opcoes" in campos and "opcoes_indisponiveis" not in campos:
+            # Lista de opcoes nova: so continua fora do dia o que ainda existe.
+            atribuicoes.append(sql.SQL(
+                "opcoes_indisponiveis = ARRAY(SELECT o FROM unnest(itens_cardapio.opcoes_indisponiveis) AS o"
+                " WHERE o = ANY(%(opcoes)s::text[]))"
+            ))
         atribuicoes.append(sql.SQL("atualizado_em = now()"))
         consulta = sql.SQL(
             "UPDATE itens_cardapio SET {} WHERE codigo = %(codigo)s AND excluido_em IS NULL RETURNING " + COLUNAS

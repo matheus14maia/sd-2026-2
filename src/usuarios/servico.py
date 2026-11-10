@@ -4,6 +4,7 @@ A senha so existe em texto puro dentro deste servico, pelo tempo da chamada:
 no banco fica o hash bcrypt, e nenhuma resposta nem linha de log leva a senha.
 """
 
+import re
 import uuid
 from datetime import datetime
 
@@ -20,6 +21,17 @@ TAMANHO_MAXIMO_SENHA = 72  # limite do bcrypt
 NOME_MAXIMO = 100
 TELEFONE_MAXIMO = 30
 ENDERECO_MAXIMO = 200
+# Nome de pessoa: letras (com acento), espaco, apostrofo, ponto e hifen. Numero nao.
+NOME_DE_PESSOA = re.compile(r"[^\W\d_]+(?:[ '.-]+[^\W\d_]+)*\.?")
+NOME_INVALIDO = "O nome so pode ter letras, espaco, apostrofo e hifen."
+
+
+def _nome_de_pessoa(texto: str) -> str | None:
+    """Nome normalizado (espacos simples) ou None se tiver numero ou simbolo."""
+    nome = " ".join((texto or "").split())
+    if NOME_DE_PESSOA.fullmatch(nome) and sum(c.isalpha() for c in nome) >= 2:
+        return nome
+    return None
 # Mesma mensagem para login inexistente e senha errada: a resposta nao revela
 # quais logins existem.
 CREDENCIAIS_INVALIDAS = "Login ou senha invalidos."
@@ -63,6 +75,9 @@ class UsuarioService(pb_grpc.UsuarioServiceServicer):
         # qualquer outro chamador gRPC (defesa em profundidade).
         if not login or not nome:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Informe login e nome.")
+        if _nome_de_pessoa(nome) is None:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, NOME_INVALIDO)
+        nome = _nome_de_pessoa(nome)
         if len(request.senha) < TAMANHO_MINIMO_SENHA:
             context.abort(
                 grpc.StatusCode.INVALID_ARGUMENT,
@@ -106,6 +121,8 @@ class UsuarioService(pb_grpc.UsuarioServiceServicer):
             campos["nome"] = " ".join(request.nome.split())
             if not campos["nome"]:
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Informe o nome.")
+            if _nome_de_pessoa(campos["nome"]) is None:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, NOME_INVALIDO)
             if len(campos["nome"]) > NOME_MAXIMO:
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "O nome passa de %d caracteres." % NOME_MAXIMO)
         if request.HasField("telefone"):

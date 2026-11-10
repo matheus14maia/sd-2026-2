@@ -148,6 +148,8 @@ def main() -> int:
 
     novo_login = "teste%d" % int(time.time())
     cenario("Cadastro com dados invalidos", 400, "POST", "/auth/cadastro", {"login": "a b", "nome": "", "senha": "123"})
+    cenario("Cadastro com numero no nome", 400, "POST", "/auth/cadastro",
+            {"login": "nome%d" % int(time.time()), "nome": "Joao 2", "senha": "senha-teste"})
     cenario("Cadastro de usuario novo", 201, "POST", "/auth/cadastro",
             {"login": novo_login, "nome": "Usuario de Teste", "senha": "senha-teste"})
     cenario("Cadastro com login repetido", 409, "POST", "/auth/cadastro",
@@ -214,6 +216,18 @@ def main() -> int:
     cenario("Excluir de novo nao e erro (idempotente)", 200, "DELETE", rota_prato)
     cenario("Pedido com prato excluido", 400, "POST", "/pedidos",
             {"endereco": "Rua 10", "itens": [{"codigo": codigo_prato, "quantidade": 1}]})
+
+    # Opcao fora do dia: a cozinha tira so a agua com gas; a sem gas continua.
+    cenario("Cozinha tira so a agua com gas do dia", 200, "PATCH", "/cardapio/BE03",
+            {"opcoes_indisponiveis": ["com gás"]}, conferir=campo_igual("opcoes_indisponiveis", ["Com gás"]))
+    cenario("Opcao fora do dia que o item nao tem", 400, "PATCH", "/cardapio/BE03",
+            {"opcoes_indisponiveis": ["Morango"]})
+    cenario("Pedido de agua com gas fora do dia", 409, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "Com gás"}]})
+    cenario("Agua sem gas continua valendo", 201, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "Sem gás"}]})
+    cenario("Cozinha volta a agua com gas", 200, "PATCH", "/cardapio/BE03",
+            {"opcoes_indisponiveis": []}, conferir=campo_igual("opcoes_indisponiveis", []))
 
     def dono_e(usuario):
         """Confere que o pedido criado saiu em nome do usuario do token."""
@@ -396,6 +410,8 @@ def main() -> int:
     cenario("Cliente ve os proprios dados", 200, "GET", "/conta", autorizacao=bearer_cliente,
             conferir=campo_igual("login", novo_login))
     cenario("Telefone invalido", 400, "PATCH", "/conta", {"telefone": "123"}, autorizacao=bearer_cliente)
+    cenario("Nome com numero em Meus dados", 400, "PATCH", "/conta", {"nome": "Cliente 123"},
+            autorizacao=bearer_cliente)
     cenario("Conta sem nenhum campo", 400, "PATCH", "/conta", {}, autorizacao=bearer_cliente)
     renomeado = cenario(
         "Cliente muda nome, telefone e endereco (volta um token novo)", 200, "PATCH", "/conta",

@@ -97,8 +97,8 @@ def _resumo(campos: dict) -> str:
     for nome, valor in sorted(campos.items()):
         if nome == "descricao":
             partes.append("descricao")
-        elif nome == "opcoes":
-            partes.append("opcoes=%d" % len(valor))
+        elif nome in ("opcoes", "opcoes_indisponiveis"):
+            partes.append("%s=%s" % (nome, list(valor)))
         else:
             partes.append("%s=%r" % (nome, valor))
     return " ".join(partes)
@@ -142,6 +142,10 @@ class CatalogoService(pb_grpc.CatalogoServiceServicer):
             campos["categoria"] = _categoria(request.categoria, context)[0]
         if request.HasField("opcoes"):
             campos["opcoes"] = _opcoes(request.opcoes.valores, context)
+        if request.HasField("opcoes_indisponiveis"):
+            campos["opcoes_indisponiveis"] = self._opcoes_fora(
+                codigo, request.opcoes_indisponiveis.valores, campos.get("opcoes"), context
+            )
         log("AtualizarItem: codigo=%s %s" % (codigo, _resumo(campos) or "(nada)"))
 
         if not campos:
@@ -150,6 +154,30 @@ class CatalogoService(pb_grpc.CatalogoServiceServicer):
         if linha is None:
             context.abort(grpc.StatusCode.NOT_FOUND, "Item '%s' nao existe no cardapio." % codigo)
         return _para_proto(linha)
+
+    def _opcoes_fora(self, codigo: str, valores, opcoes_novas: list[str] | None, context) -> list[str]:
+        """Opcoes fora do dia com a grafia do cardapio; recusa opcao que o item nao tem."""
+        if opcoes_novas is None:
+            atual = self.repositorio.buscar_varios([codigo])
+            if not atual:
+                context.abort(grpc.StatusCode.NOT_FOUND, "Item '%s' nao existe no cardapio." % codigo)
+            opcoes_novas = list(atual[0]["opcoes"])
+        por_nome = {opcao.casefold(): opcao for opcao in opcoes_novas}
+        fora: list[str] = []
+        for valor in valores:
+            nome = " ".join(valor.split())
+            if not nome:
+                continue
+            oficial = por_nome.get(nome.casefold())
+            if oficial is None:
+                context.abort(
+                    grpc.StatusCode.INVALID_ARGUMENT,
+                    "A opcao '%s' nao existe para %s. Use uma de: %s."
+                    % (nome, codigo, ", ".join(opcoes_novas) or "(item sem opcoes)"),
+                )
+            if oficial not in fora:
+                fora.append(oficial)
+        return fora
 
     def CriarItem(self, request, context):
         chave = request.chave.strip() or str(uuid.uuid4())

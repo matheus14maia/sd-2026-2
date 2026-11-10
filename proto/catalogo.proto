@@ -45,6 +45,9 @@ message ItemCardapio {
   // Versao da foto (12 primeiros hex do SHA-256 do conteudo); vazia = sem foto.
   // O Gateway monta a URL da foto com ela, e a URL muda quando a foto muda.
   string foto_versao = 8;
+  // Opcoes fora do dia (ex.: a agua com gas acabou): o item continua no
+  // cardapio com as outras opcoes. Sempre um subconjunto de opcoes.
+  repeated string opcoes_indisponiveis = 9;
 }
 
 message ListarItensRequest {
@@ -73,6 +76,7 @@ message AtualizarItemRequest {
   optional string descricao = 5;
   optional string categoria = 6;
   ListaOpcoes opcoes = 7;      // presente (mesmo vazia) = troca a lista inteira
+  ListaOpcoes opcoes_indisponiveis = 8;  // presente = troca as opcoes fora do dia
 }
 
 // Lista dentro de uma mensagem: um "repeated" solto nao distingue ausente de vazio.

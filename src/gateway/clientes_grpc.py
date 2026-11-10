@@ -195,9 +195,11 @@ class ClientesGrpc:
         for nome in ("disponivel", "preco", "nome", "descricao", "categoria"):
             if campos.get(nome) is not None:
                 setattr(requisicao, nome, campos[nome])
-        if campos.get("opcoes") is not None:
-            requisicao.opcoes.valores.extend(campos["opcoes"])
-            requisicao.opcoes.SetInParent()  # lista vazia tambem e "presente": tira as opcoes
+        for lista in ("opcoes", "opcoes_indisponiveis"):
+            if campos.get(lista) is not None:
+                destino = getattr(requisicao, lista)
+                destino.valores.extend(campos[lista])
+                destino.SetInParent()  # lista vazia tambem e "presente" (tira todas)
         return self._item("AtualizarItem", requisicao)
 
     def criar_item(self, dados: dict) -> dict:

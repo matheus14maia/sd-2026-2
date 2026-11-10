@@ -60,6 +60,9 @@ ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS foto_versao TEXT NOT NULL DE
 ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS editado_em TIMESTAMPTZ;
 ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS excluido_em TIMESTAMPTZ;
 ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS chave_criacao UUID UNIQUE;
+-- Opcoes fora do dia (ex.: so a agua com gas acabou). Subconjunto de opcoes;
+-- a carga inicial nao mexe nesta coluna, como em disponivel.
+ALTER TABLE itens_cardapio ADD COLUMN IF NOT EXISTS opcoes_indisponiveis TEXT[] NOT NULL DEFAULT '{}';
 
 -- Fotos dos pratos (bytes no banco: funcionam igual no compose e no Cloud SQL,
 -- sem disco no container). Tabela separada: listar o cardapio nao carrega imagem.

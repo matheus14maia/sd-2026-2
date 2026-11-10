@@ -6,6 +6,7 @@ aqui nem chega aos microsservicos: o Gateway responde 400 na borda.
 que nao deve precificar nada).
 """
 
+import re
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -27,6 +28,17 @@ PADRAO_LOGIN = r"^[A-Za-z0-9_.]{3,30}$"
 PADRAO_TELEFONE = r"^[0-9 ()+.-]*$"
 SENHA_MINIMO = 6
 TELEFONE_INVALIDO = "telefone invalido: use DDD e numero (ex.: (62) 99999-0000)"
+NOME_INVALIDO = "nome invalido: use so letras, espaco, apostrofo e hifen (ex.: Maria da Silva)"
+# Letras de qualquer idioma (com acento), separadas por espaco, apostrofo,
+# ponto ou hifen: "Maria da Silva", "D'Avila", "Ana-Clara", "J. Souza".
+_NOME_DE_PESSOA = re.compile(r"[^\W\d_]+(?:[ '.-]+[^\W\d_]+)*\.?")
+
+
+def _nome_de_pessoa(valor: str) -> str:
+    nome = " ".join(valor.split())
+    if not _NOME_DE_PESSOA.fullmatch(nome) or sum(c.isalpha() for c in nome) < 2:
+        raise ValueError(NOME_INVALIDO)
+    return nome
 
 
 def _digitos_do_telefone(valor: str) -> str:
@@ -48,6 +60,9 @@ Telefone = Annotated[
     AfterValidator(_digitos_do_telefone),
 ]
 Senha = Annotated[str, StringConstraints(min_length=SENHA_MINIMO, max_length=72)]
+NomePessoa = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), AfterValidator(_nome_de_pessoa)
+]
 
 Etapa = Literal["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"]
 ETAPAS = ("RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE")
@@ -116,12 +131,14 @@ class ItemAtualizacao(AlteracaoParcial):
     descricao: DescricaoItem | None = None
     categoria: CategoriaItem | None = None
     opcoes: ListaOpcoes | None = None
+    # Opcoes fora do dia (ex.: ["Com gás"]); lista vazia = todas disponiveis.
+    opcoes_indisponiveis: ListaOpcoes | None = Field(default=None, examples=[["Com gás"]])
 
 
 class ContaAtualizacao(AlteracaoParcial):
     """PATCH /conta. Telefone ou endereco vazio ("") apaga o dado."""
 
-    nome: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)] | None = Field(
+    nome: NomePessoa | None = Field(
         default=None, examples=["Maria Silva"]
     )
     telefone: Telefone | None = Field(default=None, examples=["(62) 99999-0000"])
@@ -146,7 +163,7 @@ class TrocaSenha(Entrada):
 
 class CadastroEntrada(Entrada):
     login: Login = Field(examples=["maria.silva"])
-    nome: TextoObrigatorio = Field(examples=["Maria Silva"])
+    nome: NomePessoa = Field(examples=["Maria Silva"])
     # 72 e o limite do bcrypt; a senha nao passa por strip.
     senha: Senha = Field(examples=["minhasenha"])
 

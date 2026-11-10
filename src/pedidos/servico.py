@@ -251,6 +251,11 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
                           "Escolha uma opcao para %s (%s): %s." % (item.codigo, item.nome, lista))
         for valida in item.opcoes:
             if valida.casefold() == opcao.casefold():
+                if valida in item.opcoes_indisponiveis:
+                    context.abort(
+                        grpc.StatusCode.FAILED_PRECONDITION,
+                        "A opcao '%s' de %s (%s) esta indisponivel hoje." % (valida, item.codigo, item.nome),
+                    )
                 return valida
         context.abort(grpc.StatusCode.INVALID_ARGUMENT,
                       "Opcao '%s' nao existe para %s (%s). Use uma de: %s." % (opcao, item.codigo, item.nome, lista))
