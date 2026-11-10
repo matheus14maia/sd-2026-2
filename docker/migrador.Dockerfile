@@ -6,8 +6,11 @@
 # Nao usa gRPC: so o driver do PostgreSQL e o bcrypt.
 
 ARG PYTHON=3.12
+# Imagem base: Docker Hub por padrao; o Cloud Build usa o espelho do Google
+# (mirror.gcr.io/library/python) para nao esbarrar no limite do Docker Hub.
+ARG IMAGEM_PYTHON=python
 
-FROM python:${PYTHON}-slim AS deps
+FROM ${IMAGEM_PYTHON}:${PYTHON}-slim AS deps
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 COPY requirements/banco.txt requirements/migrador.txt /tmp/requirements/
@@ -15,7 +18,7 @@ COPY requirements/banco.txt requirements/migrador.txt /tmp/requirements/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r /tmp/requirements/migrador.txt \
     && pip uninstall -y pip
 
-FROM python:${PYTHON}-slim
+FROM ${IMAGEM_PYTHON}:${PYTHON}-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

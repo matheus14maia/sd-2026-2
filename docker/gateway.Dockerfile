@@ -7,9 +7,12 @@
 # acessa o PostgreSQL.
 
 ARG PYTHON=3.12
+# Imagem base: Docker Hub por padrao; o Cloud Build usa o espelho do Google
+# (mirror.gcr.io/library/python) para nao esbarrar no limite do Docker Hub.
+ARG IMAGEM_PYTHON=python
 
 # --------------------------------------------------------------------- stubs
-FROM python:${PYTHON}-slim AS stubs
+FROM ${IMAGEM_PYTHON}:${PYTHON}-slim AS stubs
 WORKDIR /build
 COPY requirements/build.txt requirements/build.txt
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements/build.txt
@@ -18,7 +21,7 @@ COPY scripts/gerar_stubs.py scripts/gerar_stubs.py
 RUN python scripts/gerar_stubs.py
 
 # ---------------------------------------------------------------------- deps
-FROM python:${PYTHON}-slim AS deps
+FROM ${IMAGEM_PYTHON}:${PYTHON}-slim AS deps
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 COPY requirements/comum.txt requirements/rastreamento.txt requirements/gateway.txt /tmp/requirements/
@@ -27,7 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r /tmp/requirements/
     && pip uninstall -y pip
 
 # --------------------------------------------------------------------- final
-FROM python:${PYTHON}-slim
+FROM ${IMAGEM_PYTHON}:${PYTHON}-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
