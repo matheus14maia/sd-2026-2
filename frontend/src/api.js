@@ -60,12 +60,13 @@ function registrar(registro) {
 // opcoes:
 //   corpo        objeto serializado como JSON
 //   corpoBruto   texto enviado como esta (para testar JSON malformado)
+//   arquivo      Blob/File enviado como esta, com o Content-Type do arquivo (foto)
 //   semToken     nao envia o Authorization mesmo havendo sessao
 //   autorizacao  valor exato do cabecalho Authorization (testes de seguranca)
 //   manterSessao um 401 nao derruba a sessao (testes de seguranca)
 //   silencioso   nao vira comanda no trilho (consulta periodica da tela Saude)
 export async function chamar(metodo, rota, opcoes = {}) {
-  const { corpo, corpoBruto, semToken, autorizacao, manterSessao, silencioso } = opcoes;
+  const { corpo, corpoBruto, arquivo, semToken, autorizacao, manterSessao, silencioso } = opcoes;
   const cabecalhos = {};
   const sessao = lerSessao();
 
@@ -76,12 +77,20 @@ export async function chamar(metodo, rota, opcoes = {}) {
   }
 
   let enviado;
-  if (corpoBruto !== undefined) {
-    enviado = corpoBruto;
-  } else if (corpo !== undefined) {
-    enviado = JSON.stringify(corpo);
+  let resumoEnviado; // o que a comanda mostra (a foto aparece so como tipo e tamanho)
+  if (arquivo !== undefined) {
+    enviado = arquivo;
+    cabecalhos["Content-Type"] = arquivo.type || "application/octet-stream";
+    resumoEnviado = `[arquivo ${arquivo.type || "sem tipo"}, ${Math.round(arquivo.size / 1024)} KB]`;
+  } else {
+    if (corpoBruto !== undefined) {
+      enviado = corpoBruto;
+    } else if (corpo !== undefined) {
+      enviado = JSON.stringify(corpo);
+    }
+    if (enviado !== undefined) cabecalhos["Content-Type"] = "application/json";
+    resumoEnviado = enviado;
   }
-  if (enviado !== undefined) cabecalhos["Content-Type"] = "application/json";
 
   const inicio = performance.now();
   let status = 0;
@@ -111,7 +120,7 @@ export async function chamar(metodo, rota, opcoes = {}) {
     status,
     ms: Math.round(performance.now() - inicio),
     comToken: Boolean(cabecalhos.Authorization),
-    enviado: enviado ?? null,
+    enviado: resumoEnviado ?? null,
     dados,
     requisicao,
   });
@@ -213,6 +222,9 @@ export const CATEGORIAS = [
 ];
 
 export const nomeCategoria = (valor) => CATEGORIAS.find((c) => c.valor === valor)?.nome || valor;
+
+// URL completa da foto do prato (o item traz o caminho com a versao) ou "".
+export const urlFoto = (item) => (item?.foto ? API_URL + item.foto : "");
 
 export const ETAPAS = ["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"];
 

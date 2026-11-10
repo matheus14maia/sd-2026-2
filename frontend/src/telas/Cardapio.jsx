@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIAS, chamar, formatarHora, formatarPreco, nomeCategoria } from "../api.js";
 import Campo, { Aviso, LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
+import Fogo from "../componentes/Fogo.jsx";
 import FotoPrato from "../componentes/FotoPrato.jsx";
 import IconeChama from "../componentes/IconeChama.jsx";
 import { traduzirErroCampo } from "../mensagens.js";
 
-// Quanto tempo a animacao das chamas fica na tela depois de confirmar o pedido.
-const DURACAO_CHAMAS_MS = 1800;
+// A cozinha pode mudar o cardapio a qualquer momento (preco, disponibilidade,
+// prato novo ou excluido). A tela consulta de novo a cada 30 s e quando a aba
+// do navegador volta a ficar visivel; a sacola marca o que mudou. Quem decide
+// de verdade e o servidor: o Pedidos confere tudo com o Catalogo ao finalizar.
+const ATUALIZAR_CARDAPIO_MS = 30000;
 
 function avisoDoCache(dados) {
   if (dados?.origem !== "cache") return "";
@@ -28,23 +32,38 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   const [resposta, setResposta] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [chamas, setChamas] = useState(false);
+  // Preco de cada linha da sacola no momento em que entrou: se a cozinha mudar
+  // o preco depois, a sacola avisa.
+  const [precosVistos, setPrecosVistos] = useState({});
+  // Ultimos dados de cada prato ja visto: se ele sair do cardapio, a sacola
+  // ainda sabe o nome para avisar.
+  const conhecidos = useRef(new Map());
+  const abaAtual = useRef("");
+  abaAtual.current = aba;
+
+  async function carregar(silencioso = false) {
+    const r = await chamar("GET", "/cardapio", { silencioso });
+    if (!silencioso || !r.ok) setCarregamento(r);
+    if (!r.ok) return;
+    const novos = r.dados.itens;
+    novos.forEach((item) => conhecidos.current.set(item.codigo, item));
+    setItens(novos);
+    // Na consulta periodica a aba aberta e filtrada aqui mesmo (mesmo resultado
+    // do filtro no servidor, sem uma chamada a mais).
+    setExibidos(abaAtual.current ? novos.filter((i) => i.categoria === abaAtual.current) : novos);
+    setAviso(avisoDoCache(r.dados));
+  }
 
   useEffect(() => {
-    chamar("GET", "/cardapio").then((r) => {
-      setCarregamento(r);
-      if (r.ok) {
-        setItens(r.dados.itens);
-        setExibidos(r.dados.itens);
-        setAviso(avisoDoCache(r.dados));
-      }
-    });
+    carregar();
+    const timer = setInterval(() => carregar(true), ATUALIZAR_CARDAPIO_MS);
+    const aoVoltar = () => document.visibilityState === "visible" && carregar(true);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
   }, []);
-
-  useEffect(() => {
-    if (!chamas) return undefined;
-    const timer = setTimeout(() => setChamas(false), DURACAO_CHAMAS_MS);
-    return () => clearTimeout(timer);
-  }, [chamas]);
 
   const abas = useMemo(() => {
     const presentes = new Set(itens.map((i) => i.categoria));
@@ -62,20 +81,42 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     ? [{ valor: aba, nome: nomeCategoria(aba), itens: exibidos }]
     : abas.map((c) => ({ ...c, itens: exibidos.filter((i) => i.categoria === c.valor) })).filter((g) => g.itens.length);
 
+  // Cada linha da sacola confrontada com o cardapio atual.
   const linhas = Object.entries(carrinho)
     .filter(([, qtd]) => qtd > 0)
     .map(([chave, quantidade]) => {
       const [codigo, opcao = ""] = chave.split("|");
-      return { chave, item: itens.find((i) => i.codigo === codigo), opcao, quantidade };
+      const atual = itens.find((i) => i.codigo === codigo);
+      const item = atual || conhecidos.current.get(codigo);
+      let problema = "";
+      if (!atual) problema = "Saiu do cardápio";
+      else if (!atual.disponivel) problema = "Indisponível hoje";
+      else if (opcao && !atual.opcoes?.some((o) => o.toLowerCase() === opcao.toLowerCase())) problema = "Opção não existe mais";
+      else if (!opcao && atual.opcoes?.length) problema = "Escolha uma opção no cardápio";
+      const antes = precosVistos[chave];
+      const precoAntes = atual && antes !== undefined && antes !== atual.preco ? antes : undefined;
+      return { chave, item, opcao, quantidade, problema, precoAntes };
     })
     .filter((l) => l.item);
-  const estimado = linhas.reduce((soma, l) => soma + (l.item?.preco || 0) * l.quantidade, 0);
+  const comProblema = linhas.some((l) => l.problema);
+  const estimado = linhas.filter((l) => !l.problema).reduce((soma, l) => soma + l.item.preco * l.quantidade, 0);
 
   const erros = resposta?.status === 400 ? resposta.dados?.erros || {} : {};
 
   function mudarQuantidade(chave, delta) {
-    setCarrinho((atual) => ({ ...atual, [chave]: Math.max(0, (atual[chave] || 0) + delta) }));
+    const quantidade = Math.max(0, (carrinho[chave] || 0) + delta);
+    setCarrinho((atual) => ({ ...atual, [chave]: quantidade }));
+    const item = itens.find((i) => i.codigo === chave.split("|")[0]);
+    setPrecosVistos((atual) => {
+      if (quantidade === 0) {
+        const { [chave]: _removido, ...resto } = atual;
+        return resto;
+      }
+      return atual[chave] !== undefined || !item ? atual : { ...atual, [chave]: item.preco };
+    });
   }
+
+  const retirar = (chave) => mudarQuantidade(chave, -(carrinho[chave] || 0));
 
   function alternarSubmenu(codigo) {
     setSubmenus((atual) => ({ ...atual, [codigo]: !atual[codigo] }));
@@ -93,6 +134,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     const r = await chamar("GET", valor ? `/cardapio?categoria=${encodeURIComponent(valor)}` : "/cardapio");
     setCarregamento(r);
     if (r.ok) {
+      r.dados.itens.forEach((item) => conhecidos.current.set(item.codigo, item));
       setExibidos(r.dados.itens);
       if (!valor) setItens(r.dados.itens);
       setAviso(avisoDoCache(r.dados));
@@ -115,7 +157,12 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     setResposta(r);
     if (r.ok) {
       setCarrinho({});
+      setPrecosVistos({});
       setChamas(true);
+    } else {
+      // Recusado (ex.: a cozinha tirou um prato do cardapio): atualiza a tela
+      // para a sacola marcar o que mudou.
+      carregar(true);
     }
     setEnviando(false);
   }
@@ -239,12 +286,22 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
         ) : (
           <ul className="sacola-itens">
             {linhas.map((l) => (
-              <li key={l.chave}>
+              <li key={l.chave} className={l.problema ? "sacola-linha-problema" : undefined}>
                 <span>
                   {l.quantidade}× {l.item.nome}
                   {l.opcao && <span className="sacola-opcao"> · {l.opcao}</span>}
+                  {l.problema && <span className="sacola-motivo">{l.problema}</span>}
+                  {l.precoAntes !== undefined && (
+                    <span className="sacola-preco-mudou">Preço atualizado pela cozinha (antes {formatarPreco(l.precoAntes)})</span>
+                  )}
                 </span>
-                <span>{formatarPreco(l.item.preco * l.quantidade)}</span>
+                {l.problema ? (
+                  <button type="button" className="botao-texto" onClick={() => retirar(l.chave)} aria-label={`Retirar ${l.item.nome} da sacola`}>
+                    Retirar
+                  </button>
+                ) : (
+                  <span>{formatarPreco(l.item.preco * l.quantidade)}</span>
+                )}
               </li>
             ))}
             <li className="sacola-total">
@@ -274,18 +331,17 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
               {traduzirErroCampo("itens", erros.itens)}
             </p>
           )}
+          {comProblema && (
+            <p className="sacola-alerta" role="status">
+              A cozinha mudou o cardápio: retire os itens marcados para finalizar o pedido.
+            </p>
+          )}
           <div className="botao-chamas-area">
-            <button className="botao botao-chamas" type="submit" disabled={enviando}>
+            <button className={chamas ? "botao botao-chamas acesa" : "botao botao-chamas"} type="submit" disabled={enviando}>
               <IconeChama />
               <span>{enviando ? "Acendendo as chamas…" : "Finalizar pedido e acender as chamas"}</span>
             </button>
-            {chamas && (
-              <div className="chamas" aria-hidden="true">
-                {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-                  <IconeChama key={n} className={`chama chama-${n}`} />
-                ))}
-              </div>
-            )}
+            {chamas && <Fogo aoTerminar={() => setChamas(false)} />}
           </div>
           <LegendaObrigatorio />
         </form>

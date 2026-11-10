@@ -510,7 +510,7 @@ p {
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
-/* Foto do prato (frontend/public/pratos/<CODIGO>.jpg), com zoom sob o mouse. */
+/* Foto do prato (GET /cardapio/{codigo}/foto no Gateway), com zoom sob o mouse. */
 .prato-foto {
   width: 108px;
   height: 108px;
@@ -1310,63 +1310,110 @@ p {
 }
 
 .icone-chama {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 30px;
   flex: none;
-  color: #ffd43b;
+  overflow: visible;
 }
 
-.botao-chamas:hover .icone-chama {
-  animation: tremular 420ms ease-in-out infinite alternate;
+/* As duas camadas da chama tremulam a partir da base, em ritmos diferentes. */
+.icone-chama .chama-fora,
+.icone-chama .chama-miolo {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
 }
 
-@keyframes tremular {
-  from {
-    transform: rotate(-6deg) scale(1);
+.botao-chamas:hover .icone-chama,
+.botao-chamas:disabled .icone-chama,
+.botao-chamas.acesa .icone-chama {
+  filter: drop-shadow(0 0 5px rgba(255, 196, 60, 0.75));
+}
+
+.botao-chamas:hover .chama-fora,
+.botao-chamas:disabled .chama-fora,
+.botao-chamas.acesa .chama-fora {
+  animation: tremular-fora 0.9s ease-in-out infinite;
+}
+
+.botao-chamas:hover .chama-miolo,
+.botao-chamas:disabled .chama-miolo,
+.botao-chamas.acesa .chama-miolo {
+  animation: tremular-miolo 0.55s ease-in-out infinite;
+}
+
+@keyframes tremular-fora {
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0deg);
   }
-  to {
-    transform: rotate(6deg) scale(1.15);
+  25% {
+    transform: scale(0.95, 1.07) skewX(-4deg);
+  }
+  50% {
+    transform: scale(1.03, 0.95) skewX(2deg);
+  }
+  75% {
+    transform: scale(0.97, 1.09) skewX(-1deg);
   }
 }
 
-/* Pedido confirmado: chamas sobem do botao por um instante. */
-.chamas {
+@keyframes tremular-miolo {
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  33% {
+    transform: scale(0.9, 1.12) skewX(4deg);
+  }
+  66% {
+    transform: scale(1.06, 0.9) skewX(-3deg);
+  }
+}
+
+/* Pedido confirmado: o botao acende e o fogo (canvas, ver Fogo.jsx) sobe dele. */
+.botao-chamas.acesa {
+  box-shadow: 0 4px 0 #6d140d, 0 0 26px 6px rgba(255, 120, 30, 0.5);
+  filter: brightness(1.1);
+}
+
+.fogo {
   position: absolute;
-  inset: auto 0 0 0;
-  height: 0;
+  left: -24px;
+  right: -24px;
+  bottom: calc(100% - 26px);
+  width: calc(100% + 48px);
+  height: 210px;
+  z-index: 2;
   pointer-events: none;
 }
 
-.chama {
-  position: absolute;
-  bottom: 44px;
-  width: 36px;
-  height: 36px;
-  color: #ff922b;
-  opacity: 0;
-  animation: subir-chama 1.3s ease-out forwards;
+/* Sacola: linha que a cozinha mudou depois que o prato entrou. */
+.sacola-linha-problema > span:first-child {
+  color: var(--grafite-suave);
 }
 
-.chama-0 { left: 6%; animation-delay: 0ms; }
-.chama-1 { left: 20%; animation-delay: 120ms; color: #ffd43b; }
-.chama-2 { left: 34%; animation-delay: 60ms; }
-.chama-3 { left: 48%; animation-delay: 180ms; color: #fa5252; }
-.chama-4 { left: 62%; animation-delay: 30ms; color: #ffd43b; }
-.chama-5 { left: 76%; animation-delay: 150ms; }
-.chama-6 { left: 88%; animation-delay: 90ms; color: #fa5252; }
+.sacola-motivo,
+.sacola-preco-mudou {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
 
-@keyframes subir-chama {
-  0% {
-    opacity: 0;
-    transform: translateY(0) scale(0.6);
-  }
-  25% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-110px) scale(1.5) rotate(12deg);
-  }
+.sacola-motivo {
+  color: var(--pimenta);
+}
+
+.sacola-preco-mudou {
+  color: #8a5200;
+}
+
+.sacola-alerta {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--pimenta);
+  background: #fdecea;
+  font-weight: 600;
+  font-size: 0.92rem;
 }
 
 /* ------------------------------------------------------ filtros dos pedidos */
@@ -1515,6 +1562,265 @@ p {
   color: var(--grafite-suave);
 }
 
+/* ------------------------------------------------------- cozinha: pratos */
+.cozinha-grupo {
+  margin-bottom: 26px;
+}
+
+.cozinha-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--branco);
+  border: 1px solid var(--inox-escuro);
+  border-radius: 10px;
+}
+
+.cozinha-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--inox);
+}
+
+.cozinha-item:last-child {
+  border-bottom: 0;
+}
+
+.cozinha-item-fora .cozinha-foto,
+.cozinha-item-fora .cozinha-info {
+  opacity: 0.55;
+}
+
+.cozinha-foto {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.cozinha-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cozinha-foto.prato-foto-vazia {
+  font-size: 1.15rem;
+}
+
+.cozinha-nome {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.cozinha-descricao {
+  margin: 2px 0 0;
+  color: var(--grafite-suave);
+  font-size: 0.92rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cozinha-preco {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Formulario do prato num <dialog> (showModal: foco preso e Esc fecha). */
+.dialogo-prato {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--papel);
+  color: var(--grafite);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.dialogo-prato::backdrop {
+  background: rgba(17, 21, 25, 0.55);
+}
+
+.dialogo-prato[open] {
+  animation: abrir-dialogo 180ms ease-out;
+}
+
+@keyframes abrir-dialogo {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.formulario-prato {
+  padding: 22px 24px 16px;
+}
+
+.dialogo-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dialogo-topo h2 {
+  margin: 0;
+}
+
+.campo-foto {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.foto-edicao {
+  width: 112px;
+  height: 112px;
+  flex: none;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.foto-edicao img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.campo-foto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.botao-arquivo {
+  display: inline-block;
+}
+
+.botao-arquivo:focus-within {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.dica,
+.dica-rotulo {
+  color: var(--grafite-suave);
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.dica {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.campos-lado {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 16px;
+}
+
+.campo select,
+.campo textarea {
+  border: 2px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+  background: var(--branco);
+  font: inherit;
+  color: inherit;
+}
+
+.campo textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.campo select:focus,
+.campo textarea:focus {
+  border-color: var(--grafite);
+}
+
+.campo-com-erro select,
+.campo-com-erro textarea {
+  border-color: var(--acafrao);
+  background: #fff8ec;
+}
+
+.caixa-marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  margin-bottom: 14px;
+  cursor: pointer;
+}
+
+.caixa-marcar input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--manjericao);
+}
+
+.aviso-formulario {
+  margin: 0 0 8px;
+  color: #8a5200;
+  font-weight: 650;
+}
+
+.dialogo-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--inox-escuro);
+}
+
+.dialogo-rodape .espaco {
+  flex: 1;
+}
+
+.confirmar-exclusao {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-weight: 650;
+}
+
+.botao-perigo {
+  background: var(--pimenta);
+  color: var(--branco);
+  border: 0;
+  border-radius: var(--raio);
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.botao-perigo:hover {
+  background: var(--pimenta-escura);
+}
+
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
   .prato {
@@ -1525,6 +1831,25 @@ p {
   .prato-foto {
     width: 76px;
     height: 76px;
+  }
+
+  .cozinha-item {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+  }
+
+  .cozinha-foto {
+    width: 56px;
+    height: 56px;
+  }
+
+  .cozinha-item .interruptor {
+    grid-column: 2;
+    justify-self: start;
+    min-width: 0;
+  }
+
+  .campos-lado {
+    grid-template-columns: 1fr;
   }
 
   .login,
@@ -1580,14 +1905,18 @@ p {
   .comandas li:first-child .comanda,
   .painel-aba,
   .detalhe-conteudo,
-  .botao-chamas:hover .icone-chama,
-  .chama,
+  .chama-fora,
+  .chama-miolo,
   .aviso-tempo-real {
     animation: none;
   }
 
-  .chamas {
+  .fogo {
     display: none;
+  }
+
+  .dialogo-prato[open] {
+    animation: none;
   }
 
   .prato,

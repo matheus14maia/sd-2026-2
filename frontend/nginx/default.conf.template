@@ -15,14 +15,6 @@ server {
         return 200 "window.API_URL = '${API_URL}';\n";
     }
 
-    # Fotos dos pratos (frontend/public/pratos/<CODIGO>.jpg). Foto que nao
-    # existe responde 404 (e a tela mostra as iniciais do prato no lugar),
-    # em vez de cair no index.html do fallback abaixo.
-    location /pratos/ {
-        expires 1d;
-        try_files $uri =404;
-    }
-
     # Arquivos do Vite tem hash no nome: podem ficar em cache por muito tempo.
     location /assets/ {
         expires 7d;

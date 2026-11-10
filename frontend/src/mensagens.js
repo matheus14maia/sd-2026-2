@@ -23,7 +23,8 @@ const ERROS_CAMPO = {
   "deve ser um objeto JSON": "Valor inválido.",
   "campo nao permitido": "Campo não permitido.",
   "JSON malformado": "Dados malformados.",
-  "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)": "Código inválido: use 2 letras e 2 dígitos (ex.: PR01).",
+  "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)": "Código inválido: use 2 letras e de 2 a 4 dígitos (ex.: PR01).",
+  "informe ao menos um campo para alterar": "Nada para alterar.",
   "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)":
     "Use de 3 a 30 letras, números, ponto ou sublinhado (ex.: maria.silva).",
 };
@@ -65,6 +66,22 @@ const REGRAS = [
   [/^(Token ausente|Token invalido|Cabecalho Authorization invalido)/, () => "Sessão inválida. Entre novamente."],
   [/^Categoria '(.+)' nao existe no cardapio\.$/, (m) => `A categoria ${m[1]} não existe no cardápio.`],
   [/^O preco deve ser maior que zero\.$/, () => "O preço deve ser maior que zero."],
+  [/^O preco deve ser no maximo (\d+)\.$/, (m) => `O preço deve ser no máximo R$ ${Number(m[1]).toLocaleString("pt-BR")}.`],
+  [
+    /^Categoria '(.*)' nao existe\. Use uma de: (.+)\.$/,
+    (m) => `A categoria “${m[1]}” não existe. Use uma destas: ${m[2]}.`,
+  ],
+  [/^Informe o nome do item\.$/, () => "Informe o nome do prato."],
+  [/^O nome do item passa de (\d+) caracteres\.$/, (m) => `O nome do prato passa de ${m[1]} caracteres.`],
+  [/^A descricao passa de (\d+) caracteres\.$/, (m) => `A descrição passa de ${m[1]} caracteres.`],
+  [/^A opcao '(.+)' passa de (\d+) caracteres\.$/, (m) => `A opção “${m[1]}” passa de ${m[2]} caracteres.`],
+  [/^A opcao '(.+)' aparece duas vezes\.$/, (m) => `A opção “${m[1]}” aparece duas vezes.`],
+  [/^No maximo (\d+) opcoes por item\.$/, (m) => `Use no máximo ${m[1]} opções por prato.`],
+  [/^Nada para alterar/, () => "Nada para alterar."],
+  [/^O item '(.+)' nao tem foto\.$/, () => "Este prato não tem foto."],
+  [/^Envie a foto no corpo/, () => "Escolha uma foto para enviar."],
+  [/^A foto passa de (\d+) KB\.$/, (m) => `A foto passa de ${Math.round(Number(m[1]) / 1024)} MB. Escolha uma foto menor.`],
+  [/^(Envie uma foto JPEG|O arquivo nao e uma foto)/, () => "Esse arquivo não é uma foto JPEG, PNG ou WebP."],
   [
     /^Catalogo indisponivel no momento/,
     () => "O cardápio está temporariamente fora do ar, por isso o pedido não foi registrado. Tente novamente em instantes.",
