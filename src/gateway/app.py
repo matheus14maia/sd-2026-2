@@ -71,9 +71,11 @@ app.add_exception_handler(RequestValidationError, erros.validacao_invalida)
 app.add_exception_handler(grpc.RpcError, erros.erro_grpc)
 app.add_exception_handler(AcessoNegado, erros.acesso_negado)
 app.add_exception_handler(CircuitoAberto, erros.circuito_aberto)
+app.add_exception_handler(erros.RequisicaoInvalida, erros.requisicao_invalida)
 
 app.include_router(auth.router)
 app.include_router(cardapio.router)
+app.include_router(cardapio.publico)
 app.include_router(pedidos.router)
 app.include_router(saude.router)
 
@@ -138,7 +140,7 @@ async def registrar_requisicao(request: Request, chamar_proxima):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGENS,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
     # Sem isso o JavaScript do frontend nao enxerga estes cabecalhos.
     expose_headers=["X-Requisicao-Id", "Retry-After"],

@@ -12,7 +12,9 @@ usa o token JWT em todas as rotas protegidas; os cenarios de 401 mandam token au
 
 Tambem confere a posse dos pedidos: o pedido sai em nome do dono do token (o
 corpo nao tem "cliente"), o cliente so lista e consulta os proprios pedidos e a
-cozinha ve todos.
+cozinha ve todos. E a gestao do cardapio pela cozinha: cadastrar, editar, enviar
+e tirar foto e excluir um prato (cada execucao cadastra e exclui um prato de
+teste; o codigo dele nunca e reaproveitado).
 
 Cada cenario imprime o metodo, a rota, o status esperado, o status recebido e o
 corpo da resposta. Alguns cenarios tambem conferem o conteudo da resposta. Sai
@@ -20,6 +22,7 @@ com codigo 1 se algum cenario nao sair como esperado.
 """
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -31,18 +34,40 @@ from datetime import datetime, timedelta, timezone
 
 ID_INEXISTENTE = "00000000-0000-0000-0000-000000000000"
 SEM_TOKEN = ""
+# Foto JPEG de 8x8 px (774 bytes) para os cenarios de upload.
+FOTO_TESTE = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdC"
+    "IFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAA"
+    "AADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlk"
+    "ZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAA"
+    "ABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAA"
+    "AAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAA"
+    "AABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEA"
+    "AAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAA"
+    "ACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAoHBwgHBgoICAgLCgoL"
+    "DhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoL"
+    "Cw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
+    "Ozs7Ozv/wAARCAAIAAgDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAT/xAAXEAEBAQEA"
+    "AAAAAAAAAAAAAAAABSIy/8QAFAEBAAAAAAAAAAAAAAAAAAAABv/EABcRAAMBAAAAAAAAAAAAAAAA"
+    "AAACAxL/2gAMAwEAAhEDEQA/AK6tXrQA1KS5GM0XJ//Z"
+)
 
 
-def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = None, autorizacao: str = SEM_TOKEN):
+def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = None, autorizacao: str = SEM_TOKEN,
+           tipo: str = "application/json"):
+    """(status, corpo). Corpo JSON vira dict/list; qualquer outro (ex.: foto) volta em bytes."""
     dados = bruto if bruto is not None else (json.dumps(corpo).encode() if corpo is not None else None)
     requisicao = urllib.request.Request(base + rota, data=dados, method=metodo)
     if dados is not None:
-        requisicao.add_header("Content-Type", "application/json")
+        requisicao.add_header("Content-Type", tipo)
     if autorizacao:
         requisicao.add_header("Authorization", autorizacao)
     try:
         with urllib.request.urlopen(requisicao, timeout=15) as resposta:
-            return resposta.status, json.loads(resposta.read() or b"null")
+            conteudo = resposta.read()
+            if resposta.headers.get_content_type() != "application/json":
+                return resposta.status, conteudo
+            return resposta.status, json.loads(conteudo or b"null")
     except urllib.error.HTTPError as erro:
         conteudo = erro.read()
         try:
@@ -83,11 +108,13 @@ def main() -> int:
     total = 0
     bearer = SEM_TOKEN
 
-    def cenario(titulo, esperado, metodo, rota, corpo=None, bruto=None, autorizacao=None, conferir=None):
+    def cenario(titulo, esperado, metodo, rota, corpo=None, bruto=None, autorizacao=None, conferir=None,
+                tipo="application/json"):
         """`conferir(resposta)` devolve uma mensagem de erro se o conteudo nao for o esperado."""
         nonlocal falhas, total
         total += 1
-        status, resposta = chamar(base, metodo, rota, corpo, bruto, bearer if autorizacao is None else autorizacao)
+        status, resposta = chamar(base, metodo, rota, corpo, bruto, bearer if autorizacao is None else autorizacao,
+                                  tipo)
         problema = ""
         if status == esperado and conferir is not None:
             problema = conferir(resposta) or ""
@@ -98,9 +125,13 @@ def main() -> int:
         if corpo is not None:
             print("    corpo enviado:", json.dumps(corpo, ensure_ascii=False))
         if bruto is not None:
-            print("    corpo enviado:", bruto.decode())
+            enviado = bruto.decode() if tipo == "application/json" else "<%d bytes, %s>" % (len(bruto), tipo)
+            print("    corpo enviado:", enviado)
         if not args.resumido:
-            texto = json.dumps(resposta, ensure_ascii=False, indent=2)
+            if isinstance(resposta, bytes):
+                texto = "<%d bytes>" % len(resposta)
+            else:
+                texto = json.dumps(resposta, ensure_ascii=False, indent=2)
             print("    resposta:", texto.replace("\n", "\n    "))
         return resposta
 
@@ -142,6 +173,46 @@ def main() -> int:
 
     # Rotas de negocio (com token) -----------------------------------------
     cenario("Cardapio de bebidas", 200, "GET", "/cardapio?categoria=Bebidas")
+
+    # Gestao do cardapio pela cozinha: cadastro, edicao, foto e exclusao.
+    def campo_igual(nome, valor):
+        def conferir(resposta):
+            atual = resposta.get(nome) if isinstance(resposta, dict) else None
+            return None if atual == valor else "%s deveria ser %r, veio %r" % (nome, valor, atual)
+        return conferir
+
+    cenario("Cliente tentando cadastrar prato", 403, "POST", "/cardapio",
+            {"nome": "Prato do cliente", "categoria": "Pratos", "preco": 10}, autorizacao=bearer_cliente)
+    cenario("Prato sem nome e sem preco", 400, "POST", "/cardapio", {"categoria": "Pratos"})
+    cenario("Prato em categoria que nao existe", 400, "POST", "/cardapio",
+            {"nome": "Hamburguer", "categoria": "Lanches", "preco": 30})
+    prato = cenario(
+        "Cozinha cadastra um prato (codigo sai da categoria)", 201, "POST", "/cardapio",
+        {"nome": "Prato de teste", "categoria": "Sobremesas", "preco": 19.9, "descricao": "Criado pelo teste",
+         "opcoes": ["Com calda", "Sem calda"]},
+        conferir=lambda r: None if str((r or {}).get("codigo", "")).startswith("SO") else "codigo deveria comecar com SO",
+    )
+    codigo_prato = prato.get("codigo", "SO99") if isinstance(prato, dict) else "SO99"
+    rota_prato = "/cardapio/%s" % codigo_prato
+    cenario("Edicao sem nenhum campo", 400, "PATCH", rota_prato, {})
+    cenario("Cozinha edita a descricao (o resto fica igual)", 200, "PATCH", rota_prato,
+            {"descricao": "Descricao editada"}, conferir=campo_igual("descricao", "Descricao editada"))
+    cenario("Cliente tentando enviar foto", 403, "PUT", rota_prato + "/foto", bruto=FOTO_TESTE, tipo="image/jpeg",
+            autorizacao=bearer_cliente)
+    cenario("Arquivo que nao e foto", 415, "PUT", rota_prato + "/foto", bruto=b"isto nao e uma foto",
+            tipo="image/jpeg")
+    com_foto = cenario("Cozinha envia a foto do prato", 200, "PUT", rota_prato + "/foto", bruto=FOTO_TESTE,
+                       tipo="image/jpeg", conferir=lambda r: None if r.get("foto") else "item sem a URL da foto")
+    url_foto = (com_foto.get("foto") if isinstance(com_foto, dict) else None) or rota_prato + "/foto"
+    cenario("Foto do prato e publica (sem token)", 200, "GET", url_foto, autorizacao=SEM_TOKEN,
+            conferir=lambda r: None if r == FOTO_TESTE else "bytes da foto diferentes do enviado")
+    cenario("Cozinha tira a foto do prato", 200, "DELETE", rota_prato + "/foto", conferir=campo_igual("foto", None))
+    cenario("Foto que nao existe mais", 404, "GET", rota_prato + "/foto", autorizacao=SEM_TOKEN)
+    cenario("Cliente tentando excluir prato", 403, "DELETE", rota_prato, autorizacao=bearer_cliente)
+    cenario("Cozinha exclui o prato", 200, "DELETE", rota_prato)
+    cenario("Excluir de novo nao e erro (idempotente)", 200, "DELETE", rota_prato)
+    cenario("Pedido com prato excluido", 400, "POST", "/pedidos",
+            {"endereco": "Rua 10", "itens": [{"codigo": codigo_prato, "quantidade": 1}]})
 
     def dono_e(usuario):
         """Confere que o pedido criado saiu em nome do usuario do token."""

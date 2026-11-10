@@ -27,7 +27,7 @@ WORKDIR /app
 
 COPY --from=deps /opt/venv /opt/venv
 COPY src/__init__.py src/__init__.py
-COPY src/comum/__init__.py src/comum/banco.py src/comum/registro.py src/comum/
+COPY src/comum/__init__.py src/comum/banco.py src/comum/imagens.py src/comum/registro.py src/comum/
 COPY db/ db/
 COPY scripts/migrar_banco.py scripts/migrar_banco.py
 

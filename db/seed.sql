@@ -2,10 +2,12 @@
 --
 -- Os nomes, descricoes e opcoes sao texto da interface, por isso levam acento.
 -- opcoes = submenu do item (o cliente escolhe uma ao pedir); vazio = sem escolha.
--- ON CONFLICT: rodar de novo atualiza so nome, descricao, categoria e opcoes
--- (corrige bancos que ja tinham a carga antiga) e nunca sobrescreve preco nem
--- disponibilidade, que a cozinha altera pela API. PR05 comeca indisponivel de
--- proposito, para demonstrar a recusa de item fora do cardapio do dia.
+-- ON CONFLICT: rodar de novo atualiza nome, descricao, categoria e opcoes
+-- (corrige bancos que ja tinham a carga antiga), mas so dos itens que a
+-- cozinha nunca editou (editado_em nulo): o que a cozinha mudou, cadastrou ou
+-- excluiu pela API fica como esta. Preco e disponibilidade nunca sao tocados.
+-- PR05 comeca indisponivel de proposito, para demonstrar a recusa de item fora
+-- do cardapio do dia.
 INSERT INTO itens_cardapio (codigo, nome, descricao, categoria, preco, disponivel, opcoes) VALUES
     ('EN01', 'Bruschetta',              'Pão italiano, tomate, manjericão e azeite',          'Entradas',   18.90, TRUE,  '{}'),
     ('EN02', 'Bolinho de bacalhau',     'Seis unidades com limão-siciliano',                  'Entradas',   32.00, TRUE,  '{}'),
@@ -26,7 +28,8 @@ ON CONFLICT (codigo) DO UPDATE
    SET nome = EXCLUDED.nome,
        descricao = EXCLUDED.descricao,
        categoria = EXCLUDED.categoria,
-       opcoes = EXCLUDED.opcoes;
+       opcoes = EXCLUDED.opcoes
+ WHERE itens_cardapio.editado_em IS NULL;
 
 -- Nenhum usuario e criado aqui: o repositorio e publico, e um usuario com senha
 -- conhecida daria a qualquer um o papel cozinha no sistema no ar. O usuario da

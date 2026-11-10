@@ -13,6 +13,7 @@ rotas de ROTAS_PUBLICAS passam sem token.
 """
 
 import os
+import re
 import secrets
 import time
 
@@ -37,6 +38,18 @@ ROTAS_PUBLICAS = {
     "/docs/oauth2-redirect",
     "/openapi.json",
 }
+
+# Foto de prato: publica so para leitura, porque a tag <img> do navegador nao
+# manda o cabecalho Authorization. Enviar ou trocar foto continua exigindo token.
+FOTO_PUBLICA = re.compile(r"^/cardapio/[A-Za-z]{2}[0-9]{2,4}/foto$")
+
+
+def rota_publica(request: Request) -> bool:
+    caminho = request.url.path
+    if request.method == "OPTIONS" or caminho in ROTAS_PUBLICAS:
+        return True
+    return request.method in ("GET", "HEAD") and bool(FOTO_PUBLICA.match(caminho))
+
 
 # So para o Swagger mostrar o botao "Authorize"; quem barra e o middleware.
 esquema_bearer = HTTPBearer(auto_error=False, description="Token devolvido por POST /auth/login")
@@ -98,7 +111,7 @@ def _nao_autorizado(mensagem: str) -> JSONResponse:
 class MiddlewareJWT(BaseHTTPMiddleware):
     async def dispatch(self, request, chamar_proxima):
         # OPTIONS e o preflight do CORS: o navegador nao manda o token nele.
-        if request.method == "OPTIONS" or request.url.path in ROTAS_PUBLICAS:
+        if rota_publica(request):
             return await chamar_proxima(request)
 
         cabecalho = request.headers.get("authorization", "")

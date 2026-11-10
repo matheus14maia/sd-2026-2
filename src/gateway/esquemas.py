@@ -8,11 +8,11 @@ que nao deve precificar nada).
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints, model_validator
 
 # Regex dos campos com formato fixo. O erros.py usa as mesmas constantes para
 # explicar o formato esperado na resposta 400.
-PADRAO_CODIGO = r"^[A-Za-z]{2}[0-9]{2}$"
+PADRAO_CODIGO = r"^[A-Za-z]{2}[0-9]{2,4}$"
 PADRAO_LOGIN = r"^[A-Za-z0-9_.]{3,30}$"
 SENHA_MINIMO = 6
 
@@ -53,9 +53,40 @@ class StatusEntrada(Entrada):
     status: Etapa = Field(examples=["EM_PREPARO"])
 
 
+# Campos de um item do cardapio. Os limites de negocio (categorias, opcoes
+# repetidas) sao conferidos pelo Catalogo, dono do cardapio.
+NomeItem = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+DescricaoItem = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
+CategoriaItem = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)]
+Preco = Annotated[float, Field(gt=0, le=10000)]
+Opcao = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+ListaOpcoes = Annotated[list[Opcao], Field(max_length=12)]
+
+
+class ItemNovo(Entrada):
+    nome: NomeItem = Field(examples=["Strogonoff de frango"])
+    categoria: CategoriaItem = Field(examples=["Pratos"])
+    preco: Preco = Field(examples=[46.9])
+    descricao: DescricaoItem = Field(default="", examples=["Com arroz branco e batata palha"])
+    disponivel: StrictBool = Field(default=True, examples=[True])
+    opcoes: ListaOpcoes = Field(default_factory=list, examples=[[]])
+
+
 class ItemAtualizacao(Entrada):
-    disponivel: StrictBool = Field(examples=[True])
-    preco: Annotated[float, Field(gt=0, le=10000)] | None = Field(default=None, examples=[79.9])
+    """PATCH: so os campos enviados mudam (null conta como nao enviado)."""
+
+    disponivel: StrictBool | None = Field(default=None, examples=[True])
+    preco: Preco | None = Field(default=None, examples=[79.9])
+    nome: NomeItem | None = None
+    descricao: DescricaoItem | None = None
+    categoria: CategoriaItem | None = None
+    opcoes: ListaOpcoes | None = None
+
+    @model_validator(mode="after")
+    def algum_campo(self):
+        if all(getattr(self, campo) is None for campo in type(self).model_fields):
+            raise ValueError("informe ao menos um campo para alterar")
+        return self
 
 
 class CadastroEntrada(Entrada):

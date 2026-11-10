@@ -41,7 +41,7 @@ GRPC_PARA_HTTP = {
 
 # Formato esperado por regex, para o erro string_pattern_mismatch.
 FORMATOS = {
-    PADRAO_CODIGO: "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)",
+    PADRAO_CODIGO: "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)",
     PADRAO_LOGIN: "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)",
 }
 
@@ -79,6 +79,10 @@ def _campo(loc: tuple) -> str:
 
 def _mensagem(erro: dict) -> str:
     tipo = erro.get("type", "")
+    if tipo == "value_error":
+        # ValueError de um validador do modelo: a mensagem e nossa, sem o
+        # prefixo "Value error, " do Pydantic.
+        return str((erro.get("ctx") or {}).get("error") or erro.get("msg", "valor invalido"))
     if tipo == "literal_error":
         esperado = (erro.get("ctx") or {}).get("expected", "")
         # O Pydantic monta a lista em ingles ("'A', 'B' or 'C'").
@@ -100,6 +104,18 @@ async def validacao_invalida(request: Request, exc: RequestValidationError) -> J
         status_code=400,
         content={"mensagem": "Dados da requisicao invalidos", "erros": erros},
     )
+
+
+class RequisicaoInvalida(Exception):
+    """Erro de entrada achado no proprio Gateway, fora do JSON (ex.: foto grande demais)."""
+
+    def __init__(self, mensagem: str, status: int = 400) -> None:
+        super().__init__(mensagem)
+        self.status = status
+
+
+async def requisicao_invalida(request: Request, exc: RequisicaoInvalida) -> JSONResponse:
+    return JSONResponse(status_code=exc.status, content={"mensagem": str(exc)})
 
 
 async def acesso_negado(request: Request, exc: Exception) -> JSONResponse:

@@ -39,7 +39,8 @@ WORKDIR /app
 
 COPY --from=deps /opt/venv /opt/venv
 COPY src/__init__.py src/__init__.py
-COPY src/comum/__init__.py src/comum/canal.py src/comum/rastreamento.py src/comum/registro.py src/comum/resiliencia.py src/comum/
+COPY src/comum/__init__.py src/comum/canal.py src/comum/imagens.py src/comum/rastreamento.py src/comum/registro.py \
+     src/comum/resiliencia.py src/comum/
 COPY --from=stubs /build/src/gerado/ src/gerado/
 COPY src/gateway/ src/gateway/
 RUN python -m compileall -q src

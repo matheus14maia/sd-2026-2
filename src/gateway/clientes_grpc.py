@@ -58,6 +58,22 @@ def para_dict(mensagem) -> dict:
     )
 
 
+def com_foto(item: dict) -> dict:
+    """Acrescenta ao item a URL da foto (relativa ao Gateway) ou None se nao tem foto.
+
+    A versao vai na URL: foto nova = URL nova, entao o navegador pode guardar a
+    foto em cache para sempre sem nunca mostrar uma foto velha.
+    """
+    versao = item.get("foto_versao") or ""
+    item["foto"] = "/cardapio/%s/foto?v=%s" % (item["codigo"], versao) if versao else None
+    return item
+
+
+def _ordem_do_cardapio(item: dict) -> tuple:
+    codigo = item.get("codigo", "")
+    return codigo[:2], len(codigo), codigo
+
+
 class ClientesGrpc:
     def __init__(self) -> None:
         self._canais = {nome: criar_canal(host, porta) for nome, (host, porta) in DESTINOS.items()}
@@ -106,6 +122,8 @@ class ClientesGrpc:
         requisicao = catalogo_pb2.ListarItensRequest(categoria=categoria)
         try:
             resposta = para_dict(self._chamar("catalogo", "ListarItens", self.catalogo.ListarItens, requisicao))
+            for item in resposta.get("itens", []):
+                com_foto(item)
         except CircuitoAberto as erro:
             return self._cardapio_salvo(chave, erro, str(erro))
         except grpc.RpcError as erro:
@@ -134,16 +152,64 @@ class ClientesGrpc:
                      "desatualizados." % (motivo, hora),
         }
 
-    def atualizar_item(self, codigo: str, disponivel: bool, preco: float | None) -> dict:
-        requisicao = catalogo_pb2.AtualizarItemRequest(codigo=codigo, disponivel=disponivel)
-        if preco is not None:
-            requisicao.preco = preco
-        item = para_dict(self._chamar("catalogo", "AtualizarItem", self.catalogo.AtualizarItem, requisicao))
-        # Mantem o fallback coerente com a alteracao que acabou de dar certo.
+    def _atualizar_cache(self, item: dict | None = None, excluido: str = "") -> None:
+        """Mantem o cardapio salvo (fallback) coerente com a alteracao que acabou de dar certo."""
+        sai = {excluido, (item or {}).get("codigo", "")} - {""}
         with self._trava_cache:
-            for _, dados in self._cache_cardapio.values():
-                dados["itens"] = [item if i.get("codigo") == item["codigo"] else i for i in dados.get("itens", [])]
+            for chave, (_, dados) in self._cache_cardapio.items():
+                itens = [i for i in dados.get("itens", []) if i.get("codigo") not in sai]
+                # Entra de novo so na lista completa ("") e na da categoria dele.
+                if item is not None and chave in ("", item.get("categoria", "").lower()):
+                    itens = sorted(itens + [item], key=_ordem_do_cardapio)
+                dados["itens"] = itens
+
+    def _item(self, operacao: str, requisicao) -> dict:
+        """Chama uma operacao do Catalogo que devolve ItemCardapio e atualiza o fallback."""
+        item = com_foto(para_dict(self._chamar("catalogo", operacao, getattr(self.catalogo, operacao), requisicao)))
+        self._atualizar_cache(item)
         return item
+
+    def atualizar_item(self, codigo: str, campos: dict) -> dict:
+        """So os campos presentes em `campos` mudam (None = nao mexe)."""
+        requisicao = catalogo_pb2.AtualizarItemRequest(codigo=codigo)
+        for nome in ("disponivel", "preco", "nome", "descricao", "categoria"):
+            if campos.get(nome) is not None:
+                setattr(requisicao, nome, campos[nome])
+        if campos.get("opcoes") is not None:
+            requisicao.opcoes.valores.extend(campos["opcoes"])
+            requisicao.opcoes.SetInParent()  # lista vazia tambem e "presente": tira as opcoes
+        return self._item("AtualizarItem", requisicao)
+
+    def criar_item(self, dados: dict) -> dict:
+        requisicao = catalogo_pb2.CriarItemRequest(
+            # Chave de idempotencia: todas as tentativas desta requisicao HTTP
+            # levam a mesma chave, entao um retry nunca cadastra o prato duas vezes.
+            chave=str(uuid.uuid4()),
+            nome=dados["nome"],
+            descricao=dados.get("descricao") or "",
+            categoria=dados["categoria"],
+            preco=dados["preco"],
+            disponivel=dados.get("disponivel", True),
+            opcoes=dados.get("opcoes") or [],
+        )
+        return self._item("CriarItem", requisicao)
+
+    def excluir_item(self, codigo: str) -> dict:
+        resposta = self._chamar(
+            "catalogo", "ExcluirItem", self.catalogo.ExcluirItem, catalogo_pb2.ExcluirItemRequest(codigo=codigo)
+        )
+        self._atualizar_cache(excluido=resposta.codigo)
+        return {"mensagem": "Item %s excluido do cardapio." % resposta.codigo, "codigo": resposta.codigo}
+
+    def salvar_foto(self, codigo: str, tipo: str, conteudo: bytes) -> dict:
+        return self._item("SalvarFoto", catalogo_pb2.SalvarFotoRequest(codigo=codigo, tipo=tipo, conteudo=conteudo))
+
+    def remover_foto(self, codigo: str) -> dict:
+        return self._item("RemoverFoto", catalogo_pb2.RemoverFotoRequest(codigo=codigo))
+
+    def obter_foto(self, codigo: str) -> dict:
+        foto = self._chamar("catalogo", "ObterFoto", self.catalogo.ObterFoto, catalogo_pb2.ObterFotoRequest(codigo=codigo))
+        return {"tipo": foto.tipo, "conteudo": foto.conteudo, "versao": foto.versao}
 
     # Pedidos ----------------------------------------------------------------
     def criar_pedido(self, usuario_id: str, cliente: str, endereco: str, itens: list[dict]) -> dict:
