@@ -36,7 +36,12 @@ da requisicao).
 | `POST /auth/login` | publica | `{"login", "senha"}` | 200 `{"access_token", "token_type", "expira_em_segundos", "usuario"}` | `UsuarioService.VerificarCredenciais` |
 | `GET /auth/eu` | token | - | 200 dados do token | - |
 | `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
-| `PATCH /cardapio/{codigo}` | token + papel `cozinha` | `{"disponivel": true, "preco": 82.5}` (`preco` opcional) | 200 item alterado | `CatalogoService.AtualizarItem` |
+| `POST /cardapio` | token + papel `cozinha` | `{"nome", "categoria", "preco", "descricao"?, "disponivel"?, "opcoes"?}` | **201** item com o codigo gerado | `CatalogoService.CriarItem` |
+| `PATCH /cardapio/{codigo}` | token + papel `cozinha` | qualquer combinacao de `disponivel`, `preco`, `nome`, `descricao`, `categoria`, `opcoes` | 200 item alterado | `CatalogoService.AtualizarItem` |
+| `DELETE /cardapio/{codigo}` | token + papel `cozinha` | - | 200 `{"mensagem", "codigo"}` (repetir tambem da 200) | `CatalogoService.ExcluirItem` |
+| `PUT /cardapio/{codigo}/foto` | token + papel `cozinha` | bytes da foto, `Content-Type: image/jpeg`, `image/png` ou `image/webp` | 200 item com a URL nova em `foto` | `CatalogoService.SalvarFoto` |
+| `DELETE /cardapio/{codigo}/foto` | token + papel `cozinha` | - | 200 item com `foto: null` | `CatalogoService.RemoverFoto` |
+| `GET /cardapio/{codigo}/foto?v=` | **publica** | - | 200 bytes da foto (304 se o navegador ja tem) | `CatalogoService.ObterFoto` |
 | `POST /pedidos` | token | `{"endereco", "itens": [{"codigo", "quantidade", "opcao"?}]}` | **201** `{"mensagem", "pedido"}` em nome do dono do token | `PedidoService.CriarPedido` |
 | `GET /pedidos?limite=20&etapa=&periodo=&item=&cliente=` | token | - | 200 `{"escopo": "meus"/"todos", "filtros": {...}, "pedidos": [...]}` | `PedidoService.ListarPedidos` |
 | `GET /pedidos/eventos` | token | - | 200 `text/event-stream` (ver [Tempo real](#tempo-real-server-sent-events)) | `PedidoService.AcompanharPedidos` (stream) |
@@ -54,7 +59,8 @@ da requisicao).
   (`JWT_EXPIRACAO_MINUTOS`, padrao 60).
 - **Conferencia.** O `MiddlewareJWT` roda antes de qualquer rota. Fora de
   `ROTAS_PUBLICAS` (`/saude`, `/auth/login`, `/auth/cadastro`, `/docs`,
-  `/openapi.json`), a requisicao precisa de `Authorization: Bearer <token>`
+  `/openapi.json`) e do `GET` da foto de um prato (a tag `<img>` do navegador
+  nao manda cabecalho), a requisicao precisa de `Authorization: Bearer <token>`
   com assinatura valida e dentro da validade. Senao, **401** com o cabecalho
   `WWW-Authenticate: Bearer`, sem nenhuma chamada gRPC.
 - **Preflight do CORS.** Requisicoes `OPTIONS` passam sem token: o navegador nao
@@ -115,6 +121,41 @@ todos os preenchidos):
 
 Valor fora da lista responde **400** (`"erros": {"etapa": "valor nao permitido; use um de: ..."}`).
 A resposta repete os filtros aplicados em `"filtros"`.
+
+## Cardapio da cozinha (pratos e fotos)
+
+A cozinha cadastra, edita e exclui pratos e troca a foto de cada um. Quem
+valida as regras (categoria, opcoes repetidas, tipo da foto) e o Catalogo,
+dono do cardapio; o Gateway confere o formato e o papel.
+
+- **Cadastro (`POST /cardapio`).** `{"nome": "Strogonoff de frango",
+  "categoria": "Pratos", "preco": 46.9, "descricao": "...", "opcoes": []}`
+  responde **201** com o item e o codigo gerado (`PR06`). O Gateway manda uma
+  chave de idempotencia por requisicao: um retry nao cadastra o prato duas vezes.
+- **Edicao (`PATCH /cardapio/{codigo}`).** So os campos enviados mudam;
+  `{"disponivel": false}` tira o prato do dia sem mexer no resto. Corpo sem
+  nenhum campo responde 400 (`"corpo": "informe ao menos um campo para alterar"`).
+- **Exclusao (`DELETE /cardapio/{codigo}`).** O prato some do cardapio, mas os
+  pedidos antigos continuam com o nome e o preco da epoca (snapshot) e o codigo
+  nunca e reaproveitado. Repetir o `DELETE` responde 200 de novo (idempotente);
+  pedido com o codigo excluido responde 400.
+- **Foto (`PUT /cardapio/{codigo}/foto`).** O corpo sao os bytes do arquivo, com
+  o `Content-Type` dele. O tipo e conferido pelos primeiros bytes: arquivo que
+  nao e JPEG, PNG ou WebP (ou com `Content-Type` diferente do conteudo) responde
+  **415**; acima de 2 MB (`FOTO_MAXIMO_KB`), **413**. O frontend reduz a foto
+  para 800 px em JPEG antes de enviar (uns 100 KB).
+
+```bash
+curl -X PUT http://127.0.0.1:8000/cardapio/PR01/foto -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" --data-binary @file-a-parmegiana.jpg
+```
+
+- **Servir a foto (`GET /cardapio/{codigo}/foto?v=<versao>`).** Rota publica
+  so para leitura (a tag `<img>` nao manda o token). Cada item do
+  `GET /cardapio` traz `foto` com a URL ja montada (ou `null`); a versao na URL
+  e o hash do conteudo, entao a resposta sai com
+  `Cache-Control: public, max-age=31536000, immutable` e o navegador nunca
+  pede a mesma foto duas vezes. Trocou a foto, a URL muda. Sem `v` (ou com uma
+  versao antiga) sai `no-cache` com `ETag`, e o navegador recebe 304 se ja tem.
 
 ## Tempo real (Server-Sent Events)
 
@@ -272,5 +313,7 @@ $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda os 50 cenarios em
-sequencia, inclusive os de 401, 403, dono do pedido, filtros e tempo real.
+O teste `python scripts/testar_gateway.py --url $URL` roda os 66 cenarios em
+sequencia, inclusive os de 401, 403, dono do pedido, filtros, tempo real e o
+cardapio da cozinha (cadastro, edicao, foto com 415 para arquivo errado e
+exclusao idempotente).

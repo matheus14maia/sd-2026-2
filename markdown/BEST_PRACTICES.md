@@ -267,7 +267,33 @@ nada que nao esteja no contrato.
 - **Cada opcao e uma linha do pedido** (`itens_pedido.opcao`, snapshot): dois
   sabores do mesmo refrigerante sao duas linhas.
 - **A carga atualiza as opcoes** (`ON CONFLICT ... SET opcoes = EXCLUDED.opcoes`),
-  como nome e descricao; preco e disponibilidade continuam so com a cozinha.
+  como nome e descricao, mas so de item que a cozinha nunca editou (ver abaixo);
+  preco e disponibilidade continuam so com a cozinha.
+
+## Cardapio da cozinha e fotos
+
+- **A carga inicial nunca desfaz a cozinha.** Mudar nome, descricao, categoria,
+  opcoes ou foto, cadastrar ou excluir preenche `itens_cardapio.editado_em`; o
+  `seed.sql` (`... WHERE itens_cardapio.editado_em IS NULL`) e o migrador (fotos
+  de `db/fotos/`) so mexem em item com `editado_em` nulo. Campo novo editavel
+  pela tela entra em `CAMPOS_CONTEUDO` do repositorio do Catalogo.
+- **Prato nao e apagado de verdade.** `ExcluirItem` preenche `excluido_em`;
+  toda consulta do Catalogo filtra `excluido_em IS NULL`. Assim o codigo nunca
+  volta, o seed nao recria o prato e excluir de novo responde 200.
+- **Codigo sai da categoria, sob trava.** `CriarItem` usa
+  `pg_advisory_xact_lock` antes de calcular o proximo numero (contando os
+  excluidos) e grava a `chave_criacao` do Gateway: retry nao duplica prato.
+- **Foto e conferida pelo conteudo.** `src/comum/imagens.py` (assinatura de
+  JPEG/PNG/WebP e limite `FOTO_MAXIMO_KB`) e usado no Gateway, no Catalogo e no
+  migrador; o `Content-Type` declarado tem que bater com os bytes (senao 415).
+- **Foto fica no banco, servida pelo Gateway.** Nada de arquivo no container (o
+  Cloud Run nao guarda). A URL leva a versao (hash): `immutable` quando a
+  versao confere, `no-cache` + `ETag` sem ela.
+- **Rota binaria e excecao documentada.** `PUT /cardapio/{codigo}/foto` le o
+  corpo cru numa dependencia async (`ler_foto`) e a rota continua sincrona; o
+  papel e conferido antes de ler o corpo (dependencia da rota vem primeiro).
+- **Cardapio do cliente se atualiza sozinho** (consulta a cada 30 s e ao voltar
+  para a aba). A sacola so avisa; quem decide e o Pedidos ao finalizar.
 
 ## Tempo real
 

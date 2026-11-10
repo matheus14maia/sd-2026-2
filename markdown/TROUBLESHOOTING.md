@@ -22,6 +22,25 @@
 
 ## 2026-11-10
 
+### Fogo do botao nao aparece: a animacao termina no primeiro quadro
+
+**Sintoma:** depois de confirmar o pedido, o `<canvas class="fogo">` aparecia
+por um instante e sumia sem desenhar nada; o botao nem chegava a acender. Nas
+capturas (Playwright, servidor do Vite) nenhum quadro tinha fogo.
+
+**Causa:** o horario que o `requestAnimationFrame` passa para o quadro e o do
+inicio do quadro, que pode ser um pouco anterior ao `performance.now()` lido
+quando a animacao comecou. No primeiro quadro `t = agora - inicio` saia
+negativo, a intensidade (`t / SUBIDA_MS`) ficava abaixo de zero, nenhuma
+particula nascia e a condicao de continuar (`forca > 0 || particulas`) dava
+falso: a animacao chamava `aoTerminar` antes de comecar. Dependia do tempo da
+maquina, por isso na primeira versao (imagem de producao) funcionou.
+
+**Solucao:** `t` e `dt` presos em zero (`Math.max(0, ...)`) e a animacao so
+termina pelo relogio (`t < EMISSAO_MS`) ou quando nao sobra particula.
+
+**Arquivos:** `frontend/src/componentes/Fogo.jsx`.
+
 ### Microsservico termina com `TypeError` no `docker stop`
 
 **Sintoma:** com o rastreamento ligado, o `docker stop` de um microsservico

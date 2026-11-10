@@ -90,7 +90,7 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
-### Teste ponta a ponta (50 cenarios)
+### Teste ponta a ponta (66 cenarios)
 
 PowerShell:
 
@@ -125,6 +125,22 @@ OK  Dono do token  (esperado 200, recebido 200)
 OK  Login do cliente recem-criado  (esperado 200, recebido 200)
 OK  Cliente tentando alterar o cardapio  (esperado 403, recebido 403)
 OK  Cardapio de bebidas  (esperado 200, recebido 200)
+OK  Cliente tentando cadastrar prato  (esperado 403, recebido 403)
+OK  Prato sem nome e sem preco  (esperado 400, recebido 400)
+OK  Prato em categoria que nao existe  (esperado 400, recebido 400)
+OK  Cozinha cadastra um prato (codigo sai da categoria)  (esperado 201, recebido 201)
+OK  Edicao sem nenhum campo  (esperado 400, recebido 400)
+OK  Cozinha edita a descricao (o resto fica igual)  (esperado 200, recebido 200)
+OK  Cliente tentando enviar foto  (esperado 403, recebido 403)
+OK  Arquivo que nao e foto  (esperado 415, recebido 415)
+OK  Cozinha envia a foto do prato  (esperado 200, recebido 200)
+OK  Foto do prato e publica (sem token)  (esperado 200, recebido 200)
+OK  Cozinha tira a foto do prato  (esperado 200, recebido 200)
+OK  Foto que nao existe mais  (esperado 404, recebido 404)
+OK  Cliente tentando excluir prato  (esperado 403, recebido 403)
+OK  Cozinha exclui o prato  (esperado 200, recebido 200)
+OK  Excluir de novo nao e erro (idempotente)  (esperado 200, recebido 200)
+OK  Pedido com prato excluido  (esperado 400, recebido 400)
 OK  Pedido valido gravado em nome do dono do token  (esperado 201, recebido 201)
 OK  Campo cliente no corpo e recusado (o nome vem do token)  (esperado 400, recebido 400)
 OK  Sem o campo endereco  (esperado 400, recebido 400)
@@ -161,7 +177,7 @@ OK  Tempo real: cliente nao recebe pedido de outro usuario  (esperado 200, receb
 OK  Health check dos microsservicos  (esperado 200, recebido 200)
 OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)
 
-Todos os 50 cenarios passaram.
+Todos os 66 cenarios passaram.
 ```
 
 ### Teste de tolerancia a falhas

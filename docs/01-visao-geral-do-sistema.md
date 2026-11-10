@@ -11,8 +11,9 @@ API HTTP) e possivel:
   de quem esta logado (o nome e o dono vem do token, nao de um campo livre);
 - consultar e listar os proprios pedidos (a cozinha ve os de todos);
 - com o papel `cozinha`: avancar o status do pedido
-  (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`), tirar um
-  item do cardapio do dia ou mudar o preco.
+  (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`) e cuidar
+  do cardapio: cadastrar, editar e excluir pratos (nome, categoria, preco,
+  descricao, opcoes, disponibilidade do dia) e trocar a foto de cada um.
 
 Tudo o que e consultado, criado ou alterado fica no PostgreSQL. Nao existe lista
 estatica nem dicionario em memoria: reiniciar qualquer container nao perde nada.
@@ -103,10 +104,13 @@ O filtro e feito no banco (`WHERE usuario_id = ...`), pelo Pedidos.
 | `itens` vazio | Gateway | - | 400 | `erros.itens: "deve ter pelo menos um item"` |
 | `quantidade` <= 0 | Gateway | - | 400 | `erros.itens.0.quantidade: "deve ser maior que zero"` |
 | `quantidade` nao inteira (`"2"`, `1.5`) | Gateway | - | 400 | `"deve ser um numero inteiro"` |
-| codigo fora do formato (`P1`) | Gateway | - | 400 | `"codigo invalido: use 2 letras e 2 digitos (ex.: PR01)"` |
+| codigo fora do formato (`P1`) | Gateway | - | 400 | `"codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)"` |
 | campo desconhecido (ex.: `preco`) | Gateway | - | 400 | `"campo nao permitido"` |
 | codigo valido mas inexistente (`XX99`) | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'XX99' nao existe no cardapio.` |
 | item indisponivel (`PR05` na carga inicial) | Pedidos | `FAILED_PRECONDITION` | 409 | `Item 'PR05' (Moqueca de peixe) esta indisponivel hoje.` |
+| item que a cozinha excluiu | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'PR06' nao existe no cardapio.` |
+| prato novo em categoria que nao existe | Catalogo | `INVALID_ARGUMENT` | 400 | `Categoria 'Lanches' nao existe. Use uma de: Entradas, Pratos, Bebidas, Sobremesas.` |
+| foto que nao e JPEG/PNG/WebP, ou acima de 2 MB | Gateway | - | 415 / 413 | `Envie uma foto JPEG, PNG ou WebP (...)` / `A foto passa de 2048 KB.` |
 | refrigerante (`BE01`) ou agua (`BE03`) sem escolher a opcao | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Escolha uma opcao para BE01 (Refrigerante lata): Coca-Cola, ...` |
 | opcao que nao existe, ou opcao num prato sem opcoes | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Opcao 'Fanta Morango' nao existe para BE01 (...)` |
 | pedido inexistente | Pedidos | `NOT_FOUND` | 404 | `Pedido '...' nao encontrado.` |
@@ -142,5 +146,11 @@ depender de quem o chama (defesa em profundidade).
 | Tempo real com NOTIFY + gRPC streaming + SSE | a tela acompanha o pedido sem F5; o aviso nasce no banco (funciona com varias instancias) e o Gateway abre um so stream por instancia, nao um por navegador |
 | Opcoes do item no Catalogo, conferidas pelo Pedidos | o sabor do refrigerante e dado do cardapio (`itens_cardapio.opcoes`), nao regra fixa no codigo; a cozinha ou a carga mudam as opcoes sem mexer no Pedidos |
 | Rastreamento com OpenTelemetry | o mesmo codigo manda os spans para o Jaeger no computador e para o Cloud Trace no Google Cloud (ver [08-rastreamento.md](08-rastreamento.md)) |
+| Fotos dos pratos no PostgreSQL (`fotos_itens`) | o Cloud Run nao tem disco permanente e pode ter varias instancias: foto gravada no container sumiria. No banco ela funciona igual no compose e no Cloud SQL, sem outro servico. Para muitas fotos o caminho seria o Cloud Storage; para um cardapio de dezenas de pratos o banco basta |
+| URL da foto com a versao (hash) | foto nova = URL nova: o navegador guarda cada foto para sempre (`immutable`) sem nunca mostrar uma foto velha |
+| Exclusao logica de prato | pedidos antigos tem o snapshot e continuam certos; o codigo nunca e reaproveitado; excluir de novo nao e erro (idempotente); e a carga inicial nao "ressuscita" o prato |
+| Carga inicial nao sobrescreve a cozinha | o `seed.sql` so atualiza item que a cozinha nunca editou (`editado_em` nulo): o que foi mudado pela tela sobrevive a todo deploy |
+| Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
+| Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |
 | Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
 | Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |

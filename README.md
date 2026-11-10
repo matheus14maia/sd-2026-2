@@ -71,7 +71,12 @@ Deploy do Trabalho 2 no GCP (VMs; ligado so para demonstracao, com `scripts/gcp/
 | `POST /auth/login` | nao | Usuarios | 200 + token | 400, **401** senha errada |
 | `GET /auth/eu` | sim | - | 200 | 401 |
 | `GET /cardapio?categoria=` | sim | Catalogo | 200 | 401, 404 categoria inexistente |
-| `PATCH /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 | 400, 401, **403**, 404 |
+| `POST /cardapio` | sim, papel `cozinha` | Catalogo | **201** (codigo gerado pela categoria) | 400, 401, **403** |
+| `PATCH /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 (so os campos enviados mudam) | 400, 401, **403**, 404 |
+| `DELETE /cardapio/{codigo}` | sim, papel `cozinha` | Catalogo | 200 (repetir tambem da 200) | 401, **403**, 404 |
+| `PUT /cardapio/{codigo}/foto` | sim, papel `cozinha` | Catalogo | 200 | 401, **403**, 404, 413 grande demais, 415 nao e foto |
+| `DELETE /cardapio/{codigo}/foto` | sim, papel `cozinha` | Catalogo | 200 | 401, **403**, 404 |
+| `GET /cardapio/{codigo}/foto` | nao (o `<img>` nao manda token) | Catalogo | 200 bytes da foto | 404 sem foto |
 | `POST /pedidos` | sim | Pedidos -> Catalogo | **201** (em nome do dono do token) | **400**, 401, 409 item indisponivel, 503 |
 | `GET /pedidos?limite=&etapa=&periodo=&item=&cliente=` | sim | Pedidos | 200 (cliente: so os seus; cozinha: todos; filtros opcionais) | 400, 401 |
 | `GET /pedidos/eventos` | sim | Pedidos (stream gRPC) | 200, fluxo Server-Sent Events: pedido criado ou etapa alterada, sem F5 | 401 |
@@ -112,9 +117,10 @@ python scripts/testar_resiliencia.py      # derruba e religa o Catalogo e confer
   falha ao vivo), Gateway em `http://127.0.0.1:8000`. No Windows, se o
   `localhost` nao abrir, use `http://127.0.0.1` (ver
   [problemas comuns](docs/03-execucao-local.md#problemas-comuns)).
-- O teste ponta a ponta roda 50 cenarios (200/201/400/401/403/404/409) e confere
-  status e conteudo de cada um, inclusive o dono dos pedidos, os filtros, o
-  historico de etapas e a atualizacao em tempo real.
+- O teste ponta a ponta roda 66 cenarios (200/201/400/401/403/404/409/413/415)
+  e confere status e conteudo de cada um, inclusive o dono dos pedidos, os
+  filtros, o historico de etapas, a atualizacao em tempo real e o cardapio da
+  cozinha (cadastro, edicao, foto e exclusao de prato).
 
 Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 
@@ -150,7 +156,7 @@ src/pedidos/                 microsservico de Pedidos (servidor, servico, reposi
 src/comum/                   banco, servidor gRPC, resiliencia (retry + circuit breaker), canal gRPC, log e rastreamento
 src/gerado/                  stubs gerados no build (nao versionados)
 frontend/                    frontend React (Vite) + Dockerfile (Node no build, nginx sem root na entrega)
-frontend/public/pratos/      fotos dos pratos, uma por codigo (EN01.jpg, PR01.jpg...)
+db/fotos/                    fotos iniciais dos pratos (opcional; a cozinha troca pela tela)
 docker/                      Dockerfiles multi-stage do Gateway, dos microsservicos e do migrador
 requirements/                dependencias Python separadas por papel (gateway, servicos, migrador, build)
 scripts/gerar_stubs.py       gera os stubs a partir de proto/*.proto

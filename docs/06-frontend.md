@@ -9,9 +9,9 @@ microsservicos. Todas as chamadas saem de um unico modulo, `src/api.js`.
 | Tela | O que faz | Chamadas ao Gateway |
 |---|---|---|
 | Entrar / Criar conta | login e cadastro; campos obrigatorios com asterisco (dica "Campo obrigatorio" ao passar o mouse); os formularios nao validam no navegador, entao o 400 do Gateway aparece embaixo de cada campo | `POST /auth/login`, `POST /auth/cadastro` |
-| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), foto de cada prato com zoom, submenu de opcoes (sabor do refrigerante, agua sem ou com gas) em que cada opcao vira uma linha da sacola, pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com animacao de chamas; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos` |
+| Cardapio | abas por categoria (Todos, Entradas, Pratos principais, Sobremesas, Bebidas; o filtro e feito no servidor), foto de cada prato com zoom, submenu de opcoes (sabor do refrigerante, agua sem ou com gas) em que cada opcao vira uma linha da sacola, pedido em nome de quem esta logado (so pede o endereco); botao "Finalizar pedido e acender as chamas" com fogo de particulas ao confirmar; o cardapio se atualiza a cada 30 s e a sacola marca o que a cozinha mudou; se o Catalogo cair, mostra a faixa "cardapio em modo de seguranca" | `GET /cardapio`, `GET /cardapio?categoria=`, `POST /pedidos`, `GET /cardapio/{codigo}/foto` |
 | Pedidos | "Meus pedidos" para cliente, "Todos os pedidos" para a cozinha; filtros por etapa, periodo, prato e (cozinha) cliente; horario de cada etapa, previsao de entrega com o tempo que falta; a cozinha avanca a etapa e pode tentar pular uma (409); tudo se atualiza sozinho | `GET /pedidos?...`, `GET /pedidos/{id}`, `PATCH /pedidos/{id}/status`, `GET /pedidos/eventos` |
-| Cozinha (so papel `cozinha`) | liga e desliga pratos do cardapio do dia e ajusta preco | `GET /cardapio`, `PATCH /cardapio/{codigo}` |
+| Cozinha (so papel `cozinha`) | lista os pratos por categoria com foto, preco e o interruptor "Disponivel"; "Novo prato" e "Editar" abrem um formulario (nome, categoria, preco, descricao que o cliente le, opcoes, disponivel hoje e foto); "Excluir prato" pede confirmacao | `GET /cardapio`, `POST /cardapio`, `PATCH /cardapio/{codigo}`, `DELETE /cardapio/{codigo}`, `PUT` e `DELETE /cardapio/{codigo}/foto` |
 | Saude dos servicos (so papel `cozinha`) | a cada 3 s, health check gRPC de cada microsservico, o estado do circuit breaker no Gateway e da conexao de tempo real; botoes para carregar o cardapio e fazer um pedido de teste durante uma falha (ver [07-resiliencia.md](07-resiliencia.md)) | `GET /saude/servicos`, `GET /cardapio`, `POST /pedidos` |
 | Testes de seguranca (so papel `cozinha`) | botoes que mandam requisicoes erradas de proposito: sem token, token adulterado, token editado, senha errada (401), cliente mudando preco ou vendo a saude (403), payload invalido (400), item inexistente (400), item indisponivel (409), pedido em nome de outra pessoa (400), cliente vendo pedido de outro (404) | varias |
 
@@ -21,10 +21,30 @@ lista e o detalhe do pedido se atualizam sozinhos e aparecem avisos: a cozinha e
 avisada de cada pedido novo e o cliente de cada etapa do pedido dele. O estado
 dessa conexao aparece so na aba "Saude dos servicos" (cozinha).
 
-**Fotos dos pratos.** Cada prato mostra `frontend/public/pratos/<CODIGO>.jpg`
-(ex.: `PR01.jpg`), servida pelo nginx em `/pratos/PR01.jpg`. Prato sem foto
-mostra as iniciais no lugar (o nginx responde 404 para foto que nao existe).
-Depois de colocar fotos novas: `docker compose up -d --build frontend`.
+**Fotos dos pratos.** A cozinha escolhe a foto no formulario do prato (aba
+Cozinha > Editar > Escolher foto) e troca quando quiser, sem reiniciar nada. O
+navegador reduz a foto para 800 px em JPEG (uma foto de celular de 5 MB vira uns
+100 KB) e envia em `PUT /cardapio/{codigo}/foto`; a foto fica no banco, e o
+cardapio mostra a URL que vem no campo `foto` de cada item. Prato sem foto (ou
+com a foto fora do ar) mostra as iniciais no lugar. Fotos iniciais tambem podem
+vir no repositorio, em `db/fotos/<CODIGO>.jpg` (ver o `LEIA-ME.txt` da pasta):
+o migrador carrega no banco quando o sistema sobe.
+
+**Fogo ao confirmar o pedido.** O botao "Finalizar pedido e acender as chamas"
+tem uma chama de duas camadas que tremula sob o mouse. Com o pedido confirmado,
+o `componentes/Fogo.jsx` desenha num `<canvas>` sete linguas de fogo que sobem
+do botao por uns 2 s: particulas que nascem amarelas e esfriam para laranja e
+vermelho enquanto sobem e afinam, com faiscas. Com "reduzir movimento" ligado no
+sistema, nada e animado.
+
+**Quando a cozinha muda o cardapio.** O cardapio do cliente e consultado de
+novo a cada 30 s e quando a aba do navegador volta a ficar visivel. Se um prato
+da sacola ficou indisponivel, saiu do cardapio ou perdeu a opcao escolhida, a
+linha aparece marcada com o motivo e o botao "Retirar"; se o preco mudou, a
+linha avisa o preco anterior. A garantia final e do servidor: ao finalizar, o
+Pedidos confere cada item com o Catalogo e recusa o pedido inteiro (409 ou 400,
+nada e gravado) se algum nao puder ser vendido; a tela mostra o motivo e
+atualiza a sacola.
 
 **Mensagens.** A API responde sem acento (convencao do backend); o
 `src/mensagens.js` transforma as mensagens conhecidas em frases com acento para a
@@ -96,7 +116,6 @@ frontend/
   src/mensagens.js                 mensagens da API -> texto da tela (com acento)
   src/App.jsx                      cabecalho, abas e escolha da tela
   src/telas/                       Login, Cardapio, Pedidos, Cozinha, Saude, Testes
-  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama, FotoPrato
-  public/pratos/                   fotos dos pratos: <CODIGO>.jpg (ver LEIA-ME.txt na pasta)
+  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama, Fogo, FotoPrato
   src/estilos.css                  identidade visual
 ```

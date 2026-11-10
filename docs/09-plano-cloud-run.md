@@ -16,6 +16,7 @@
 | PostgreSQL | container | Cloud SQL `delivery-postgres` (ja existe), pelo conector do Cloud Run (`DB_HOST=/cloudsql/<conexao>`) |
 | Imagens | build local | Artifact Registry `us-central1-docker.pkg.dev/<projeto>/delivery/<componente>` |
 | Senhas | `.env` | **Secret Manager** |
+| Fotos dos pratos | tabela `fotos_itens` do PostgreSQL | a mesma tabela no Cloud SQL: nada a mudar (o container do Cloud Run nao guarda arquivo) |
 | Logs | `docker compose logs` | Cloud Logging (`LOG_JSON=1`) |
 | Traces | Jaeger | **Cloud Trace** (`RASTREAMENTO=gcp`, ver [08-rastreamento.md](08-rastreamento.md)) |
 | VMs do Trabalho 2 | - | excluidas no fim |

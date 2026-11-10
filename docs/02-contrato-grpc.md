@@ -41,26 +41,47 @@ aquele servico na mesma alteracao.
 |---|---|---|---|---|
 | `ListarItens` | `ListarItensRequest{categoria}` | `ListarItensResponse{restaurante, itens[]}` | Gateway (`GET /cardapio`) | `SELECT` em `itens_cardapio`, com filtro de categoria sem diferenciar maiusculas |
 | `ConsultarItens` | `ConsultarItensRequest{codigos[]}` | `ConsultarItensResponse{itens[]}` | Pedidos (ao criar pedido) | `SELECT ... WHERE codigo = ANY(...)`: busca todos os itens do pedido numa consulta so |
-| `AtualizarItem` | `AtualizarItemRequest{codigo, disponivel, optional preco}` | `ItemCardapio` | Gateway (`PATCH /cardapio/{codigo}`) | `UPDATE ... RETURNING`, que devolve a linha ja alterada |
+| `AtualizarItem` | `AtualizarItemRequest{codigo, optional disponivel, optional preco, optional nome, optional descricao, optional categoria, ListaOpcoes opcoes}` | `ItemCardapio` | Gateway (`PATCH /cardapio/{codigo}`) | `UPDATE ... RETURNING` so dos campos presentes |
+| `CriarItem` | `CriarItemRequest{chave, nome, descricao, categoria, preco, disponivel, opcoes[]}` | `ItemCardapio` | Gateway (`POST /cardapio`) | trava `pg_advisory_xact_lock`, proximo codigo da categoria e `INSERT`; a mesma `chave` devolve o item ja criado |
+| `ExcluirItem` | `ExcluirItemRequest{codigo}` | `ExcluirItemResponse{codigo}` | Gateway (`DELETE /cardapio/{codigo}`) | exclusao logica (`excluido_em`) e apaga a foto |
+| `SalvarFoto` | `SalvarFotoRequest{codigo, tipo, conteudo}` | `ItemCardapio` | Gateway (`PUT /cardapio/{codigo}/foto`) | `UPSERT` em `fotos_itens` e a versao nova em `itens_cardapio.foto_versao` |
+| `RemoverFoto` | `RemoverFotoRequest{codigo}` | `ItemCardapio` | Gateway (`DELETE /cardapio/{codigo}/foto`) | apaga a linha de `fotos_itens` e zera a versao |
+| `ObterFoto` | `ObterFotoRequest{codigo}` | `Foto{codigo, tipo, conteudo, versao}` | Gateway (`GET /cardapio/{codigo}/foto`) | `SELECT` dos bytes |
 
 `ItemCardapio`:
 
 | Campo | Tipo | Tag | Observacao |
 |---|---|---|---|
-| `codigo` | string | 1 | 2 letras + 2 digitos (`PR01`) |
+| `codigo` | string | 1 | 2 letras + 2 a 4 digitos (`PR01`); as letras vem da categoria |
 | `nome` | string | 2 | |
 | `descricao` | string | 3 | |
 | `categoria` | string | 4 | Entradas, Pratos, Bebidas, Sobremesas |
 | `preco` | double | 5 | em reais; `NUMERIC(10,2)` no banco |
 | `disponivel` | bool | 6 | `false` = fora do cardapio do dia |
 | `opcoes` | repeated string | 7 | submenu do item: sabores do refrigerante (`BE01`), agua sem ou com gas (`BE03`); vazio = sem escolha |
+| `foto_versao` | string | 8 | 12 hex do SHA-256 da foto; vazia = sem foto. O Gateway monta a URL `/cardapio/{codigo}/foto?v=<versao>` |
 
 - **`ConsultarItens` nao falha por codigo inexistente.** O codigo simplesmente
   nao aparece na resposta, e quem chama decide o que fazer: o Pedidos responde
   `INVALID_ARGUMENT`.
-- **`preco` em `AtualizarItemRequest` e `optional`.** Em proto3 isso da
+- **Os campos de `AtualizarItemRequest` sao `optional`.** Em proto3 isso da
   *presenca* ao campo (`HasField("preco")`), o que diferencia "nao mexer no
-  preco" de "preco = 0".
+  preco" de "preco = 0". Lista nao tem presenca, por isso `opcoes` vem dentro
+  da mensagem `ListaOpcoes`: ausente = mantem; presente e vazia = tira as opcoes.
+- **`CriarItem` e idempotente pela `chave`.** O Gateway gera um uuid por
+  requisicao HTTP e o repete em todas as tentativas do retry: se a primeira
+  gravou e so a resposta se perdeu, a segunda devolve o mesmo item em vez de
+  cadastrar outro. O codigo sai da categoria (Entradas `EN`, Pratos `PR`,
+  Bebidas `BE`, Sobremesas `SO`) com o proximo numero livre, contando os
+  excluidos: um codigo nunca e reaproveitado.
+- **Excluir e logico.** O item fica na tabela com `excluido_em` e some de
+  `ListarItens` e `ConsultarItens` (um pedido com ele responde
+  `INVALID_ARGUMENT`). Excluir de novo nao e erro; so codigo que nunca existiu
+  responde `NOT_FOUND`.
+- **Foto no banco.** `SalvarFoto` confere o tipo pelos primeiros bytes (JPEG,
+  PNG ou WebP) e o tamanho (ate 2 MB, `FOTO_MAXIMO_KB`), e a versao muda junto
+  com o conteudo. Bytes no PostgreSQL funcionam igual no compose e no Cloud
+  SQL, sem disco no container (ver docs/01).
 
 ## `proto/pedidos.proto` - `pedidos.PedidoService`
 
