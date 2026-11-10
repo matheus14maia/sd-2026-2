@@ -14,7 +14,8 @@ Tambem confere a posse dos pedidos: o pedido sai em nome do dono do token (o
 corpo nao tem "cliente"), o cliente so lista e consulta os proprios pedidos e a
 cozinha ve todos. E a gestao do cardapio pela cozinha: cadastrar, editar, enviar
 e tirar foto e excluir um prato (cada execucao cadastra e exclui um prato de
-teste; o codigo dele nunca e reaproveitado).
+teste; o codigo dele nunca e reaproveitado). E a conta do cliente: dados,
+token novo depois de mudar o nome, telefone no pedido e troca de senha.
 
 Cada cenario imprime o metodo, a rota, o status esperado, o status recebido e o
 corpo da resposta. Alguns cenarios tambem conferem o conteudo da resposta. Sai
@@ -380,6 +381,44 @@ def main() -> int:
 
     cenario("Health check dos microsservicos", 200, "GET", "/saude/servicos", conferir=todos_no_ar)
     cenario("Cliente tentando ver a saude dos servicos", 403, "GET", "/saude/servicos", autorizacao=bearer_cliente)
+
+    # Conta do cliente ("Meus dados"): sempre a do dono do token -------------
+    def pedido_de(nome, telefone):
+        def conferir(resposta):
+            pedido = resposta.get("pedido", {}) if isinstance(resposta, dict) else {}
+            if pedido.get("cliente") != nome or pedido.get("telefone") != telefone:
+                return "pedido de %r tel %r, esperado %r tel %r" % (pedido.get("cliente"), pedido.get("telefone"),
+                                                                 nome, telefone)
+            return None
+        return conferir
+
+    cenario("Conta sem token", 401, "GET", "/conta", autorizacao=SEM_TOKEN)
+    cenario("Cliente ve os proprios dados", 200, "GET", "/conta", autorizacao=bearer_cliente,
+            conferir=campo_igual("login", novo_login))
+    cenario("Telefone invalido", 400, "PATCH", "/conta", {"telefone": "123"}, autorizacao=bearer_cliente)
+    cenario("Conta sem nenhum campo", 400, "PATCH", "/conta", {}, autorizacao=bearer_cliente)
+    renomeado = cenario(
+        "Cliente muda nome, telefone e endereco (volta um token novo)", 200, "PATCH", "/conta",
+        {"nome": "Cliente Renomeado", "telefone": "(62) 99999-0000", "endereco": "Rua 20, 45"},
+        autorizacao=bearer_cliente,
+        conferir=lambda r: None if r.get("access_token") and r.get("usuario", {}).get("telefone") == "(62) 99999-0000"
+        else "sem token novo ou telefone nao gravado",
+    )
+    token_renomeado = renomeado.get("access_token", "") if isinstance(renomeado, dict) else ""
+    cenario("Pedido com o token novo sai com o nome novo e o telefone", 201, "POST", "/pedidos",
+            {"endereco": "Rua 20, 45", "telefone": "(62) 99999-0000", "itens": [{"codigo": "PR01", "quantidade": 1}]},
+            autorizacao="Bearer " + token_renomeado, conferir=pedido_de("Cliente Renomeado", "(62) 99999-0000"))
+    cenario("Trocar a senha com a atual errada", 400, "PUT", "/conta/senha",
+            {"senha_atual": "errada", "nova_senha": "senha-nova-1", "confirmar_senha": "senha-nova-1"},
+            autorizacao=bearer_cliente)
+    cenario("Confirmacao diferente da nova senha", 400, "PUT", "/conta/senha",
+            {"senha_atual": "senha-teste", "nova_senha": "senha-nova-1", "confirmar_senha": "outra-senha"},
+            autorizacao=bearer_cliente)
+    cenario("Cliente troca a senha", 200, "PUT", "/conta/senha",
+            {"senha_atual": "senha-teste", "nova_senha": "senha-nova-1", "confirmar_senha": "senha-nova-1"},
+            autorizacao=bearer_cliente)
+    cenario("Senha antiga nao entra mais", 401, "POST", "/auth/login", {"login": novo_login, "senha": "senha-teste"})
+    cenario("Senha nova entra", 200, "POST", "/auth/login", {"login": novo_login, "senha": "senha-nova-1"})
 
     print("\n" + ("Todos os %d cenarios passaram." % total if falhas == 0
                   else "%d de %d cenario(s) nao sairam como esperado." % (falhas, total)))

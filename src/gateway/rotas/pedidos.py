@@ -61,7 +61,8 @@ def _criado_desde(periodo: str | None) -> str:
 def criar(request: Request, corpo: PedidoEntrada):
     usuario = request.state.usuario
     pedido = request.app.state.grpc.criar_pedido(
-        usuario["sub"], usuario["nome"], corpo.endereco, [item.model_dump() for item in corpo.itens]
+        usuario["sub"], usuario["nome"], corpo.endereco, [item.model_dump() for item in corpo.itens],
+        corpo.telefone or "",
     )
     return {"mensagem": "Pedido criado com sucesso", "pedido": pedido}
 

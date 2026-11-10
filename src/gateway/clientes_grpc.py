@@ -116,6 +116,26 @@ class ClientesGrpc:
             self._chamar("usuarios", "VerificarCredenciais", self.usuarios.VerificarCredenciais, requisicao)
         )
 
+    def obter_usuario(self, usuario_id: str) -> dict:
+        requisicao = usuarios_pb2.ObterUsuarioRequest(id=usuario_id)
+        return para_dict(self._chamar("usuarios", "ObterUsuario", self.usuarios.ObterUsuario, requisicao))
+
+    def atualizar_usuario(self, usuario_id: str, campos: dict) -> dict:
+        """So os campos presentes em `campos` mudam (None = nao mexe; "" apaga)."""
+        requisicao = usuarios_pb2.AtualizarUsuarioRequest(id=usuario_id)
+        for nome in ("nome", "telefone", "endereco"):
+            if campos.get(nome) is not None:
+                setattr(requisicao, nome, campos[nome])
+        return para_dict(self._chamar("usuarios", "AtualizarUsuario", self.usuarios.AtualizarUsuario, requisicao))
+
+    def trocar_senha(self, usuario_id: str, senha_atual: str, nova_senha: str) -> dict:
+        requisicao = usuarios_pb2.TrocarSenhaRequest(id=usuario_id, senha_atual=senha_atual, nova_senha=nova_senha)
+        # Nao idempotente: repetir depois de dar certo responderia "senha atual
+        # incorreta". UNAVAILABLE ainda e repetido (nada foi gravado).
+        return para_dict(
+            self._chamar("usuarios", "TrocarSenha", self.usuarios.TrocarSenha, requisicao, idempotente=False)
+        )
+
     # Catalogo ---------------------------------------------------------------
     def listar_cardapio(self, categoria: str) -> dict:
         chave = categoria.lower()
@@ -212,7 +232,7 @@ class ClientesGrpc:
         return {"tipo": foto.tipo, "conteudo": foto.conteudo, "versao": foto.versao}
 
     # Pedidos ----------------------------------------------------------------
-    def criar_pedido(self, usuario_id: str, cliente: str, endereco: str, itens: list[dict]) -> dict:
+    def criar_pedido(self, usuario_id: str, cliente: str, endereco: str, itens: list[dict], telefone: str = "") -> dict:
         requisicao = pedidos_pb2.CriarPedidoRequest(
             # Chave de idempotencia: todas as tentativas desta requisicao HTTP
             # levam o mesmo id, entao um retry nunca grava o pedido duas vezes.
@@ -220,6 +240,7 @@ class ClientesGrpc:
             usuario_id=usuario_id,
             cliente=cliente,
             endereco=endereco,
+            telefone=telefone,
             itens=[
                 pedidos_pb2.ItemPedido(codigo=i["codigo"], quantidade=i["quantidade"], opcao=i.get("opcao") or "")
                 for i in itens

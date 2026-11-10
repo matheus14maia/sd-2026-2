@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
 ALTER TABLE usuarios
     ADD COLUMN IF NOT EXISTS papel TEXT NOT NULL DEFAULT 'cliente'
     CHECK (papel IN ('cliente', 'cozinha'));
+-- Dados de contato que o cliente edita em "Meus dados" (vazio = nao informado).
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT NOT NULL DEFAULT '';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS endereco TEXT NOT NULL DEFAULT '';
 
 -- Catalogo ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS itens_cardapio (
@@ -106,6 +109,8 @@ END $$;
 -- Trabalho 2 ja tinha a tabela; pedidos antigos ficam com NULL e so a cozinha
 -- os ve. Sem FK para usuarios: a tabela e de outro microsservico.
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS usuario_id UUID;
+-- Telefone de contato informado no pedido (snapshot, como o endereco).
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS telefone TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_pedidos_criado_em ON pedidos (criado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_pedidos_usuario ON pedidos (usuario_id, criado_em DESC);

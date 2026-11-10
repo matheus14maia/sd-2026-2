@@ -54,6 +54,7 @@ def _para_proto(pedido: dict) -> pb.Pedido:
         usuario_id=pedido["usuario_id"],
         cliente=pedido["cliente"],
         endereco=pedido["endereco"],
+        telefone=pedido.get("telefone") or "",
         status=pb.StatusPedido.Value(pedido["status"]),
         itens=[pb.ItemConfirmado(**linha) for linha in pedido["itens"]],
         total=pedido["total"],
@@ -145,6 +146,8 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Informe o nome do cliente.")
         if not request.endereco.strip():
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Informe o endereco de entrega.")
+        if len(request.telefone.strip()) > 30:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Telefone longo demais.")
         if not linhas:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "O pedido precisa de pelo menos um item.")
         for codigo, quantidade, _ in linhas:
@@ -215,6 +218,7 @@ class PedidoService(pb_grpc.PedidoServiceServicer):
             usuario_id=usuario_id,
             cliente=request.cliente.strip(),
             endereco=request.endereco.strip(),
+            telefone=request.telefone.strip(),
             status=ETAPAS[0],
             itens=confirmados,
             total=round(total, 2),

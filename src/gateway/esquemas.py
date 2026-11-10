@@ -8,13 +8,32 @@ que nao deve precificar nada).
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 # Regex dos campos com formato fixo. O erros.py usa as mesmas constantes para
 # explicar o formato esperado na resposta 400.
 PADRAO_CODIGO = r"^[A-Za-z]{2}[0-9]{2,4}$"
 PADRAO_LOGIN = r"^[A-Za-z0-9_.]{3,30}$"
+PADRAO_TELEFONE = r"^[0-9 ()+.-]*$"
 SENHA_MINIMO = 6
+TELEFONE_INVALIDO = "telefone invalido: use DDD e numero (ex.: (62) 99999-0000)"
+
+
+def _digitos_do_telefone(valor: str) -> str:
+    """Vazio apaga o telefone; preenchido precisa de DDD + numero (10 a 13 digitos)."""
+    if valor and not 10 <= sum(c.isdigit() for c in valor) <= 13:
+        raise ValueError(TELEFONE_INVALIDO)
+    return valor
 
 TextoObrigatorio = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 CodigoItem = Annotated[
@@ -23,6 +42,12 @@ CodigoItem = Annotated[
 ]
 # O pattern e checado antes do to_lower, por isso a regex aceita maiuscula.
 Login = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=PADRAO_LOGIN)]
+Telefone = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=20, pattern=PADRAO_TELEFONE),
+    AfterValidator(_digitos_do_telefone),
+]
+Senha = Annotated[str, StringConstraints(min_length=SENHA_MINIMO, max_length=72)]
 
 Etapa = Literal["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"]
 ETAPAS = ("RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE")
@@ -47,6 +72,8 @@ class PedidoEntrada(Entrada):
     # "cliente" no corpo cai no extra="forbid" e responde 400.
     endereco: TextoObrigatorio = Field(examples=["Rua 10, 123 - Setor Universitario"])
     itens: list[ItemEntrada] = Field(min_length=1, max_length=30)
+    # Contato para a entrega (opcional); o frontend preenche com o de "Meus dados".
+    telefone: Telefone | None = Field(default=None, examples=["(62) 99999-0000"])
 
 
 class StatusEntrada(Entrada):
@@ -72,15 +99,8 @@ class ItemNovo(Entrada):
     opcoes: ListaOpcoes = Field(default_factory=list, examples=[[]])
 
 
-class ItemAtualizacao(Entrada):
-    """PATCH: so os campos enviados mudam (null conta como nao enviado)."""
-
-    disponivel: StrictBool | None = Field(default=None, examples=[True])
-    preco: Preco | None = Field(default=None, examples=[79.9])
-    nome: NomeItem | None = None
-    descricao: DescricaoItem | None = None
-    categoria: CategoriaItem | None = None
-    opcoes: ListaOpcoes | None = None
+class AlteracaoParcial(Entrada):
+    """Base dos PATCH: so os campos enviados mudam (null conta como nao enviado)."""
 
     @model_validator(mode="after")
     def algum_campo(self):
@@ -89,13 +109,46 @@ class ItemAtualizacao(Entrada):
         return self
 
 
+class ItemAtualizacao(AlteracaoParcial):
+    disponivel: StrictBool | None = Field(default=None, examples=[True])
+    preco: Preco | None = Field(default=None, examples=[79.9])
+    nome: NomeItem | None = None
+    descricao: DescricaoItem | None = None
+    categoria: CategoriaItem | None = None
+    opcoes: ListaOpcoes | None = None
+
+
+class ContaAtualizacao(AlteracaoParcial):
+    """PATCH /conta. Telefone ou endereco vazio ("") apaga o dado."""
+
+    nome: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)] | None = Field(
+        default=None, examples=["Maria Silva"]
+    )
+    telefone: Telefone | None = Field(default=None, examples=["(62) 99999-0000"])
+    endereco: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = Field(
+        default=None, examples=["Rua 10, 123 - Setor Universitario"]
+    )
+
+
+class TrocaSenha(Entrada):
+    senha_atual: Annotated[str, StringConstraints(min_length=1, max_length=72)] = Field(examples=["senha-atual"])
+    nova_senha: Senha = Field(examples=["senha-nova"])
+    confirmar_senha: Annotated[str, StringConstraints(min_length=1, max_length=72)] = Field(examples=["senha-nova"])
+
+    @field_validator("confirmar_senha")
+    @classmethod
+    def confere(cls, valor: str, info):
+        # Se a nova senha ja foi recusada, ela nao esta em info.data: um erro so.
+        if valor != info.data.get("nova_senha", valor):
+            raise ValueError("as senhas nao conferem")
+        return valor
+
+
 class CadastroEntrada(Entrada):
     login: Login = Field(examples=["maria.silva"])
     nome: TextoObrigatorio = Field(examples=["Maria Silva"])
     # 72 e o limite do bcrypt; a senha nao passa por strip.
-    senha: Annotated[str, StringConstraints(min_length=SENHA_MINIMO, max_length=72)] = Field(
-        examples=["minhasenha"]
-    )
+    senha: Senha = Field(examples=["minhasenha"])
 
 
 class LoginEntrada(Entrada):

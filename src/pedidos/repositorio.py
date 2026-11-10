@@ -20,7 +20,7 @@ from ..comum.rastreamento import rastrear_banco
 CANAL_EVENTOS = "pedidos"
 
 COLUNAS_PEDIDO = """
-    id::text AS pedido_id, COALESCE(usuario_id::text, '') AS usuario_id, cliente, endereco,
+    id::text AS pedido_id, COALESCE(usuario_id::text, '') AS usuario_id, cliente, endereco, telefone,
     status, total::float8 AS total, tempo_estimado_minutos, criado_em, atualizado_em
 """
 COLUNAS_ITEM = """
@@ -67,18 +67,18 @@ class RepositorioPedidos:
 
     @rastrear_banco("pedidos.inserir")
     def inserir(self, pedido_id: str, usuario_id: str, cliente: str, endereco: str, status: str,
-                itens: list[dict], total: float, tempo_estimado_minutos: int) -> bool:
+                itens: list[dict], total: float, tempo_estimado_minutos: int, telefone: str = "") -> bool:
         """Grava pedido + itens + primeira etapa. Devolve False se ja existia pedido com este id."""
         with self.pool.connection() as conexao:  # commit ao sair do bloco sem erro
             with conexao.cursor() as cursor:
                 cursor.execute(
                     """
                     INSERT INTO pedidos
-                        (id, usuario_id, cliente, endereco, status, total, tempo_estimado_minutos)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (id, usuario_id, cliente, endereco, telefone, status, total, tempo_estimado_minutos)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO NOTHING
                     """,
-                    (pedido_id, usuario_id, cliente, endereco, status, total, tempo_estimado_minutos),
+                    (pedido_id, usuario_id, cliente, endereco, telefone, status, total, tempo_estimado_minutos),
                 )
                 if cursor.rowcount == 0:
                     return False

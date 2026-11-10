@@ -29,7 +29,7 @@ from . import erros
 from .autenticacao import SEGREDO_DEFINIDO, AcessoNegado, MiddlewareJWT
 from .clientes_grpc import ClientesGrpc
 from .eventos import RetransmissorEventos
-from .rotas import auth, cardapio, pedidos, saude
+from .rotas import auth, cardapio, conta, pedidos, saude
 
 # Origens do frontend que o navegador pode usar para chamar o Gateway, separadas
 # por virgula. "*" basta porque o token vai no cabecalho Authorization, nao em cookie.
@@ -74,6 +74,7 @@ app.add_exception_handler(CircuitoAberto, erros.circuito_aberto)
 app.add_exception_handler(erros.RequisicaoInvalida, erros.requisicao_invalida)
 
 app.include_router(auth.router)
+app.include_router(conta.router)
 app.include_router(cardapio.router)
 app.include_router(cardapio.publico)
 app.include_router(pedidos.router)

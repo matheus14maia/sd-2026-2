@@ -55,6 +55,7 @@ message CriarPedidoRequest {
   // mesmo pedido_id (retry apos timeout) devolve o pedido ja gravado, sem
   // duplicar. Vazio = o servico gera um id novo.
   string pedido_id = 5;
+  string telefone = 6;         // contato para a entrega (opcional)
 }
 
 // Linha do pedido ja precificada. Nome e preco sao gravados no momento da
@@ -87,6 +88,7 @@ message Pedido {
   string usuario_id = 10;      // dono do pedido (vazio em pedidos anteriores ao Trabalho 3)
   repeated EtapaRegistrada historico = 11;   // etapas ja alcancadas, em ordem, com o horario
   string previsao_entrega = 12;              // ISO 8601: criado_em + tempo_estimado_minutos
+  string telefone = 13;                      // contato informado no pedido (pode ser vazio)
 }
 
 message ObterPedidoRequest {

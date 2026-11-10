@@ -21,7 +21,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ..comum.resiliencia import CircuitoAberto, falha_de_dependencia
-from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN
+from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN, PADRAO_TELEFONE, TELEFONE_INVALIDO
 
 # Segundos que o cliente deve esperar antes de tentar de novo depois de um 503.
 RETRY_AFTER_SEGUNDOS = "5"
@@ -43,6 +43,7 @@ GRPC_PARA_HTTP = {
 FORMATOS = {
     PADRAO_CODIGO: "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)",
     PADRAO_LOGIN: "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)",
+    PADRAO_TELEFONE: TELEFONE_INVALIDO,
 }
 
 # Mensagens em portugues por tipo de erro do Pydantic.
