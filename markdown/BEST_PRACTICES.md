@@ -339,6 +339,13 @@ nada que nao esteja no contrato.
   disponibilidade (que a cozinha muda pela API).
 - **Texto da interface com acento** (e o que o usuario le); codigo, mensagens da
   API e documentacao seguem sem acento.
+- **Sempre os dois papeis.** Toda escolha do cliente tem o controle da cozinha
+  (opcao do item -> a cozinha tira so aquela opcao do dia) e toda acao da
+  cozinha aparece para o cliente (pedido aceito, atrasado, prato fora do dia).
+  Funcionalidade nova so esta pronta quando os dois lados foram pensados.
+- **Pedido novo e atrasado chamam atencao.** A cozinha ve os pedidos `RECEBIDO`
+  (ainda nao aceitos) numa secao propria e o numero deles na aba; aberto que
+  passou da previsao ganha o selo "Atrasado"; entregues ficam numa secao a parte.
 - **Formulario so aparece quando tem uso.** A sacola vazia nao mostra endereco
   nem botao de finalizar; o pedido segue sacola -> entrega -> confirmado. Cada
   papel cai na tela do seu trabalho (cliente no Cardapio, cozinha em Pedidos).
@@ -346,9 +353,28 @@ nada que nao esteja no contrato.
   nao alarga a pagina) e efeito de `:hover` que mexe em tamanho so dentro de
   `@media (hover: hover)`. Conferir com Playwright no `devices['iPhone 13']`:
   `document.documentElement.scrollWidth` igual a `innerWidth`.
+- **Cadastro nao abre sessao; senha nova encerra a sessao.** Criar conta e
+  entrar sao passos separados; depois de `PUT /conta/senha` o frontend chama
+  `encerrarSessao(aviso)` e a tela de login mostra o aviso.
+- **Nome de pessoa so com letras** (com acento, espaco, apostrofo, ponto e
+  hifen), conferido no Gateway (`NomePessoa`) e no Usuarios.
 - **Conta do usuario so pelo token** (`/conta`, sem id na URL). Mudou o nome,
   o Gateway devolve um token novo e o frontend troca o da sessao; troca de
   senha confere a atual no Usuarios e a confirmacao no Gateway.
+
+## Cloud Run (Etapa 3)
+
+- **Infraestrutura so por script** (`scripts/gcp/cloud-run/`), que pode rodar de
+  novo sem duplicar nada (descreve antes de criar). Mudou algo na implantacao:
+  mude o script, nao o painel, e confira com `SIMULAR=1`.
+- **Nada de senha em variavel comum nem no repositorio:** Secret Manager com
+  `--set-secrets`, acesso por segredo (nao no projeto inteiro).
+- **Uma conta de servico por papel** (gateway, servicos, frontend), so com os
+  papeis que usa; microsservicos privados (`--no-allow-unauthenticated`).
+- **Custo sob controle:** `--min-instances 0`, `--max-instances 2`, CPU so na
+  requisicao; depois de testar, `desligar.sh` (Cloud SQL parado).
+- **Imagens base por argumento** (`IMAGEM_PYTHON`, `IMAGEM_NODE`,
+  `IMAGEM_NGINX`): Docker Hub por padrao, `mirror.gcr.io` no Cloud Build.
 
 ## Deploy em varias VMs
 

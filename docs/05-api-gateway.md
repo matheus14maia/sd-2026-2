@@ -40,7 +40,7 @@ da requisicao).
 | `PUT /conta/senha` | token | `{"senha_atual", "nova_senha", "confirmar_senha"}` | 200 `{"mensagem": "Senha alterada."}` (400 se a atual estiver errada ou a confirmacao nao conferir) | `UsuarioService.TrocarSenha` |
 | `GET /cardapio?categoria=Bebidas` | token | - | 200 `{restaurante, itens[], origem}` (`origem`: `catalogo` ou `cache`) | `CatalogoService.ListarItens` |
 | `POST /cardapio` | token + papel `cozinha` | `{"nome", "categoria", "preco", "descricao"?, "disponivel"?, "opcoes"?}` | **201** item com o codigo gerado | `CatalogoService.CriarItem` |
-| `PATCH /cardapio/{codigo}` | token + papel `cozinha` | qualquer combinacao de `disponivel`, `preco`, `nome`, `descricao`, `categoria`, `opcoes` | 200 item alterado | `CatalogoService.AtualizarItem` |
+| `PATCH /cardapio/{codigo}` | token + papel `cozinha` | qualquer combinacao de `disponivel`, `preco`, `nome`, `descricao`, `categoria`, `opcoes`, `opcoes_indisponiveis` (ex.: `["Com gás"]`) | 200 item alterado | `CatalogoService.AtualizarItem` |
 | `DELETE /cardapio/{codigo}` | token + papel `cozinha` | - | 200 `{"mensagem", "codigo"}` (repetir tambem da 200) | `CatalogoService.ExcluirItem` |
 | `PUT /cardapio/{codigo}/foto` | token + papel `cozinha` | bytes da foto, `Content-Type: image/jpeg`, `image/png` ou `image/webp` | 200 item com a URL nova em `foto` | `CatalogoService.SalvarFoto` |
 | `DELETE /cardapio/{codigo}/foto` | token + papel `cozinha` | - | 200 item com `foto: null` | `CatalogoService.RemoverFoto` |
@@ -133,6 +133,12 @@ A resposta repete os filtros aplicados em `"filtros"`.
   novos). `PATCH /conta` devolve, alem do `usuario`, um `access_token` com o nome
   atual; o frontend troca o token da sessao. Os pedidos antigos continuam com o
   nome da epoca (snapshot).
+- **Nome so com letras.** No cadastro e em `PATCH /conta`, o nome aceita
+  letras (com acento), espaco, apostrofo, ponto e hifen: `"Joao 2"` responde
+  400 (conferido no Gateway e de novo no Usuarios).
+- **Cadastro nao abre sessao.** `POST /auth/cadastro` so cria a conta (201); a
+  pessoa entra com `POST /auth/login`. Trocar a senha (`PUT /conta/senha`) faz
+  o frontend encerrar a sessao e pedir o login de novo.
 - **Telefone.** Vazio apaga; preenchido precisa de DDD e numero (10 a 13
   digitos, com espaco, parenteses, `+` e `-`), senao 400. O mesmo formato vale
   no `telefone` do `POST /pedidos`, que vai junto com o pedido para a cozinha.
@@ -152,7 +158,9 @@ dono do cardapio; o Gateway confere o formato e o papel.
   responde **201** com o item e o codigo gerado (`PR06`). O Gateway manda uma
   chave de idempotencia por requisicao: um retry nao cadastra o prato duas vezes.
 - **Edicao (`PATCH /cardapio/{codigo}`).** So os campos enviados mudam;
-  `{"disponivel": false}` tira o prato do dia sem mexer no resto. Corpo sem
+  `{"disponivel": false}` tira o prato do dia sem mexer no resto e
+  `{"opcoes_indisponiveis": ["Com gás"]}` tira so uma opcao (a agua sem gas
+  continua; pedido com a opcao fora do dia responde 409). Corpo sem
   nenhum campo responde 400 (`"corpo": "informe ao menos um campo para alterar"`).
 - **Exclusao (`DELETE /cardapio/{codigo}`).** O prato some do cardapio, mas os
   pedidos antigos continuam com o nome e o preco da epoca (snapshot) e o codigo
@@ -332,7 +340,7 @@ $AUTH = "Authorization: Bearer $($sessao.access_token)"
 curl.exe -i "$URL/cardapio?categoria=Pratos" -H $AUTH
 ```
 
-O teste `python scripts/testar_gateway.py --url $URL` roda os 77 cenarios em
+O teste `python scripts/testar_gateway.py --url $URL` roda os 84 cenarios em
 sequencia, inclusive os de 401, 403, dono do pedido, filtros, tempo real e o
 cardapio da cozinha (cadastro, edicao, foto com 415 para arquivo errado e
 exclusao idempotente) e a conta do cliente (token novo, telefone, senha).

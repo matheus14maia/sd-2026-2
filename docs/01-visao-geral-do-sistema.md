@@ -15,7 +15,9 @@ API HTTP) e possivel:
 - com o papel `cozinha`: avancar o status do pedido
   (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`) e cuidar
   do cardapio: cadastrar, editar e excluir pratos (nome, categoria, preco,
-  descricao, opcoes, disponibilidade do dia) e trocar a foto de cada um.
+  descricao, opcoes, disponibilidade do dia, inclusive de uma opcao so, como a
+  agua com gas) e trocar a foto de cada um; os pedidos novos (ainda nao
+  aceitos) e os atrasados aparecem em destaque.
 
 Tudo o que e consultado, criado ou alterado fica no PostgreSQL. Nao existe lista
 estatica nem dicionario em memoria: reiniciar qualquer container nao perde nada.
@@ -111,6 +113,8 @@ O filtro e feito no banco (`WHERE usuario_id = ...`), pelo Pedidos.
 | codigo valido mas inexistente (`XX99`) | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'XX99' nao existe no cardapio.` |
 | item indisponivel (`PR05` na carga inicial) | Pedidos | `FAILED_PRECONDITION` | 409 | `Item 'PR05' (Moqueca de peixe) esta indisponivel hoje.` |
 | item que a cozinha excluiu | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'PR06' nao existe no cardapio.` |
+| opcao fora do dia (agua `Com gás` desligada pela cozinha) | Pedidos (via Catalogo) | `FAILED_PRECONDITION` | 409 | `A opcao 'Com gás' de BE03 (Água mineral) esta indisponivel hoje.` |
+| nome de pessoa com numero (`Joao 2`) | Gateway (e Usuarios) | - | 400 | `erros.nome: "nome invalido: use so letras, espaco, apostrofo e hifen (...)"` |
 | prato novo em categoria que nao existe | Catalogo | `INVALID_ARGUMENT` | 400 | `Categoria 'Lanches' nao existe. Use uma de: Entradas, Pratos, Bebidas, Sobremesas.` |
 | foto que nao e JPEG/PNG/WebP, ou acima de 2 MB | Gateway | - | 415 / 413 | `Envie uma foto JPEG, PNG ou WebP (...)` / `A foto passa de 2048 KB.` |
 | refrigerante (`BE01`) ou agua (`BE03`) sem escolher a opcao | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Escolha uma opcao para BE01 (Refrigerante lata): Coca-Cola, ...` |
@@ -153,6 +157,9 @@ depender de quem o chama (defesa em profundidade).
 | Exclusao logica de prato | pedidos antigos tem o snapshot e continuam certos; o codigo nunca e reaproveitado; excluir de novo nao e erro (idempotente); e a carga inicial nao "ressuscita" o prato |
 | Nome novo devolve token novo | o nome vai no token e dele sai o nome do pedido; em vez de consultar o Usuarios a cada pedido, o `PATCH /conta` emite um token com o nome atual |
 | Conta sem id na URL (`/conta`) | o Gateway usa o `sub` do token: nao existe rota que leia ou altere a conta de outra pessoa |
+| Disponibilidade por opcao (`opcoes_indisponiveis`) | toda escolha que o cliente faz a cozinha tambem controla: acabou so a agua com gas, a sem gas continua no cardapio |
+| Cadastro nao abre sessao e troca de senha encerra a sessao | criar conta e entrar sao passos separados (credencial digitada); com senha nova a pessoa entra de novo. O token antigo ainda vale ate expirar (JWT sem estado, 60 min por padrao) |
+| Implantacao por script (`scripts/gcp/cloud-run/`) | a infraestrutura do Cloud Run, Cloud SQL, Secret Manager e IAM fica descrita no repositorio e pode ser refeita com um comando; `desligar.sh` deixa o projeto sem gastar credito |
 | Carga inicial nao sobrescreve a cozinha | o `seed.sql` so atualiza item que a cozinha nunca editou (`editado_em` nulo): o que foi mudado pela tela sobrevive a todo deploy |
 | Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
 | Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |

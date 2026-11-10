@@ -44,7 +44,7 @@ aquele servico na mesma alteracao.
 |---|---|---|---|---|
 | `ListarItens` | `ListarItensRequest{categoria}` | `ListarItensResponse{restaurante, itens[]}` | Gateway (`GET /cardapio`) | `SELECT` em `itens_cardapio`, com filtro de categoria sem diferenciar maiusculas |
 | `ConsultarItens` | `ConsultarItensRequest{codigos[]}` | `ConsultarItensResponse{itens[]}` | Pedidos (ao criar pedido) | `SELECT ... WHERE codigo = ANY(...)`: busca todos os itens do pedido numa consulta so |
-| `AtualizarItem` | `AtualizarItemRequest{codigo, optional disponivel, optional preco, optional nome, optional descricao, optional categoria, ListaOpcoes opcoes}` | `ItemCardapio` | Gateway (`PATCH /cardapio/{codigo}`) | `UPDATE ... RETURNING` so dos campos presentes |
+| `AtualizarItem` | `AtualizarItemRequest{codigo, optional disponivel, optional preco, optional nome, optional descricao, optional categoria, ListaOpcoes opcoes, ListaOpcoes opcoes_indisponiveis}` | `ItemCardapio` | Gateway (`PATCH /cardapio/{codigo}`) | `UPDATE ... RETURNING` so dos campos presentes |
 | `CriarItem` | `CriarItemRequest{chave, nome, descricao, categoria, preco, disponivel, opcoes[]}` | `ItemCardapio` | Gateway (`POST /cardapio`) | trava `pg_advisory_xact_lock`, proximo codigo da categoria e `INSERT`; a mesma `chave` devolve o item ja criado |
 | `ExcluirItem` | `ExcluirItemRequest{codigo}` | `ExcluirItemResponse{codigo}` | Gateway (`DELETE /cardapio/{codigo}`) | exclusao logica (`excluido_em`) e apaga a foto |
 | `SalvarFoto` | `SalvarFotoRequest{codigo, tipo, conteudo}` | `ItemCardapio` | Gateway (`PUT /cardapio/{codigo}/foto`) | `UPSERT` em `fotos_itens` e a versao nova em `itens_cardapio.foto_versao` |
@@ -63,6 +63,7 @@ aquele servico na mesma alteracao.
 | `disponivel` | bool | 6 | `false` = fora do cardapio do dia |
 | `opcoes` | repeated string | 7 | submenu do item: sabores do refrigerante (`BE01`), agua sem ou com gas (`BE03`); vazio = sem escolha |
 | `foto_versao` | string | 8 | 12 hex do SHA-256 da foto; vazia = sem foto. O Gateway monta a URL `/cardapio/{codigo}/foto?v=<versao>` |
+| `opcoes_indisponiveis` | repeated string | 9 | opcoes fora do dia (ex.: so a agua `Com gás` acabou); subconjunto de `opcoes`. O Pedidos recusa a opcao fora do dia com `FAILED_PRECONDITION` (409) |
 
 - **`ConsultarItens` nao falha por codigo inexistente.** O codigo simplesmente
   nao aparece na resposta, e quem chama decide o que fazer: o Pedidos responde

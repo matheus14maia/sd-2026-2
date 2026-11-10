@@ -90,7 +90,7 @@ PostgreSQL leva alguns segundos para aceitar conexao, e o migrador espera.
 
 ## Testar
 
-### Teste ponta a ponta (77 cenarios)
+### Teste ponta a ponta (84 cenarios)
 
 PowerShell:
 
@@ -117,6 +117,7 @@ OK  Token que nao e JWT  (esperado 401, recebido 401)
 OK  Login sem senha  (esperado 400, recebido 400)
 OK  Senha errada  (esperado 401, recebido 401)
 OK  Cadastro com dados invalidos  (esperado 400, recebido 400)
+OK  Cadastro com numero no nome  (esperado 400, recebido 400)
 OK  Cadastro de usuario novo  (esperado 201, recebido 201)
 OK  Cadastro com login repetido  (esperado 409, recebido 409)
 OK  Login valido devolve o token  (esperado 200, recebido 200)
@@ -141,6 +142,11 @@ OK  Cliente tentando excluir prato  (esperado 403, recebido 403)
 OK  Cozinha exclui o prato  (esperado 200, recebido 200)
 OK  Excluir de novo nao e erro (idempotente)  (esperado 200, recebido 200)
 OK  Pedido com prato excluido  (esperado 400, recebido 400)
+OK  Cozinha tira so a agua com gas do dia  (esperado 200, recebido 200)
+OK  Opcao fora do dia que o item nao tem  (esperado 400, recebido 400)
+OK  Pedido de agua com gas fora do dia  (esperado 409, recebido 409)
+OK  Agua sem gas continua valendo  (esperado 201, recebido 201)
+OK  Cozinha volta a agua com gas  (esperado 200, recebido 200)
 OK  Pedido valido gravado em nome do dono do token  (esperado 201, recebido 201)
 OK  Campo cliente no corpo e recusado (o nome vem do token)  (esperado 400, recebido 400)
 OK  Sem o campo endereco  (esperado 400, recebido 400)
@@ -179,6 +185,7 @@ OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)
 OK  Conta sem token  (esperado 401, recebido 401)
 OK  Cliente ve os proprios dados  (esperado 200, recebido 200)
 OK  Telefone invalido  (esperado 400, recebido 400)
+OK  Nome com numero em Meus dados  (esperado 400, recebido 400)
 OK  Conta sem nenhum campo  (esperado 400, recebido 400)
 OK  Cliente muda nome, telefone e endereco (volta um token novo)  (esperado 200, recebido 200)
 OK  Pedido com o token novo sai com o nome novo e o telefone  (esperado 201, recebido 201)
@@ -188,7 +195,7 @@ OK  Cliente troca a senha  (esperado 200, recebido 200)
 OK  Senha antiga nao entra mais  (esperado 401, recebido 401)
 OK  Senha nova entra  (esperado 200, recebido 200)
 
-Todos os 77 cenarios passaram.
+Todos os 84 cenarios passaram.
 ```
 
 ### Teste de tolerancia a falhas

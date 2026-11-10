@@ -120,7 +120,7 @@ python scripts/testar_resiliencia.py      # derruba e religa o Catalogo e confer
   falha ao vivo), Gateway em `http://127.0.0.1:8000`. No Windows, se o
   `localhost` nao abrir, use `http://127.0.0.1` (ver
   [problemas comuns](docs/03-execucao-local.md#problemas-comuns)).
-- O teste ponta a ponta roda 77 cenarios (200/201/400/401/403/404/409/413/415)
+- O teste ponta a ponta roda 84 cenarios (200/201/400/401/403/404/409/413/415)
   e confere status e conteudo de cada um, inclusive o dono dos pedidos, os
   filtros, o historico de etapas, a atualizacao em tempo real, o cardapio da
   cozinha (cadastro, edicao, foto e exclusao de prato) e a conta do cliente
@@ -140,7 +140,7 @@ Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 | [docs/06-frontend.md](docs/06-frontend.md) | telas do frontend, como ele chama o Gateway e como roda |
 | [docs/07-resiliencia.md](docs/07-resiliencia.md) | tolerancia a falhas: retry, circuit breaker, fallback, idempotencia e como demonstrar |
 | [docs/08-rastreamento.md](docs/08-rastreamento.md) | rastreamento distribuido: spans de cada requisicao no Jaeger (local) e no Cloud Trace |
-| [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md) | plano do Trabalho 3 no Google Cloud: Cloud Run, Secret Manager, Cloud Trace, contas de servico |
+| [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md) | implantacao do Trabalho 3 no Google Cloud pelo Cloud Shell (`scripts/gcp/cloud-run/`): Cloud Run, Cloud SQL, Artifact Registry, Secret Manager, Cloud Trace; ligar, desligar e custo |
 | [apresentacao/](apresentacao/) | slides da arquitetura (`.pptx` e `.pdf`) |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
@@ -167,6 +167,7 @@ scripts/gerar_stubs.py       gera os stubs a partir de proto/*.proto
 scripts/migrar_banco.py      aplica db/schema.sql e db/seed.sql
 scripts/testar_gateway.py    teste ponta a ponta dos cenarios 200/201/400/401/403/404/409
 scripts/testar_resiliencia.py  derruba o Catalogo e confere fallback, 503, isolamento e circuit breaker
+scripts/gcp/cloud-run/       Trabalho 3: implantar.sh, ligar.sh, desligar.sh, status.sh e cloudbuild.yaml (Cloud Shell)
 scripts/gcp/                 Trabalho 2: criar a infraestrutura das VMs, implantar, ligar, desligar e conferir
 docker-compose.yml           profiles servicos, gateway, frontend e banco-local
 ```

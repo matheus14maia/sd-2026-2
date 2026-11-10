@@ -102,9 +102,10 @@ Quando o sistema for para o Cloud Run (ver [09-plano-cloud-run.md](09-plano-clou
   (`CompositePropagator`), entao o trace do Gateway continua o que o Cloud Run
   abriu na entrada.
 - **Envio em segundo plano.** Os spans saem em lotes (`BatchSpanProcessor`).
-  Com CPU so durante a requisicao (padrao do Cloud Run), o envio pode atrasar;
-  na demonstracao, usar CPU sempre alocada (`--no-cpu-throttling`) no Gateway e
-  nos microsservicos evita traces incompletos.
+  Com CPU so durante a requisicao (padrao do Cloud Run, e o que o
+  `implantar.sh` usa para nao gastar credito parado), o envio pode atrasar
+  alguns segundos; se faltar trace na demonstracao, ligue CPU sempre alocada
+  (`--no-cpu-throttling`) so durante a apresentacao.
 
 ## Variaveis
 
