@@ -54,7 +54,10 @@ export default function Cozinha() {
           {itens.map((item) => (
             <tr key={item.codigo}>
               <td>{item.codigo}</td>
-              <td>{item.nome}</td>
+              <td>
+                {item.nome}
+                {item.opcoes?.length > 0 && <span className="cozinha-opcoes">{item.opcoes.join(" · ")}</span>}
+              </td>
               <td>{item.categoria}</td>
               <td className="num">{formatarPreco(item.preco)}</td>
               <td>

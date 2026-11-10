@@ -500,10 +500,109 @@ p {
 }
 
 .prato {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
   padding: 16px 12px;
   border-bottom: 1px solid var(--inox-escuro);
   border-radius: var(--raio);
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+/* Foto do prato (frontend/public/pratos/<CODIGO>.jpg), com zoom sob o mouse. */
+.prato-foto {
+  width: 108px;
+  height: 108px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.prato-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 350ms ease;
+}
+
+.prato:hover .prato-foto img {
+  transform: scale(1.1);
+}
+
+.prato-foto-vazia {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #f4e6d4, #e7c9a9);
+  color: var(--pimenta-escura);
+  font-weight: 800;
+  font-stretch: 75%;
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+}
+
+.prato-indisponivel .prato-foto {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* Submenu de opcoes (sabor do refrigerante, agua com ou sem gas). */
+.opcoes-alternar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opcoes-contagem {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.submenu {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--pimenta);
+  border-radius: 0 var(--raio) var(--raio) 0;
+  background: var(--papel);
+  animation: aparecer 200ms ease-out;
+}
+
+.submenu-opcao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--inox-escuro);
+  font-weight: 600;
+}
+
+.submenu-opcao:last-child {
+  border-bottom: 0;
+}
+
+.submenu .quantidade button {
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+}
+
+.sacola-opcao {
+  color: var(--grafite-suave);
+  font-weight: 600;
+}
+
+.cozinha-opcoes {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--grafite-suave);
 }
 
 /* Zoom discreto no prato sob o mouse. */
@@ -1450,6 +1549,16 @@ p {
 
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
+  .prato {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .prato-foto {
+    width: 76px;
+    height: 76px;
+  }
+
   .login,
   .cardapio,
   .pedidos,
@@ -1515,8 +1624,13 @@ p {
   }
 
   .prato,
-  .prato:hover {
+  .prato:hover,
+  .prato:hover .prato-foto img {
     transform: none;
     transition: none;
+  }
+
+  .submenu {
+    animation: none;
   }
 }

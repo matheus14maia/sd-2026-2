@@ -306,10 +306,11 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
             </ol>
 
             <ul className="sacola-itens">
-              {detalhe.itens.map((item) => (
-                <li key={item.codigo}>
+              {detalhe.itens.map((item, linha) => (
+                <li key={`${linha}-${item.codigo}`}>
                   <span>
                     {item.quantidade}× {item.nome}
+                    {item.opcao && <span className="sacola-opcao"> · {item.opcao}</span>}
                   </span>
                   <span>{formatarPreco(item.subtotal)}</span>
                 </li>

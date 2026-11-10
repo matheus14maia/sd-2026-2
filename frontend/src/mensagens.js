@@ -47,6 +47,12 @@ const REGRAS = [
   [/^O login '(.+)' ja esta em uso\.$/, (m) => `O login “${m[1]}” já está em uso. Escolha outro.`],
   [/^Item '(.+)' \((.+)\) esta indisponivel hoje\.$/, (m) => `${m[2]} está indisponível hoje. Remova o prato para continuar.`],
   [/^Item '(.+)' nao existe no cardapio\.$/, (m) => `O item ${m[1]} não existe no cardápio.`],
+  [/^Escolha uma opcao para \w+ \((.+)\): (.+)\.$/, (m) => `Escolha uma opção para ${m[1]}: ${m[2]}.`],
+  [
+    /^Opcao '(.+)' nao existe para \w+ \((.+)\)\. Use uma de: (.+)\.$/,
+    (m) => `A opção “${m[1]}” não existe para ${m[2]}. Escolha uma destas: ${m[3]}.`,
+  ],
+  [/^O item \w+ \((.+)\) nao tem opcoes\.$/, (m) => `${m[1]} não tem opções para escolher.`],
   [/^(Pedido '.+' nao encontrado|Id de pedido invalido)/, () => "Pedido não encontrado."],
   [
     /^Nao e possivel mudar de (\w+) para (\w+): a proxima etapa e (\w+)\.$/,

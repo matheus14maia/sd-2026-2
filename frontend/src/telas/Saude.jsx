@@ -52,7 +52,7 @@ export default function Saude() {
 
   async function pedidoDeTeste() {
     const r = await chamar("POST", "/pedidos", {
-      corpo: { endereco: "Teste de resiliência", itens: [{ codigo: "BE03", quantidade: 1 }] },
+      corpo: { endereco: "Teste de resiliência", itens: [{ codigo: "BE03", quantidade: 1, opcao: "Sem gás" }] },
     });
     setAcao({ ...r, sucesso: "Pedido gravado no banco." });
     consultar();
