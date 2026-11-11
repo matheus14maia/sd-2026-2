@@ -35,6 +35,14 @@ Cloud Logging. Passo a passo em [docs/09-plano-cloud-run.md](docs/09-plano-cloud
 
 ![Arquitetura no Cloud Run](docs/arquitetura-cloud-run.png)
 
+Deploy do Trabalho 3 no Cloud Run (o banco fica desligado fora dos testes; antes
+de usar, `bash scripts/gcp/cloud-run/ligar.sh` no Cloud Shell):
+
+| O que | Endereco |
+|---|---|
+| Frontend | https://delivery-frontend-j76gmjruwa-uc.a.run.app |
+| API Gateway (Swagger) | https://delivery-gateway-j76gmjruwa-uc.a.run.app/docs |
+
 No Trabalho 2, a mesma arquitetura rodou em 3 VMs no GCP:
 
 ![Arquitetura](docs/arquitetura.png)

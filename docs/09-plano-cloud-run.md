@@ -1,9 +1,17 @@
 # 9. Implantacao no Google Cloud (Cloud Run)
 
-> **Status:** scripts prontos em `scripts/gcp/cloud-run/` e conferidos com
-> `SIMULAR=1` (mostra cada comando do gcloud sem executar). A primeira execucao
-> no projeto `sistemas-distribuidos-505422` e feita por alguem do grupo no Cloud
-> Shell, como descrito abaixo.
+> **Status:** implantado em 11/11/2026 no projeto `sistemas-distribuidos-505422`
+> pelo Cloud Shell, com `scripts/gcp/cloud-run/implantar.sh` (passo a passo
+> abaixo). Fora dos testes e da apresentacao o Cloud SQL fica desligado
+> (`desligar.sh`): antes de usar, rode `ligar.sh`.
+
+| Servico | Acesso | URL |
+|---|---|---|
+| `delivery-frontend` | publico | https://delivery-frontend-j76gmjruwa-uc.a.run.app |
+| `delivery-gateway` | publico (Swagger em `/docs`) | https://delivery-gateway-j76gmjruwa-uc.a.run.app |
+| `delivery-usuarios` | privado (gRPC, IAM) | https://delivery-usuarios-j76gmjruwa-uc.a.run.app |
+| `delivery-catalogo` | privado (gRPC, IAM) | https://delivery-catalogo-j76gmjruwa-uc.a.run.app |
+| `delivery-pedidos` | privado (gRPC, IAM) | https://delivery-pedidos-j76gmjruwa-uc.a.run.app |
 
 ## Cada componente num servico gerenciado
 

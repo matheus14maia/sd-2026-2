@@ -95,6 +95,7 @@
   .nota { font-size: 8.4pt; color: var(--cinza); }
   .pendente { background: #fff1b8; outline: .5pt dashed #c79100; }
   .url { font-family: var(--mono); font-size: 7.6pt; word-break: break-all; }
+  .url a { color: #1f4f82; text-decoration: none; }
   .acesso-publico { color: var(--verde); font-weight: 700; }
   .acesso-iam { color: var(--cinza); font-weight: 700; }
   .quebra { break-before: page; }
@@ -414,15 +415,15 @@
 <h2><span class="num">5</span>Links públicos HTTPS e configuração no Cloud Run</h2>
 
 <div class="bloco">
-<div class="legenda-tabela"><b>Tabela 6.</b> Serviços implantados no Cloud Run (região <code>us-central1</code>). A tabela é impressa no fim de <code>scripts/gcp/cloud-run/implantar.sh</code> e por <code>status.sh</code>.</div>
+<div class="legenda-tabela"><b>Tabela 6.</b> Serviços implantados em 11/11/2026 no Cloud Run (região <code>us-central1</code>). A tabela é impressa no fim de <code>scripts/gcp/cloud-run/implantar.sh</code> e por <code>status.sh</code>.</div>
 <table>
   <thead><tr><th style="width:31%">Serviço</th><th style="width:13%">Acesso</th><th>URL</th></tr></thead>
   <tbody>
-    <tr><td><code>delivery-frontend</code><span class="funcao">interface do cliente e da cozinha</span></td><td class="acesso-publico">público</td><td class="url"><mark class="pendente">https://delivery-frontend-…run.app</mark></td></tr>
-    <tr><td><code>delivery-gateway</code><span class="funcao">API HTTP/JSON, documentação em <code>/docs</code></span></td><td class="acesso-publico">público</td><td class="url"><mark class="pendente">https://delivery-gateway-…run.app</mark></td></tr>
-    <tr><td><code>delivery-usuarios</code><span class="funcao">gRPC: contas e login</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><mark class="pendente">https://delivery-usuarios-…run.app</mark></td></tr>
-    <tr><td><code>delivery-catalogo</code><span class="funcao">gRPC: cardápio, opções e fotos</span></td><td class="acesso-iam">IAM: Gateway e Pedidos</td><td class="url"><mark class="pendente">https://delivery-catalogo-…run.app</mark></td></tr>
-    <tr><td><code>delivery-pedidos</code><span class="funcao">gRPC: pedidos e tempo real</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><mark class="pendente">https://delivery-pedidos-…run.app</mark></td></tr>
+    <tr><td><code>delivery-frontend</code><span class="funcao">interface do cliente e da cozinha</span></td><td class="acesso-publico">público</td><td class="url"><a href="https://delivery-frontend-j76gmjruwa-uc.a.run.app">https://delivery-frontend-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-gateway</code><span class="funcao">API HTTP/JSON, documentação em <code>/docs</code></span></td><td class="acesso-publico">público</td><td class="url"><a href="https://delivery-gateway-j76gmjruwa-uc.a.run.app">https://delivery-gateway-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-usuarios</code><span class="funcao">gRPC: contas e login</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><a href="https://delivery-usuarios-j76gmjruwa-uc.a.run.app">https://delivery-usuarios-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-catalogo</code><span class="funcao">gRPC: cardápio, opções e fotos</span></td><td class="acesso-iam">IAM: Gateway e Pedidos</td><td class="url"><a href="https://delivery-catalogo-j76gmjruwa-uc.a.run.app">https://delivery-catalogo-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-pedidos</code><span class="funcao">gRPC: pedidos e tempo real</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><a href="https://delivery-pedidos-j76gmjruwa-uc.a.run.app">https://delivery-pedidos-j76gmjruwa-uc.a.run.app</a></td></tr>
   </tbody>
 </table>
 </div>
