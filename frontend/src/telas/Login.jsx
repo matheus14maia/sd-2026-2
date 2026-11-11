@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { chamar, salvarSessao } from "../api.js";
-import Campo, { Resultado } from "../componentes/Campo.jsx";
+import { chamar, salvarSessao, tirarAvisoDeLogin } from "../api.js";
+import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
   const [form, setForm] = useState({ login: "", nome: "", senha: "" });
   const [resposta, setResposta] = useState(null);
+  // Aviso de quem saiu de proposito (ex.: depois de trocar a senha).
+  const [aviso] = useState(tirarAvisoDeLogin);
   const [enviando, setEnviando] = useState(false);
 
   const erros = resposta?.status === 400 ? resposta.dados?.erros || {} : {};
@@ -27,6 +29,8 @@ export default function Login() {
       const r = await chamar("POST", "/auth/cadastro", { corpo: form });
       setResposta(r);
       if (r.ok) {
+        // Conta criada: a pessoa entra digitando a senha (o cadastro nao abre
+        // sessao sozinho). O login ja fica preenchido.
         setModo("entrar");
         setForm({ ...form, nome: "", senha: "" });
       }
@@ -57,13 +61,30 @@ export default function Login() {
           </button>
         </div>
 
-        <Campo id="login" rotulo="Login" value={form.login} onChange={alterar("login")} erro={erros.login} autoComplete="username" />
+        <Campo
+          id="login"
+          rotulo="Login"
+          obrigatorio
+          value={form.login}
+          onChange={alterar("login")}
+          erro={erros.login}
+          autoComplete="username"
+        />
         {modo === "criar" && (
-          <Campo id="nome" rotulo="Nome" value={form.nome} onChange={alterar("nome")} erro={erros.nome} autoComplete="name" />
+          <Campo
+            id="nome"
+            rotulo="Nome"
+            obrigatorio
+            value={form.nome}
+            onChange={alterar("nome")}
+            erro={erros.nome}
+            autoComplete="name"
+          />
         )}
         <Campo
           id="senha"
           rotulo="Senha"
+          obrigatorio
           type="password"
           value={form.senha}
           onChange={alterar("senha")}
@@ -74,7 +95,14 @@ export default function Login() {
         <button className="botao" type="submit" disabled={enviando}>
           {modo === "entrar" ? "Entrar" : "Criar conta"}
         </button>
+        <LegendaObrigatorio />
 
+        {modo === "criar" && (
+          <p className="login-dica-conta">
+            Depois de criar a conta, entre com o seu login e senha. Telefone e endereço de entrega ficam em “Meus dados”.
+          </p>
+        )}
+        {aviso && !resposta && <p className="aviso-login" role="status">{aviso}</p>}
         <Resultado
           resposta={resposta}
           sucesso={resposta?.status === 201 ? "Conta criada. Entre com a sua senha." : "Login feito."}

@@ -6,6 +6,7 @@ export const API_URL = (window.API_URL || URL_PADRAO).replace(/\/$/, "");
 
 const CHAVE_SESSAO = "hk.sessao";
 const EVENTO_SESSAO = "hk-sessao";
+const CHAVE_AVISO_LOGIN = "hk.aviso-login";
 
 // ---------------------------------------------------------------- sessao
 export function lerSessao() {
@@ -25,13 +26,26 @@ export function salvarSessao(sessao) {
   window.dispatchEvent(new Event(EVENTO_SESSAO));
 }
 
-export function encerrarSessao() {
+// `aviso` aparece na tela de login (ex.: "Senha alterada. Entre com a nova senha.").
+export function encerrarSessao(aviso = "") {
   try {
     sessionStorage.removeItem(CHAVE_SESSAO);
+    if (aviso) sessionStorage.setItem(CHAVE_AVISO_LOGIN, aviso);
   } catch {
     // ignora
   }
   window.dispatchEvent(new Event(EVENTO_SESSAO));
+}
+
+// Le e apaga o aviso deixado por encerrarSessao.
+export function tirarAvisoDeLogin() {
+  try {
+    const aviso = sessionStorage.getItem(CHAVE_AVISO_LOGIN) || "";
+    sessionStorage.removeItem(CHAVE_AVISO_LOGIN);
+    return aviso;
+  } catch {
+    return "";
+  }
 }
 
 export function aoMudarSessao(funcao) {
@@ -60,11 +74,13 @@ function registrar(registro) {
 // opcoes:
 //   corpo        objeto serializado como JSON
 //   corpoBruto   texto enviado como esta (para testar JSON malformado)
+//   arquivo      Blob/File enviado como esta, com o Content-Type do arquivo (foto)
 //   semToken     nao envia o Authorization mesmo havendo sessao
 //   autorizacao  valor exato do cabecalho Authorization (testes de seguranca)
 //   manterSessao um 401 nao derruba a sessao (testes de seguranca)
+//   silencioso   nao vira comanda no trilho (consulta periodica da tela Saude)
 export async function chamar(metodo, rota, opcoes = {}) {
-  const { corpo, corpoBruto, semToken, autorizacao, manterSessao } = opcoes;
+  const { corpo, corpoBruto, arquivo, semToken, autorizacao, manterSessao, silencioso } = opcoes;
   const cabecalhos = {};
   const sessao = lerSessao();
 
@@ -75,19 +91,31 @@ export async function chamar(metodo, rota, opcoes = {}) {
   }
 
   let enviado;
-  if (corpoBruto !== undefined) {
-    enviado = corpoBruto;
-  } else if (corpo !== undefined) {
-    enviado = JSON.stringify(corpo);
+  let resumoEnviado; // o que a comanda mostra (a foto aparece so como tipo e tamanho)
+  if (arquivo !== undefined) {
+    enviado = arquivo;
+    cabecalhos["Content-Type"] = arquivo.type || "application/octet-stream";
+    resumoEnviado = `[arquivo ${arquivo.type || "sem tipo"}, ${Math.round(arquivo.size / 1024)} KB]`;
+  } else {
+    if (corpoBruto !== undefined) {
+      enviado = corpoBruto;
+    } else if (corpo !== undefined) {
+      enviado = JSON.stringify(corpo);
+    }
+    if (enviado !== undefined) cabecalhos["Content-Type"] = "application/json";
+    resumoEnviado = enviado;
   }
-  if (enviado !== undefined) cabecalhos["Content-Type"] = "application/json";
 
   const inicio = performance.now();
   let status = 0;
   let dados = null;
+  let requisicao = "";
   try {
     const resposta = await fetch(API_URL + rota, { method: metodo, headers: cabecalhos, body: enviado });
     status = resposta.status;
+    // Id da requisicao (trace): o mesmo que aparece nos logs do Gateway e dos
+    // microsservicos que a atenderam.
+    requisicao = resposta.headers.get("X-Requisicao-Id") || "";
     const texto = await resposta.text();
     try {
       dados = texto ? JSON.parse(texto) : null;
@@ -95,10 +123,10 @@ export async function chamar(metodo, rota, opcoes = {}) {
       dados = { mensagem: texto };
     }
   } catch {
-    dados = { mensagem: `Gateway fora do ar ou inacessivel em ${API_URL}.` };
+    dados = { mensagem: `Não foi possível falar com o servidor (${API_URL}). Verifique se o sistema está no ar.` };
   }
 
-  registrar({
+  if (!silencioso) registrar({
     id: proximoId++,
     horario: new Date().toLocaleTimeString("pt-BR"),
     metodo,
@@ -106,14 +134,87 @@ export async function chamar(metodo, rota, opcoes = {}) {
     status,
     ms: Math.round(performance.now() - inicio),
     comToken: Boolean(cabecalhos.Authorization),
-    enviado: enviado ?? null,
+    enviado: resumoEnviado ?? null,
     dados,
+    requisicao,
   });
 
   if (status === 401 && sessao?.token && !manterSessao && cabecalhos.Authorization) {
     encerrarSessao();
   }
-  return { status, ok: status >= 200 && status < 300, dados };
+  return { status, ok: status >= 200 && status < 300, dados, requisicao };
+}
+
+// ------------------------------------------------------------ tempo real
+// Atualizacoes dos pedidos sem F5: GET /pedidos/eventos e um fluxo
+// Server-Sent Events. O EventSource do navegador nao manda o cabecalho
+// Authorization, entao a leitura e feita com fetch + leitor de stream, levando
+// o Bearer como nas outras chamadas. Caiu a conexao? Tenta de novo com espera
+// crescente (1 s, 2 s, 4 s... ate 30 s). Devolve a funcao que encerra.
+// O evento "estado" (conexao do Gateway com o Pedidos) e ignorado aqui: a aba
+// Saude mostra esse estado pelo GET /saude/servicos.
+export function assinarEventos({ aoPedido }) {
+  let parar = false;
+  let controle = null;
+  let espera = 1000;
+
+  function processar(bloco) {
+    let evento = "message";
+    const dados = [];
+    for (const linha of bloco.split("\n")) {
+      if (linha.startsWith("event:")) evento = linha.slice(6).trim();
+      else if (linha.startsWith("data:")) dados.push(linha.slice(5).trim());
+    }
+    if (!dados.length) return; // comentario ": ping" ou "retry:"
+    try {
+      const conteudo = JSON.parse(dados.join("\n"));
+      if (evento === "pedido") aoPedido?.(conteudo);
+    } catch {
+      // bloco incompleto ou invalido: ignora
+    }
+  }
+
+  async function conectar() {
+    while (!parar) {
+      const sessao = lerSessao();
+      if (!sessao?.token) return;
+      controle = new AbortController();
+      try {
+        const resposta = await fetch(API_URL + "/pedidos/eventos", {
+          headers: { Authorization: `Bearer ${sessao.token}`, Accept: "text/event-stream" },
+          signal: controle.signal,
+        });
+        if (resposta.status === 401) {
+          encerrarSessao();
+          return;
+        }
+        if (!resposta.ok || !resposta.body) throw new Error(`HTTP ${resposta.status}`);
+        espera = 1000;
+        const leitor = resposta.body.pipeThrough(new TextDecoderStream()).getReader();
+        let acumulado = "";
+        for (;;) {
+          const { value, done } = await leitor.read();
+          if (done) break;
+          acumulado += value;
+          let fim;
+          while ((fim = acumulado.indexOf("\n\n")) >= 0) {
+            processar(acumulado.slice(0, fim));
+            acumulado = acumulado.slice(fim + 2);
+          }
+        }
+      } catch {
+        if (parar) return;
+      }
+      await new Promise((resolver) => setTimeout(resolver, espera));
+      espera = Math.min(espera * 2, 30000);
+    }
+  }
+
+  conectar();
+  return () => {
+    parar = true;
+    controle?.abort();
+  };
 }
 
 // --------------------------------------------------------------- utilitarios
@@ -122,6 +223,22 @@ export const formatarPreco = (valor) =>
 
 export const formatarData = (iso) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "";
+
+export const formatarHora = (iso) =>
+  iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+
+// Categorias do banco -> nome nas abas, na ordem de um cardapio.
+export const CATEGORIAS = [
+  { valor: "Entradas", nome: "Entradas" },
+  { valor: "Pratos", nome: "Pratos principais" },
+  { valor: "Sobremesas", nome: "Sobremesas" },
+  { valor: "Bebidas", nome: "Bebidas" },
+];
+
+export const nomeCategoria = (valor) => CATEGORIAS.find((c) => c.valor === valor)?.nome || valor;
+
+// URL completa da foto do prato (o item traz o caminho com a versao) ou "".
+export const urlFoto = (item) => (item?.foto ? API_URL + item.foto : "");
 
 export const ETAPAS = ["RECEBIDO", "EM_PREPARO", "PRONTO", "SAIU_PARA_ENTREGA", "ENTREGUE"];
 

@@ -1,9 +1,10 @@
 // Contrato do microsservico de Catalogo do delivery.
 //
-// O Catalogo e o dono do cardapio: os itens ficam na tabela itens_cardapio do
-// PostgreSQL e so este servico le ou altera essa tabela. O Gateway usa o
-// Catalogo para listar e alterar itens; o microsservico de Pedidos usa o
-// ConsultarItens para validar e precificar um pedido.
+// O Catalogo e o dono do cardapio: os itens ficam nas tabelas itens_cardapio e
+// fotos_itens do PostgreSQL e so este servico le ou altera essas tabelas. O
+// Gateway usa o Catalogo para listar, cadastrar, editar e excluir itens e para
+// guardar e servir as fotos; o microsservico de Pedidos usa o ConsultarItens
+// para validar e precificar um pedido.
 syntax = "proto3";
 
 package catalogo;
@@ -16,8 +17,19 @@ service CatalogoService {
   // simplesmente nao aparecem na resposta: quem chama decide o que fazer.
   rpc ConsultarItens(ConsultarItensRequest) returns (ConsultarItensResponse);
 
-  // Altera a disponibilidade e, opcionalmente, o preco de um item.
+  // Altera um item: so mudam os campos presentes na requisicao.
   rpc AtualizarItem(AtualizarItemRequest) returns (ItemCardapio);
+  // Cadastra um item. O codigo sai da categoria (Pratos -> PR06, PR07...).
+  // Idempotente pela chave: repetir a mesma requisicao devolve o mesmo item.
+  rpc CriarItem(CriarItemRequest) returns (ItemCardapio);
+  // Tira o item do cardapio (exclusao logica: o codigo nunca e reaproveitado e
+  // os pedidos antigos continuam com o snapshot). Excluir de novo nao e erro.
+  rpc ExcluirItem(ExcluirItemRequest) returns (ExcluirItemResponse);
+  // Guarda (ou troca) a foto do item; a versao muda junto com o conteudo.
+  rpc SalvarFoto(SalvarFotoRequest) returns (ItemCardapio);
+  rpc RemoverFoto(RemoverFotoRequest) returns (ItemCardapio);
+  // Devolve os bytes da foto (NOT_FOUND se o item nao tiver foto).
+  rpc ObterFoto(ObterFotoRequest) returns (Foto);
 }
 
 message ItemCardapio {
@@ -27,6 +39,15 @@ message ItemCardapio {
   string categoria = 4;    // Entradas, Pratos, Bebidas, Sobremesas
   double preco = 5;        // em reais
   bool disponivel = 6;
+  // Escolhas do item (submenu), ex.: sabores do refrigerante ou agua com/sem
+  // gas. Vazio = item sem escolha. Quem pede manda uma delas em ItemPedido.opcao.
+  repeated string opcoes = 7;
+  // Versao da foto (12 primeiros hex do SHA-256 do conteudo); vazia = sem foto.
+  // O Gateway monta a URL da foto com ela, e a URL muda quando a foto muda.
+  string foto_versao = 8;
+  // Opcoes fora do dia (ex.: a agua com gas acabou): o item continua no
+  // cardapio com as outras opcoes. Sempre um subconjunto de opcoes.
+  repeated string opcoes_indisponiveis = 9;
 }
 
 message ListarItensRequest {
@@ -46,8 +67,60 @@ message ConsultarItensResponse {
   repeated ItemCardapio itens = 1;
 }
 
+// Campo ausente = mantem o valor atual (por isso os campos sao optional).
 message AtualizarItemRequest {
   string codigo = 1;
-  bool disponivel = 2;
-  optional double preco = 3;   // ausente = mantem o preco atual
+  optional bool disponivel = 2;
+  optional double preco = 3;
+  optional string nome = 4;
+  optional string descricao = 5;
+  optional string categoria = 6;
+  ListaOpcoes opcoes = 7;      // presente (mesmo vazia) = troca a lista inteira
+  ListaOpcoes opcoes_indisponiveis = 8;  // presente = troca as opcoes fora do dia
+}
+
+// Lista dentro de uma mensagem: um "repeated" solto nao distingue ausente de vazio.
+message ListaOpcoes {
+  repeated string valores = 1;
+}
+
+message CriarItemRequest {
+  // Chave de idempotencia (uuid gerado pelo Gateway para a requisicao HTTP):
+  // um retry com a mesma chave nao cadastra o item duas vezes.
+  string chave = 1;
+  string nome = 2;
+  string descricao = 3;
+  string categoria = 4;        // Entradas, Pratos, Bebidas ou Sobremesas
+  double preco = 5;
+  bool disponivel = 6;
+  repeated string opcoes = 7;
+}
+
+message ExcluirItemRequest {
+  string codigo = 1;
+}
+
+message ExcluirItemResponse {
+  string codigo = 1;
+}
+
+message SalvarFotoRequest {
+  string codigo = 1;
+  string tipo = 2;             // image/jpeg, image/png ou image/webp
+  bytes conteudo = 3;          // ate 2 MB
+}
+
+message RemoverFotoRequest {
+  string codigo = 1;
+}
+
+message ObterFotoRequest {
+  string codigo = 1;
+}
+
+message Foto {
+  string codigo = 1;
+  string tipo = 2;
+  bytes conteudo = 3;
+  string versao = 4;
 }

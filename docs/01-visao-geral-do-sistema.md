@@ -7,28 +7,38 @@ API HTTP) e possivel:
 
 - criar conta e entrar (token JWT);
 - consultar o cardapio (inteiro ou por categoria);
-- montar um pedido com varios itens e a quantidade de cada um;
-- consultar e listar pedidos;
+- montar um pedido com varios itens e a quantidade de cada um, sempre em nome
+  de quem esta logado (o nome e o dono vem do token, nao de um campo livre);
+- consultar e listar os proprios pedidos (a cozinha ve os de todos);
+- editar os proprios dados em "Meus dados": nome, telefone e endereco de entrega
+  padrao (que ja preenchem o pedido) e a senha;
 - com o papel `cozinha`: avancar o status do pedido
-  (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`), tirar um
-  item do cardapio do dia ou mudar o preco.
+  (`RECEBIDO -> EM_PREPARO -> PRONTO -> SAIU_PARA_ENTREGA -> ENTREGUE`) e cuidar
+  do cardapio: cadastrar, editar e excluir pratos (nome, categoria, preco,
+  descricao, opcoes, disponibilidade do dia, inclusive de uma opcao so, como a
+  agua com gas) e trocar a foto de cada um; os pedidos novos (ainda nao
+  aceitos) e os atrasados aparecem em destaque.
 
 Tudo o que e consultado, criado ou alterado fica no PostgreSQL. Nao existe lista
 estatica nem dicionario em memoria: reiniciar qualquer container nao perde nada.
 
-![Arquitetura](arquitetura.png)
+![Arquitetura no Cloud Run](arquitetura-cloud-run.png)
+
+No Trabalho 2 os mesmos componentes rodaram em 3 VMs do Compute Engine
+([diagrama](arquitetura.png), [04-deploy-gcp-vm.md](04-deploy-gcp-vm.md)); no
+Trabalho 3 cada um e um servico gerenciado ([09-plano-cloud-run.md](09-plano-cloud-run.md)).
 
 ## Componentes
 
-| Componente | Papel | Protocolo de entrada | Dono de | Onde roda no GCP |
+| Componente | Papel | Protocolo de entrada | Dono de | No GCP (Trabalho 3) |
 |---|---|---|---|---|
-| **Frontend** (`frontend/`) | telas para o usuario; so conversa com o Gateway | HTTP na porta 80 (publica) | - | VM `delivery-frontend` |
-| **Gateway** (`src/gateway/`) | ponto unico de entrada; autentica o JWT, confere o papel, valida o JSON, traduz para Protobuf e despacha | HTTP/JSON na porta 8000 (publica) | nenhuma tabela | VM `delivery-gateway` |
-| **Usuarios** (`src/usuarios/`) | cadastro e conferencia de login e senha (bcrypt) | gRPC na porta 9092 (so o Gateway) | `usuarios` | VM `servidor-delivery` |
-| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, alterar disponibilidade/preco | gRPC na porta 9091 (so o Gateway) | `itens_cardapio` | VM `servidor-delivery` |
-| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido` | VM `servidor-delivery` |
-| **PostgreSQL** | persistencia | SQL na porta 5432 (TLS) | - | Cloud SQL `delivery-postgres` |
-| **Migrador** | cria as tabelas e carrega a carga inicial a cada deploy e depois termina | - | - | VM `servidor-delivery` |
+| **Frontend** (`frontend/`) | telas para o usuario; so conversa com o Gateway | HTTP na porta 80 (publica) | - | Cloud Run `delivery-frontend`, publico |
+| **Gateway** (`src/gateway/`) | ponto unico de entrada; autentica o JWT, confere o papel, valida o JSON, traduz para Protobuf e despacha | HTTP/JSON na porta 8000 (publica) | nenhuma tabela | Cloud Run `delivery-gateway`, publico |
+| **Usuarios** (`src/usuarios/`) | cadastro, conferencia de login e senha (bcrypt) e dados da conta | gRPC na porta 9092 (so o Gateway) | `usuarios` | Cloud Run `delivery-usuarios`, privado |
+| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, cadastrar, editar e excluir pratos, disponibilidade e fotos | gRPC na porta 9091 (o Gateway e o Pedidos) | `itens_cardapio`, `fotos_itens` | Cloud Run `delivery-catalogo`, privado |
+| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido`, `etapas_pedido` | Cloud Run `delivery-pedidos`, privado |
+| **PostgreSQL** | persistencia | SQL na porta 5432 | - | Cloud SQL `delivery-postgres`, pelo conector do Cloud Run |
+| **Migrador** | cria as tabelas e carrega a carga inicial a cada deploy e depois termina | - | - | Cloud Run job `delivery-migrador` |
 
 Cada microsservico so le e escreve as proprias tabelas. Pedidos nao faz `SELECT`
 em `itens_cardapio`: ele pergunta ao Catalogo por gRPC. Por isso a linha do
@@ -52,17 +62,34 @@ quando a chamada chega neles, o Gateway ja autenticou e autorizou.
 ## Caminho de um `POST /pedidos`
 
 ```text
-1. navegador  --HTTP POST /pedidos {JSON} + Bearer-->  gateway
+1. navegador  --HTTP POST /pedidos {endereco, itens} + Bearer-->  gateway
 2. gateway: MiddlewareJWT confere assinatura e validade
             sem token, token invalido ou expirado -> 401 (nao chega nos microsservicos)
-3. gateway: Pydantic valida o payload
+3. gateway: Pydantic valida o payload (campo "cliente" no corpo -> 400)
             invalido -> 400 {"mensagem", "erros": {campo: motivo}}
-4. gateway  --gRPC PedidoService.CriarPedido (Protobuf)-->  pedidos
-5. pedidos  --gRPC CatalogoService.ConsultarItens-->  catalogo  --SELECT-->  itens_cardapio
-6. pedidos: confere existencia/disponibilidade, calcula subtotal, total e tempo
-7. pedidos  --INSERT pedidos + itens_pedido (uma transacao)-->  PostgreSQL
-8. pedidos  --Pedido (Protobuf)-->  gateway  --201 Created {JSON}-->  navegador
+4. gateway: monta o CriarPedidoRequest com usuario_id = sub do token, cliente =
+            nome do token e um pedido_id novo (chave de idempotencia)
+5. gateway  --gRPC PedidoService.CriarPedido (Protobuf, com retry)-->  pedidos
+6. pedidos  --gRPC CatalogoService.ConsultarItens (com retry)-->  catalogo  --SELECT-->  itens_cardapio
+7. pedidos: confere existencia/disponibilidade, calcula subtotal, total e tempo
+8. pedidos  --INSERT pedidos + itens_pedido (uma transacao)-->  PostgreSQL
+9. pedidos  --Pedido (Protobuf)-->  gateway  --201 Created {JSON}-->  navegador
 ```
+
+Se o Catalogo nao responde no passo 6, o Pedidos tenta de novo com backoff e,
+sem sucesso, responde 503 sem gravar nada. O que acontece em cada tipo de falha
+esta em [07-resiliencia.md](07-resiliencia.md).
+
+## Dono do pedido
+
+| Papel | `POST /pedidos` | `GET /pedidos` | `GET /pedidos/{id}` |
+|---|---|---|---|
+| `cliente` | grava em nome do dono do token | so os proprios pedidos (`"escopo": "meus"`) | so se o pedido for dele; de outro usuario responde 404 |
+| `cozinha` | grava em nome do dono do token | todos (`"escopo": "todos"`) | qualquer pedido |
+
+O Gateway tira o `usuario_id` e o nome do token assinado e manda para o Pedidos
+no Protobuf; o corpo HTTP nao tem como escolher em nome de quem o pedido e feito.
+O filtro e feito no banco (`WHERE usuario_id = ...`), pelo Pedidos.
 
 ## Como o sistema reage
 
@@ -78,22 +105,33 @@ quando a chamada chega neles, o Gateway ja autenticou e autorizou.
 | login fora do formato (`a b`) | Gateway | - | 400 | `use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)` |
 | senha curta | Gateway | - | 400 | `deve ter pelo menos 6 caracteres` |
 | JSON malformado | Gateway (Pydantic) | - | 400 | `erros.<campo>: "JSON malformado"` |
-| `cliente` ou `endereco` ausente | Gateway | - | 400 | `erros.cliente: "campo obrigatorio"` |
-| `cliente` so com espacos | Gateway | - | 400 | `erros.cliente: "nao deve estar vazio"` |
+| `endereco` ausente | Gateway | - | 400 | `erros.endereco: "campo obrigatorio"` |
+| `endereco` so com espacos | Gateway | - | 400 | `erros.endereco: "nao deve estar vazio"` |
+| `cliente` no corpo do pedido | Gateway | - | 400 | `erros.cliente: "campo nao permitido"` (o nome vem do token) |
+| cliente pedindo pedido de outro usuario | Pedidos (filtro pelo dono) | `NOT_FOUND` | 404 | `Pedido '...' nao encontrado.` |
 | `itens` vazio | Gateway | - | 400 | `erros.itens: "deve ter pelo menos um item"` |
 | `quantidade` <= 0 | Gateway | - | 400 | `erros.itens.0.quantidade: "deve ser maior que zero"` |
 | `quantidade` nao inteira (`"2"`, `1.5`) | Gateway | - | 400 | `"deve ser um numero inteiro"` |
-| codigo fora do formato (`P1`) | Gateway | - | 400 | `"codigo invalido: use 2 letras e 2 digitos (ex.: PR01)"` |
+| codigo fora do formato (`P1`) | Gateway | - | 400 | `"codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)"` |
 | campo desconhecido (ex.: `preco`) | Gateway | - | 400 | `"campo nao permitido"` |
 | codigo valido mas inexistente (`XX99`) | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'XX99' nao existe no cardapio.` |
 | item indisponivel (`PR05` na carga inicial) | Pedidos | `FAILED_PRECONDITION` | 409 | `Item 'PR05' (Moqueca de peixe) esta indisponivel hoje.` |
+| item que a cozinha excluiu | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Item 'PR06' nao existe no cardapio.` |
+| opcao fora do dia (agua `Com gás` desligada pela cozinha) | Pedidos (via Catalogo) | `FAILED_PRECONDITION` | 409 | `A opcao 'Com gás' de BE03 (Água mineral) esta indisponivel hoje.` |
+| nome de pessoa com numero (`Joao 2`) | Gateway (e Usuarios) | - | 400 | `erros.nome: "nome invalido: use so letras, espaco, apostrofo e hifen (...)"` |
+| prato novo em categoria que nao existe | Catalogo | `INVALID_ARGUMENT` | 400 | `Categoria 'Lanches' nao existe. Use uma de: Entradas, Pratos, Bebidas, Sobremesas.` |
+| foto que nao e JPEG/PNG/WebP, ou acima de 2 MB | Gateway | - | 415 / 413 | `Envie uma foto JPEG, PNG ou WebP (...)` / `A foto passa de 2048 KB.` |
+| refrigerante (`BE01`) ou agua (`BE03`) sem escolher a opcao | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Escolha uma opcao para BE01 (Refrigerante lata): Coca-Cola, ...` |
+| opcao que nao existe, ou opcao num prato sem opcoes | Pedidos (via Catalogo) | `INVALID_ARGUMENT` | 400 | `Opcao 'Fanta Morango' nao existe para BE01 (...)` |
 | pedido inexistente | Pedidos | `NOT_FOUND` | 404 | `Pedido '...' nao encontrado.` |
 | id de pedido malformado | Pedidos | `INVALID_ARGUMENT` | 400 | `Id de pedido invalido: '...'.` |
 | pular ou voltar etapa do status | Pedidos | `FAILED_PRECONDITION` | 409 | `Nao e possivel mudar de EM_PREPARO para ENTREGUE: a proxima etapa e PRONTO.` |
 | status fora da lista | Gateway | - | 400 | `"valor nao permitido; use um de: RECEBIDO, ..."` |
 | categoria inexistente | Catalogo | `NOT_FOUND` | 404 | `Categoria 'Pizzas' nao existe no cardapio.` |
-| Catalogo fora do ar ao criar pedido | Pedidos | `UNAVAILABLE` | 503 | `Catalogo indisponivel no momento (...). Tente novamente.` |
-| microsservico fora do ar | Gateway | `UNAVAILABLE` | 503 | detalhe do gRPC |
+| Catalogo fora do ar ao criar pedido | Pedidos (depois do retry) | `UNAVAILABLE` | 503 + `Retry-After` | `Catalogo indisponivel no momento (...): nao foi possivel confirmar os itens.` |
+| Catalogo fora do ar ao listar o cardapio | Gateway | `UNAVAILABLE` | 200 | lista salva, com `"origem": "cache"` e `"aviso"` |
+| microsservico fora do ar | Gateway (depois do retry) | `UNAVAILABLE` | 503 + `Retry-After` | detalhe do gRPC |
+| 3 falhas seguidas do mesmo servico | Gateway (circuit breaker) | - | 503 imediato | `Servico de catalogo temporariamente indisponivel (circuito aberto)...` |
 
 A validacao de negocio existe nas duas camadas: o Gateway barra payload
 invalido na borda, e o microsservico repete as checagens essenciais para nao
@@ -113,4 +151,21 @@ depender de quem o chama (defesa em profundidade).
 | SQL puro com psycopg 3 (sem ORM) | as consultas ficam visiveis no repositorio de cada servico (`repositorio.py`) |
 | Um banco, tabelas separadas por dono | uma unica instancia Cloud SQL mantem o custo baixo sem misturar responsabilidades |
 | Status avanca so para a proxima etapa | evita estados impossiveis; o `UPDATE` e condicional (`WHERE status = atual`) para duas chamadas simultaneas nao avancarem duas vezes |
-| Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |
+| Dono do pedido vem do token | o professor apontou que o nome do cliente era texto livre e a lista nao filtrava pelo usuario; agora o pedido guarda o `usuario_id` do token e o cliente so ve os seus |
+| Retry, circuit breaker e fallback no cliente gRPC | uma falha de um microsservico nao derruba o sistema inteiro nem trava o usuario (ver [07-resiliencia.md](07-resiliencia.md)) |
+| Tempo real com NOTIFY + gRPC streaming + SSE | a tela acompanha o pedido sem F5; o aviso nasce no banco (funciona com varias instancias) e o Gateway abre um so stream por instancia, nao um por navegador |
+| Opcoes do item no Catalogo, conferidas pelo Pedidos | o sabor do refrigerante e dado do cardapio (`itens_cardapio.opcoes`), nao regra fixa no codigo; a cozinha ou a carga mudam as opcoes sem mexer no Pedidos |
+| Rastreamento com OpenTelemetry | o mesmo codigo manda os spans para o Jaeger no computador e para o Cloud Trace no Google Cloud (ver [08-rastreamento.md](08-rastreamento.md)) |
+| Fotos dos pratos no PostgreSQL (`fotos_itens`) | o Cloud Run nao tem disco permanente e pode ter varias instancias: foto gravada no container sumiria. No banco ela funciona igual no compose e no Cloud SQL, sem outro servico. Para muitas fotos o caminho seria o Cloud Storage; para um cardapio de dezenas de pratos o banco basta |
+| URL da foto com a versao (hash) | foto nova = URL nova: o navegador guarda cada foto para sempre (`immutable`) sem nunca mostrar uma foto velha |
+| Exclusao logica de prato | pedidos antigos tem o snapshot e continuam certos; o codigo nunca e reaproveitado; excluir de novo nao e erro (idempotente); e a carga inicial nao "ressuscita" o prato |
+| Nome novo devolve token novo | o nome vai no token e dele sai o nome do pedido; em vez de consultar o Usuarios a cada pedido, o `PATCH /conta` emite um token com o nome atual |
+| Conta sem id na URL (`/conta`) | o Gateway usa o `sub` do token: nao existe rota que leia ou altere a conta de outra pessoa |
+| Disponibilidade por opcao (`opcoes_indisponiveis`) | toda escolha que o cliente faz a cozinha tambem controla: acabou so a agua com gas, a sem gas continua no cardapio |
+| Cadastro nao abre sessao e troca de senha encerra a sessao | criar conta e entrar sao passos separados (credencial digitada); com senha nova a pessoa entra de novo. O token antigo ainda vale ate expirar (JWT sem estado, 60 min por padrao) |
+| Implantacao por script (`scripts/gcp/cloud-run/`) | a infraestrutura do Cloud Run, Cloud SQL, Secret Manager e IAM fica descrita no repositorio e pode ser refeita com um comando; `desligar.sh` deixa o projeto sem gastar credito |
+| Carga inicial nao sobrescreve a cozinha | o `seed.sql` so atualiza item que a cozinha nunca editou (`editado_em` nulo): o que foi mudado pela tela sobrevive a todo deploy |
+| Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
+| Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |
+| Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
+| Um servico do Cloud Run por componente (no Trabalho 2, uma VM por camada) | frontend, Gateway e cada microsservico sobem, escalam e caem de forma independente; os microsservicos so aceitam chamada com o ID token de quem tem `roles/run.invoker` (o Gateway; o Pedidos, no Catalogo), como no Trabalho 2 as portas gRPC so aceitavam a VM do Gateway |

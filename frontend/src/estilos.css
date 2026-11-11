@@ -77,8 +77,14 @@ p {
 }
 
 .app {
+  --altura-trilho-atual: var(--altura-trilho);
   min-height: 100vh;
-  padding-bottom: calc(var(--altura-trilho) + 24px);
+  padding-bottom: calc(var(--altura-trilho-atual) + 24px);
+}
+
+/* Trilho recolhido (padrao do cliente): so uma faixa fina embaixo. */
+.app.trilho-recolhido {
+  --altura-trilho-atual: 40px;
 }
 
 /* ------------------------------------------------------------------ topo */
@@ -300,8 +306,7 @@ p {
 }
 
 /* -------------------------------------------------------------- resultado */
-.resultado,
-.confirmacao {
+.resultado {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -310,11 +315,6 @@ p {
   border-radius: var(--raio);
   border-left: 6px solid;
   background: var(--papel);
-}
-
-.confirmacao {
-  align-items: start;
-  border-color: var(--manjericao);
 }
 
 .resultado-status {
@@ -328,8 +328,7 @@ p {
   border-color: var(--manjericao);
 }
 
-.resultado-ok .resultado-status,
-.confirmacao .resultado-status {
+.resultado-ok .resultado-status {
   color: var(--manjericao);
 }
 
@@ -411,25 +410,85 @@ p {
   align-items: start;
 }
 
-.filtros {
+/* Abas do cardapio: uma por categoria, com a quantidade de pratos. */
+.abas-cardapio {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 2px solid var(--grafite);
+  margin-bottom: 18px;
+  scrollbar-width: thin;
 }
 
-.filtro {
-  border: 2px solid var(--inox-escuro);
-  background: var(--branco);
-  border-radius: 999px;
-  padding: 5px 14px;
+.aba-cardapio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  padding: 10px 16px 9px;
+  border-radius: var(--raio) var(--raio) 0 0;
+  font-weight: 700;
+  font-stretch: 87%;
+  font-size: 1.05rem;
+  color: var(--grafite-suave);
   cursor: pointer;
-  font-weight: 600;
+  transition: background 150ms ease, color 150ms ease;
 }
 
-.filtro.ativo {
-  border-color: var(--grafite);
-  background: var(--grafite);
+.aba-cardapio:hover {
+  color: var(--grafite);
+  background: rgba(29, 35, 41, 0.06);
+}
+
+.aba-cardapio.ativa {
   color: var(--branco);
+  background: var(--grafite);
+}
+
+.aba-contagem {
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--inox-escuro);
+  color: var(--grafite);
+}
+
+.aba-cardapio.ativa .aba-contagem {
+  background: var(--pimenta);
+  color: var(--branco);
+}
+
+/* Troca de aba: o painel entra com um leve zoom. */
+.painel-aba,
+.detalhe-conteudo {
+  animation: aparecer 260ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.grupo-pratos + .grupo-pratos {
+  margin-top: 26px;
+}
+
+.grupo-titulo {
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pimenta);
+  margin-bottom: 8px;
 }
 
 .pratos {
@@ -440,8 +499,124 @@ p {
 }
 
 .prato {
-  padding: 16px 4px;
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  padding: 16px 12px;
   border-bottom: 1px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+/* Foto do prato (GET /cardapio/{codigo}/foto no Gateway), com zoom sob o mouse. */
+.prato-foto {
+  width: 108px;
+  height: 108px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.prato-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 350ms ease;
+}
+
+/* Zoom so em aparelho com mouse: no toque o "hover" fica grudado e o card
+   mudaria de tamanho embaixo do dedo, tirando o botao + do lugar. */
+@media (hover: hover) and (pointer: fine) {
+  .prato:hover .prato-foto img {
+    transform: scale(1.1);
+  }
+}
+
+.prato-foto-vazia {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #f4e6d4, #e7c9a9);
+  color: var(--pimenta-escura);
+  font-weight: 800;
+  font-stretch: 75%;
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+}
+
+.prato-indisponivel .prato-foto {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* Submenu de opcoes (sabor do refrigerante, agua com ou sem gas). */
+.opcoes-alternar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opcoes-contagem {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.submenu {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--pimenta);
+  border-radius: 0 var(--raio) var(--raio) 0;
+  background: var(--papel);
+  animation: aparecer 200ms ease-out;
+}
+
+.submenu-opcao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--inox-escuro);
+  font-weight: 600;
+}
+
+.submenu-opcao:last-child {
+  border-bottom: 0;
+}
+
+.submenu .quantidade button {
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+}
+
+.sacola-opcao {
+  color: var(--grafite-suave);
+  font-weight: 600;
+}
+
+.cozinha-opcoes {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--grafite-suave);
+}
+
+/* Zoom discreto no prato sob o mouse (so com mouse, ver .prato-foto acima). */
+@media (hover: hover) and (pointer: fine) {
+  .prato:hover {
+    background: var(--branco);
+    transform: scale(1.012);
+    box-shadow: 0 6px 18px rgba(29, 35, 41, 0.1);
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .prato-cabeca {
@@ -450,7 +625,7 @@ p {
   gap: 12px;
 }
 
-.prato-cabeca h2 {
+.prato-cabeca h3 {
   font-size: 1.3rem;
 }
 
@@ -493,7 +668,7 @@ p {
   font-weight: 700;
 }
 
-.prato-indisponivel h2,
+.prato-indisponivel h3,
 .prato-indisponivel .prato-preco {
   color: var(--grafite-suave);
   text-decoration: line-through;
@@ -520,9 +695,15 @@ p {
   cursor: pointer;
 }
 
-.quantidade button:hover {
-  background: var(--grafite);
-  color: var(--branco);
+@media (hover: hover) {
+  .quantidade button:hover {
+    background: var(--grafite);
+    color: var(--branco);
+  }
+}
+
+.quantidade button:active {
+  transform: scale(0.9);
 }
 
 .sacola {
@@ -622,6 +803,18 @@ p {
   align-items: center;
   gap: 10px;
   color: var(--grafite-suave);
+}
+
+.etapa-nome {
+  flex: 1;
+}
+
+.etapa-hora {
+  font-family: var(--fonte-comanda);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--grafite);
+  font-variant-numeric: tabular-nums;
 }
 
 .etapa-numero {
@@ -941,13 +1134,1098 @@ p {
   word-break: break-word;
 }
 
+/* ------------------------------------------------------------------ aviso */
+.aviso {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-left: 6px solid var(--acafrao);
+  border-radius: var(--raio);
+  background: var(--papel);
+}
+
+.aviso p {
+  margin-top: 4px;
+  color: var(--grafite-suave);
+}
+
+.pedido-em-nome {
+  margin: 4px 0 14px;
+}
+
+.pedido-em-nome span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.trilho-requisicao {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.trilho-requisicao code,
+.saude code {
+  font-family: var(--fonte-comanda);
+  font-size: 0.9em;
+  background: var(--inox);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------ saude */
+.saude-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.saude-automatico {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.saude-tabela {
+  margin-top: 8px;
+}
+
+.estado {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.estado-ok {
+  background: #e3f1e8;
+  color: var(--manjericao);
+}
+
+.estado-alerta {
+  background: #fbefd9;
+  color: var(--acafrao);
+}
+
+.estado-falha {
+  background: #f8e1df;
+  color: var(--pimenta);
+}
+
+.saude-detalhe {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--grafite-suave);
+}
+
+.saude-dicas {
+  margin-top: 24px;
+}
+
+.saude-dicas ol {
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+
+.saude-dicas li + li {
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------ campo obrigatorio */
+.obrigatorio {
+  position: relative;
+  margin-left: 4px;
+  color: var(--pimenta);
+  font-weight: 800;
+  cursor: help;
+}
+
+/* Dica ao passar o mouse sobre o asterisco. */
+.obrigatorio::after {
+  content: attr(data-dica);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 4px);
+  background: var(--grafite);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 4px 9px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.obrigatorio:hover::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.legenda-obrigatorio {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.legenda-obrigatorio span {
+  color: var(--pimenta);
+  font-weight: 800;
+}
+
+/* -------------------------------------------------- finalizar pedido (chamas) */
+.botao-chamas-area {
+  position: relative;
+}
+
+.botao-chamas {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-stretch: 87%;
+  background: linear-gradient(135deg, #d9480f, var(--pimenta) 55%, var(--pimenta-escura));
+  box-shadow: 0 4px 0 #6d140d;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.botao-chamas:hover {
+  filter: brightness(1.08);
+  background: linear-gradient(135deg, #e8590c, var(--pimenta) 55%, var(--pimenta-escura));
+}
+
+.botao-chamas:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #6d140d;
+}
+
+.icone-chama {
+  width: 22px;
+  height: 30px;
+  flex: none;
+  overflow: visible;
+}
+
+/* As duas camadas da chama tremulam a partir da base, em ritmos diferentes. */
+.icone-chama .chama-fora,
+.icone-chama .chama-miolo {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.botao-chamas:hover .icone-chama,
+.botao-chamas:disabled .icone-chama,
+.botao-chamas.acesa .icone-chama {
+  filter: drop-shadow(0 0 5px rgba(255, 196, 60, 0.75));
+}
+
+.botao-chamas:hover .chama-fora,
+.botao-chamas:disabled .chama-fora,
+.botao-chamas.acesa .chama-fora {
+  animation: tremular-fora 0.9s ease-in-out infinite;
+}
+
+.botao-chamas:hover .chama-miolo,
+.botao-chamas:disabled .chama-miolo,
+.botao-chamas.acesa .chama-miolo {
+  animation: tremular-miolo 0.55s ease-in-out infinite;
+}
+
+@keyframes tremular-fora {
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  25% {
+    transform: scale(0.95, 1.07) skewX(-4deg);
+  }
+  50% {
+    transform: scale(1.03, 0.95) skewX(2deg);
+  }
+  75% {
+    transform: scale(0.97, 1.09) skewX(-1deg);
+  }
+}
+
+@keyframes tremular-miolo {
+  0%,
+  100% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  33% {
+    transform: scale(0.9, 1.12) skewX(4deg);
+  }
+  66% {
+    transform: scale(1.06, 0.9) skewX(-3deg);
+  }
+}
+
+/* Pedido confirmado: o botao acende e o fogo (canvas, ver Fogo.jsx) sobe dele. */
+.botao-chamas.acesa {
+  box-shadow: 0 4px 0 #6d140d, 0 0 26px 6px rgba(255, 120, 30, 0.5);
+  filter: brightness(1.1);
+}
+
+.fogo {
+  position: absolute;
+  left: -24px;
+  right: -24px;
+  bottom: calc(100% - 26px);
+  width: calc(100% + 48px);
+  height: 210px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Sacola: linha que a cozinha mudou depois que o prato entrou. */
+.sacola-linha-problema > span:first-child {
+  color: var(--grafite-suave);
+}
+
+.sacola-motivo,
+.sacola-preco-mudou {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.sacola-motivo {
+  color: var(--pimenta);
+}
+
+.sacola-preco-mudou {
+  color: #8a5200;
+}
+
+.sacola-alerta {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--pimenta);
+  background: #fdecea;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------------------ filtros dos pedidos */
+.filtros-pedidos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+  margin-bottom: 10px;
+}
+
+.filtros-pedidos label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--grafite-suave);
+}
+
+.filtros-pedidos select,
+.filtros-pedidos input {
+  min-width: 170px;
+  border: 2px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  padding: 7px 10px;
+  background: var(--branco);
+  color: var(--grafite);
+  font-size: 0.95rem;
+}
+
+.filtros-pedidos select:focus,
+.filtros-pedidos input:focus {
+  border-color: var(--grafite);
+}
+
+.filtros-limpar {
+  margin-bottom: 9px;
+}
+
+.contagem-pedidos {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--grafite-suave);
+}
+
+/* -------------------------------------------------- previsao de entrega */
+.previsao {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin: 18px 0 4px;
+  padding: 12px 14px;
+  border-radius: var(--raio);
+  background: var(--papel);
+  border-left: 6px solid var(--acafrao);
+}
+
+.previsao-rotulo {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--grafite-suave);
+}
+
+.previsao-hora {
+  font-family: var(--fonte-comanda);
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.previsao-barra {
+  grid-column: 1 / -1;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--inox);
+  overflow: hidden;
+}
+
+.previsao-barra span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--acafrao), var(--pimenta));
+  transition: width 600ms ease;
+}
+
+.previsao-atraso {
+  border-left-color: var(--pimenta);
+}
+
+.previsao-entregue {
+  border-left-color: var(--manjericao);
+}
+
+/* ------------------------------------------------------------ tempo real */
+.avisos-tempo-real {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+}
+
+.aviso-tempo-real {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 0;
+  border-left: 6px solid var(--pimenta);
+  border-radius: var(--raio);
+  background: var(--grafite);
+  color: var(--branco);
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  animation: entrar-aviso 300ms ease-out;
+}
+
+.aviso-tempo-real-acao {
+  font-size: 0.82rem;
+  color: #f3b4ae;
+  text-decoration: underline;
+}
+
+@keyframes entrar-aviso {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.saude-tempo-real {
+  margin: 0 0 14px;
+  color: var(--grafite-suave);
+}
+
+/* ------------------------------------------------------- cozinha: pratos */
+.cozinha-grupo {
+  margin-bottom: 26px;
+}
+
+.cozinha-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--branco);
+  border: 1px solid var(--inox-escuro);
+  border-radius: 10px;
+}
+
+.cozinha-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--inox);
+}
+
+.cozinha-item:last-child {
+  border-bottom: 0;
+}
+
+.cozinha-item-fora .cozinha-foto,
+.cozinha-item-fora .cozinha-info {
+  opacity: 0.55;
+}
+
+.cozinha-foto {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.cozinha-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cozinha-foto.prato-foto-vazia {
+  font-size: 1.15rem;
+}
+
+.cozinha-nome {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.cozinha-descricao {
+  margin: 2px 0 0;
+  color: var(--grafite-suave);
+  font-size: 0.92rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cozinha-preco {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Formulario do prato num <dialog> (showModal: foco preso e Esc fecha). */
+.dialogo-prato {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--papel);
+  color: var(--grafite);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.dialogo-prato::backdrop {
+  background: rgba(17, 21, 25, 0.55);
+}
+
+.dialogo-prato[open] {
+  animation: abrir-dialogo 180ms ease-out;
+}
+
+@keyframes abrir-dialogo {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.formulario-prato {
+  padding: 22px 24px 16px;
+}
+
+.dialogo-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dialogo-topo h2 {
+  margin: 0;
+}
+
+.campo-foto {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.foto-edicao {
+  width: 112px;
+  height: 112px;
+  flex: none;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--inox);
+}
+
+.foto-edicao img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.campo-foto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.botao-arquivo {
+  display: inline-block;
+}
+
+.botao-arquivo:focus-within {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.dica,
+.dica-rotulo {
+  color: var(--grafite-suave);
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.dica {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.campos-lado {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 16px;
+}
+
+.campo select,
+.campo textarea {
+  border: 2px solid var(--inox-escuro);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+  background: var(--branco);
+  font: inherit;
+  color: inherit;
+}
+
+.campo textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.campo select:focus,
+.campo textarea:focus {
+  border-color: var(--grafite);
+}
+
+.campo-com-erro select,
+.campo-com-erro textarea {
+  border-color: var(--acafrao);
+  background: #fff8ec;
+}
+
+.caixa-marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  margin-bottom: 14px;
+  cursor: pointer;
+}
+
+.caixa-marcar input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--manjericao);
+}
+
+.aviso-formulario {
+  margin: 0 0 8px;
+  color: #8a5200;
+  font-weight: 650;
+}
+
+.dialogo-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--inox-escuro);
+}
+
+.dialogo-rodape .espaco {
+  flex: 1;
+}
+
+.confirmar-exclusao {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-weight: 650;
+}
+
+.botao-perigo {
+  background: var(--pimenta);
+  color: var(--branco);
+  border: 0;
+  border-radius: var(--raio);
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.botao-perigo:hover {
+  background: var(--pimenta-escura);
+}
+
+/* ------------------------------------------- trilho recolhido e topo */
+.trilho-fino {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--grafite);
+  border-top: 1px solid #aab4bd;
+  color: #c9d1d8;
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.trilho-alternar {
+  flex: none;
+  white-space: nowrap;
+}
+
+.trilho-alternar,
+.trilho-recolher {
+  background: none;
+  border: 0;
+  color: #c9d1d8;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.trilho-alternar:hover,
+.trilho-recolher:hover {
+  color: var(--branco);
+}
+
+.trilho-recolher {
+  flex: none;
+  align-self: start;
+  margin-top: 14px;
+  padding: 2px 6px;
+  font-size: 1rem;
+}
+
+.trilho-contagem {
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.trilho-ultima {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--fonte-comanda);
+}
+
+.carimbo-mini {
+  font-size: 0.8rem;
+  padding: 0 6px;
+  transform: none;
+}
+
+.usuario-nome {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--branco);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.35);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.aviso-login {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 5px solid var(--manjericao);
+  background: #e8f3ec;
+  font-weight: 650;
+}
+
+.login-dica-conta {
+  margin: 12px 0 0;
+  color: var(--grafite-suave);
+  font-size: 0.9rem;
+}
+
+/* ------------------------------------------------- sacola em etapas */
+.sacola-vazia {
+  margin: 0;
+}
+
+.sacola-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.sacola-topo h2 {
+  margin: 0 0 6px;
+}
+
+.entrega-resumo {
+  margin: 0 0 10px;
+  color: var(--grafite-suave);
+}
+
+.sacola-itens .sacola-linha {
+  align-items: center;
+}
+
+.sacola-linha-texto {
+  min-width: 0;
+}
+
+.sacola-linha-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.quantidade-sacola {
+  gap: 6px;
+}
+
+.quantidade-sacola button {
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+}
+
+.sacola-valor {
+  min-width: 78px;
+  text-align: right;
+}
+
+.botao-continuar {
+  width: 100%;
+}
+
+.confirmacao-pedido {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.confirmacao-pedido h2 {
+  margin: 8px 0 10px;
+}
+
+.confirmacao-pedido p {
+  margin: 0 0 8px;
+}
+
+.icone-confirmacao {
+  width: 44px;
+  height: 60px;
+  filter: drop-shadow(0 0 8px rgba(255, 196, 60, 0.7));
+}
+
+.confirmacao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  margin-top: 16px;
+}
+
+/* No celular: barra fixa para chegar na sacola, que fica embaixo do cardapio. */
+.barra-sacola {
+  display: none;
+}
+
+/* --------------------------------------- opcoes fora do dia (dois lados) */
+.submenu-opcao-fora > span:first-child {
+  color: var(--grafite-suave);
+}
+
+.submenu-opcao-fora .etiqueta-indisponivel {
+  margin-left: 8px;
+}
+
+.quantidade button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cozinha-opcoes-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.opcao-chip {
+  border: 2px solid var(--manjericao);
+  border-radius: 999px;
+  background: #e8f3ec;
+  color: var(--manjericao);
+  padding: 2px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.opcao-chip-fora {
+  border-color: var(--pimenta);
+  background: var(--branco);
+  color: var(--pimenta);
+  text-decoration: line-through;
+}
+
+/* --------------------------------------------- pedidos: secoes e atrasos */
+.secao-pedidos {
+  margin-bottom: 26px;
+  overflow-x: auto; /* tabela larga rola dentro da secao, sem sair do quadro */
+}
+
+.secao-pedidos-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.secao-contagem {
+  min-width: 26px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--grafite);
+  color: var(--branco);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.secao-pedidos-descricao {
+  margin: 0 0 8px;
+  color: var(--grafite-suave);
+  font-size: 0.92rem;
+}
+
+/* Novos (cozinha): ainda ninguem aceitou, entao chamam atencao. */
+.secao-novos {
+  padding: 14px 16px 6px;
+  border: 2px solid var(--pimenta);
+  border-radius: 12px;
+  background: #fff4f2;
+}
+
+.secao-novos .secao-contagem {
+  background: var(--pimenta);
+}
+
+.ponto-novo {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--pimenta);
+  animation: piscar-novo 1.2s ease-in-out infinite;
+}
+
+@keyframes piscar-novo {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+}
+
+.secao-finalizados .tabela {
+  opacity: 0.8;
+}
+
+.linha-atrasada td {
+  background: #fdecea;
+}
+
+.selo-atraso {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.botao-pequeno {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+}
+
+.aba-alerta {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--pimenta);
+  color: var(--branco);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ meus dados */
+.conta-paineis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.conta-paineis h2 {
+  margin: 0 0 14px;
+}
+
+.conta-fixos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 0 0 18px;
+}
+
+.conta-fixos dt {
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+.conta-fixos dd {
+  margin: 0;
+  font-weight: 650;
+}
+
 /* -------------------------------------------------------------- responsivo */
 @media (max-width: 960px) {
+  .prato {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .prato-foto {
+    width: 76px;
+    height: 76px;
+  }
+
+  .cozinha-item {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+  }
+
+  .cozinha-foto {
+    width: 56px;
+    height: 56px;
+  }
+
+  .cozinha-item .interruptor {
+    grid-column: 2;
+    justify-self: start;
+    min-width: 0;
+  }
+
+  .campos-lado {
+    grid-template-columns: 1fr;
+  }
+
+  .barra-sacola {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--altura-trilho-atual) + 10px);
+    z-index: 15;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pimenta);
+    color: var(--branco);
+    font: inherit;
+    font-weight: 700;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+  }
+
+  /* minmax(0, ...): a coluna pode encolher ate a tela; conteudo largo (as abas
+     do cardapio) rola de lado em vez de alargar a pagina inteira. */
   .login,
   .cardapio,
   .pedidos,
   .trilho-detalhe-corpo {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sacola {
@@ -993,7 +2271,32 @@ p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .comandas li:first-child .comanda {
+  .comandas li:first-child .comanda,
+  .painel-aba,
+  .detalhe-conteudo,
+  .chama-fora,
+  .chama-miolo,
+  .ponto-novo,
+  .aviso-tempo-real {
+    animation: none;
+  }
+
+  .fogo {
+    display: none;
+  }
+
+  .dialogo-prato[open] {
+    animation: none;
+  }
+
+  .prato,
+  .prato:hover,
+  .prato:hover .prato-foto img {
+    transform: none;
+    transition: none;
+  }
+
+  .submenu {
     animation: none;
   }
 }

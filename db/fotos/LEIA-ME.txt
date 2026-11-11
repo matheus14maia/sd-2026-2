@@ -1,0 +1,17 @@
+Fotos iniciais dos pratos do cardapio (opcional).
+
+O jeito normal de colocar e trocar foto e pela aba Cozinha do sistema
+(Editar prato > Escolher foto). Esta pasta serve para o repositorio ja vir com
+fotos: o migrador carrega cada arquivo no banco quando o sistema sobe.
+
+  Nome: o codigo do prato, ex.: PR01.jpg, BE01.png, SO02.webp
+        (EN01 a EN03, PR01 a PR05, BE01 a BE03, SO01 e SO02 na carga inicial)
+  Tipo: JPEG, PNG ou WebP, de preferencia quadrada ou 4:3, uns 800 px de
+        largura, ate 2 MB (o ideal e menos de 200 KB)
+
+- A foto so entra em prato que a cozinha nunca editou. Depois que alguem
+  troca ou remove a foto pela tela, o arquivo daqui e ignorado para aquele prato.
+- Trocou um arquivo daqui? Rode de novo o migrador:
+      docker compose up -d --build migrador
+- Use fotos com licenca livre (ex.: Unsplash, Pexels) ou feitas por voces: o
+  repositorio e publico.

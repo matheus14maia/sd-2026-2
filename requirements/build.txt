@@ -1,0 +1,2 @@
+# So para gerar os stubs a partir dos .proto (estagio de build das imagens).
+grpcio-tools==1.68.1

@@ -6,7 +6,9 @@ Dois tipos de erro chegam aqui:
    motivo de cada campo. O FastAPI responderia 422 por padrao; o trabalho pede
    400 Bad Request, por isso o handler e sobrescrito.
 2. Erro devolvido por um microsservico (grpc.RpcError) -> o status HTTP
-   equivalente ao status code do gRPC.
+   equivalente ao status code do gRPC. 503 sai com Retry-After.
+3. Circuito aberto (CircuitoAberto, ver src/comum/resiliencia.py) -> 503 na
+   hora, sem chamar o microsservico, com Retry-After = tempo ate o novo teste.
 
 O 401 de token ausente/invalido nao passa por aqui: o MiddlewareJWT
 (autenticacao.py) responde antes de a requisicao chegar nas rotas. O 403 de
@@ -18,7 +20,11 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN
+from ..comum.resiliencia import CircuitoAberto, falha_de_dependencia
+from .esquemas import PADRAO_CODIGO, PADRAO_LOGIN, PADRAO_TELEFONE, TELEFONE_INVALIDO
+
+# Segundos que o cliente deve esperar antes de tentar de novo depois de um 503.
+RETRY_AFTER_SEGUNDOS = "5"
 
 GRPC_PARA_HTTP = {
     grpc.StatusCode.INVALID_ARGUMENT: 400,
@@ -28,12 +34,16 @@ GRPC_PARA_HTTP = {
     grpc.StatusCode.ALREADY_EXISTS: 409,
     grpc.StatusCode.UNAVAILABLE: 503,
     grpc.StatusCode.DEADLINE_EXCEEDED: 503,
+    # O Gateway nunca cancela chamada: CANCELLED e o servico desligando no meio dela.
+    grpc.StatusCode.CANCELLED: 503,
+    grpc.StatusCode.RESOURCE_EXHAUSTED: 503,
 }
 
 # Formato esperado por regex, para o erro string_pattern_mismatch.
 FORMATOS = {
-    PADRAO_CODIGO: "codigo invalido: use 2 letras e 2 digitos (ex.: PR01)",
+    PADRAO_CODIGO: "codigo invalido: use 2 letras e de 2 a 4 digitos (ex.: PR01)",
     PADRAO_LOGIN: "use de 3 a 30 letras, numeros, ponto ou sublinhado (ex.: maria.silva)",
+    PADRAO_TELEFONE: TELEFONE_INVALIDO,
 }
 
 # Mensagens em portugues por tipo de erro do Pydantic.
@@ -70,9 +80,14 @@ def _campo(loc: tuple) -> str:
 
 def _mensagem(erro: dict) -> str:
     tipo = erro.get("type", "")
+    if tipo == "value_error":
+        # ValueError de um validador do modelo: a mensagem e nossa, sem o
+        # prefixo "Value error, " do Pydantic.
+        return str((erro.get("ctx") or {}).get("error") or erro.get("msg", "valor invalido"))
     if tipo == "literal_error":
         esperado = (erro.get("ctx") or {}).get("expected", "")
-        return "valor nao permitido; use um de: %s" % esperado.replace("'", "")
+        # O Pydantic monta a lista em ingles ("'A', 'B' or 'C'").
+        return "valor nao permitido; use um de: %s" % esperado.replace("'", "").replace(" or ", " ou ")
     if tipo == "less_than_equal":
         return "deve ser no maximo %s" % (erro.get("ctx") or {}).get("le")
     if tipo == "string_pattern_mismatch":
@@ -92,6 +107,18 @@ async def validacao_invalida(request: Request, exc: RequestValidationError) -> J
     )
 
 
+class RequisicaoInvalida(Exception):
+    """Erro de entrada achado no proprio Gateway, fora do JSON (ex.: foto grande demais)."""
+
+    def __init__(self, mensagem: str, status: int = 400) -> None:
+        super().__init__(mensagem)
+        self.status = status
+
+
+async def requisicao_invalida(request: Request, exc: RequisicaoInvalida) -> JSONResponse:
+    return JSONResponse(status_code=exc.status, content={"mensagem": str(exc)})
+
+
 async def acesso_negado(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=403, content={"mensagem": str(exc)})
 
@@ -101,7 +128,17 @@ async def erro_grpc(request: Request, exc: grpc.RpcError) -> JSONResponse:
     mensagem = exc.details() or exc.code().name
     if status >= 500 and exc.code() not in GRPC_PARA_HTTP:
         mensagem = "Erro interno ao processar a requisicao."
+    conteudo = {"mensagem": mensagem, "codigo_grpc": exc.code().name}
+    dependencia = falha_de_dependencia(exc)
+    if dependencia:
+        conteudo["dependencia"] = dependencia
+    cabecalhos = {"Retry-After": RETRY_AFTER_SEGUNDOS} if status == 503 else None
+    return JSONResponse(status_code=status, content=conteudo, headers=cabecalhos)
+
+
+async def circuito_aberto(request: Request, exc: CircuitoAberto) -> JSONResponse:
     return JSONResponse(
-        status_code=status,
-        content={"mensagem": mensagem, "codigo_grpc": exc.code().name},
+        status_code=503,
+        content={"mensagem": str(exc), "servico": exc.servico, "circuito": "ABERTO"},
+        headers={"Retry-After": str(exc.segundos)},
     )

@@ -3,6 +3,10 @@
 // Pedidos e dono das tabelas pedidos e itens_pedido do PostgreSQL. Para criar
 // um pedido ele consulta o microsservico de Catalogo por gRPC: e o Catalogo
 // quem diz se o item existe, se esta disponivel e quanto custa.
+//
+// Todo pedido pertence a um usuario (usuario_id). O Gateway preenche o
+// usuario_id e o nome do cliente a partir do token JWT: o corpo da requisicao
+// HTTP nao escolhe em nome de quem o pedido e feito.
 syntax = "proto3";
 
 package pedidos;
@@ -15,6 +19,13 @@ service PedidoService {
   // Avanca o pedido para a proxima etapa. Pular etapa ou voltar e recusado
   // com FAILED_PRECONDITION.
   rpc AtualizarStatus(AtualizarStatusRequest) returns (Pedido);
+
+  // Fluxo continuo (server streaming): cada pedido criado ou com etapa
+  // alterada vira um EventoPedido, na hora em que acontece. O Gateway mantem
+  // um stream destes por instancia e repassa os eventos aos navegadores
+  // (Server-Sent Events): a tela atualiza sem F5. Sem eventos, o servico
+  // manda um BATIMENTO a cada poucos segundos para manter a conexao viva.
+  rpc AcompanharPedidos(AcompanharPedidosRequest) returns (stream EventoPedido);
 }
 
 // Em proto3 todo enum precisa do valor 0.
@@ -30,12 +41,21 @@ enum StatusPedido {
 message ItemPedido {
   string codigo = 1;
   int32 quantidade = 2;
+  // Obrigatoria quando o item tem opcoes no Catalogo (ex.: "Guarana"); vazia
+  // quando nao tem. O Pedidos confere com o Catalogo.
+  string opcao = 3;
 }
 
 message CriarPedidoRequest {
-  string cliente = 1;
+  string cliente = 1;          // nome do dono do token (preenchido pelo Gateway)
   string endereco = 2;
   repeated ItemPedido itens = 3;
+  string usuario_id = 4;       // UUID do dono do token (preenchido pelo Gateway)
+  // UUID gerado por quem chama: chave de idempotencia. Repetir a chamada com o
+  // mesmo pedido_id (retry apos timeout) devolve o pedido ja gravado, sem
+  // duplicar. Vazio = o servico gera um id novo.
+  string pedido_id = 5;
+  string telefone = 6;         // contato para a entrega (opcional)
 }
 
 // Linha do pedido ja precificada. Nome e preco sao gravados no momento da
@@ -46,6 +66,13 @@ message ItemConfirmado {
   int32 quantidade = 3;
   double preco_unitario = 4;
   double subtotal = 5;
+  string opcao = 6;            // opcao escolhida (snapshot, como nome e preco)
+}
+
+// Momento em que o pedido entrou numa etapa.
+message EtapaRegistrada {
+  StatusPedido status = 1;
+  string registrado_em = 2;    // ISO 8601
 }
 
 message Pedido {
@@ -58,14 +85,29 @@ message Pedido {
   int32 tempo_estimado_minutos = 7;
   string criado_em = 8;        // ISO 8601
   string atualizado_em = 9;    // ISO 8601
+  string usuario_id = 10;      // dono do pedido (vazio em pedidos anteriores ao Trabalho 3)
+  repeated EtapaRegistrada historico = 11;   // etapas ja alcancadas, em ordem, com o horario
+  string previsao_entrega = 12;              // ISO 8601: criado_em + tempo_estimado_minutos
+  string telefone = 13;                      // contato informado no pedido (pode ser vazio)
 }
 
 message ObterPedidoRequest {
   string pedido_id = 1;
+  // Preenchido: so devolve o pedido se ele for deste usuario (senao NOT_FOUND,
+  // sem revelar que o id existe). Vazio: qualquer pedido (papel cozinha).
+  string usuario_id = 2;
 }
 
 message ListarPedidosRequest {
   int32 limite = 1;            // 0 = padrao do servico
+  // Preenchido: so os pedidos deste usuario. Vazio: todos (papel cozinha).
+  string usuario_id = 2;
+  // Filtros opcionais (vazio = sem filtro). Quando varios vem preenchidos,
+  // o pedido precisa atender a todos.
+  repeated StatusPedido status = 3;   // pedido em uma destas etapas
+  string criado_desde = 4;            // ISO 8601: criados a partir deste instante
+  string codigo_item = 5;             // pedidos que tem este item do cardapio
+  string cliente = 6;                 // trecho do nome do cliente (sem diferenciar maiusculas)
 }
 
 message ListarPedidosResponse {
@@ -75,4 +117,21 @@ message ListarPedidosResponse {
 message AtualizarStatusRequest {
   string pedido_id = 1;
   StatusPedido status = 2;
+}
+
+message AcompanharPedidosRequest {
+  // Preenchido: so eventos dos pedidos deste usuario. Vazio: todos.
+  string usuario_id = 1;
+}
+
+enum TipoEvento {
+  EVENTO_DESCONHECIDO = 0;
+  PEDIDO_CRIADO = 1;
+  STATUS_ATUALIZADO = 2;
+  BATIMENTO = 3;               // sem pedido: so mantem o stream vivo
+}
+
+message EventoPedido {
+  TipoEvento tipo = 1;
+  Pedido pedido = 2;           // vazio no BATIMENTO
 }

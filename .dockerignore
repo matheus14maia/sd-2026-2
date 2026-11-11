@@ -1,13 +1,14 @@
-.git/
-.claude/
-CLAUDE.md
-docs/
-frontend/
-markdown/
-__pycache__/
-*.pyc
-.venv/
-venv/
-src/gerado/*_pb2*.py
-src/gerado/*.pyi
-.env
+# Contexto de build das imagens Python (Gateway, microsservicos e migrador).
+# Lista do que entra (allowlist): o resto do repositorio (frontend, docs,
+# apresentacao, .git, .env) nem e enviado ao Docker. Contexto pequeno = build
+# rapido e nenhum segredo vazando para dentro da imagem.
+*
+!db/
+!proto/
+!requirements/
+!scripts/gerar_stubs.py
+!scripts/migrar_banco.py
+!src/
+**/__pycache__
+**/*.pyc
+src/gerado/*_pb2*

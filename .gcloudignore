@@ -1,0 +1,5 @@
+# O que o "gcloud builds submit" (scripts/gcp/cloud-run/implantar.sh) NAO envia
+# ao Cloud Build. Sem este arquivo o gcloud usaria so o .gitignore.
+.gcloudignore
+.git
+#!include:.gitignore

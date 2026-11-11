@@ -20,6 +20,241 @@
 
 ---
 
+## 2026-11-11
+
+### 10 dos 84 cenarios falham contra o Cloud Run com 409
+
+**Sintoma:** `python3 scripts/testar_gateway.py --url https://delivery-gateway-...run.app`
+terminou com `10 de 84 cenario(s) nao sairam como esperado.` Os erros:
+`Agua sem gas continua valendo (esperado 201, recebido 409)`, `Refrigerante sem
+escolher o sabor (esperado 400, recebido 409)`, `Sabor que nao existe no
+cardapio (esperado 400, recebido 409)`, `Agua com gas e dois sabores de
+refrigerante (esperado 201, recebido 409)`, `Cliente faz o proprio pedido
+(esperado 201, recebido 409)` e, em cascata (o pedido do cliente nao foi
+criado), os cenarios de posse dos pedidos e o do tempo real. No computador, os
+84 passavam.
+
+**Causa:** o Cloud SQL e o mesmo banco do Trabalho 2, onde o Refrigerante
+(BE01) e a Agua (BE03) tinham sido tirados do dia pela tela da cozinha. A carga
+inicial (`db/seed.sql`) de proposito nunca mexe em `disponivel`, entao o banco
+novo herdou isso. O Pedidos confere a disponibilidade do item antes da opcao:
+todo pedido com BE01 ou BE03 voltava 409, inclusive os que deveriam dar 400. O
+sistema estava certo; o teste supunha o cardapio da carga inicial. Reproduzido
+no computador tirando BE01 e BE03 do dia: os mesmos 10 erros.
+
+**Solucao:** antes dos cenarios, o teste le o cardapio e acerta os itens que
+usa (`CARDAPIO_DO_TESTE`: PR01, BE01, BE02 e BE03 no dia, PR05 fora, sem opcao
+fora do dia); ao terminar (`atexit`), devolve o que a cozinha tinha deixado e
+avisa no fim da saida. Conferido no computador nos tres casos: cardapio da carga
+inicial, BE01 e BE03 fora do dia e so a agua com gas fora (84 de 84, estado
+devolvido). Para a apresentacao, ligue de novo o Refrigerante e a Agua na aba
+Cozinha.
+
+**Arquivos:** `scripts/testar_gateway.py`.
+
+### PDF do relatorio com fontes Type 3 e diagrama cortado nas laterais
+
+**Sintoma:** o PDF gerado do `apresentacao/Trabalho3-relatorio.html` pelo
+Chromium (Playwright `page.pdf` ou Ctrl+P > Salvar como PDF) saia com
+`pdffonts` listando `Inter-Regular Type 3` (o `pdftoppm` avisava `Bad bounding
+box in Type 3 glyph`), e o texto do corpo em Liberation Serif em vez do Charter
+pedido no CSS. Ao alargar o diagrama com margem negativa (`margin-left: -10mm`),
+a borda do projeto GCP e o comeco da legenda sumiam na pagina.
+
+**Causa:** o Chromium embute fonte OpenType com contornos CFF (os `.otf` do
+Inter) e fonte variavel (Inter e Source Serif 4 do Google Fonts) como Type 3,
+que alguns leitores de PDF mostram sem suavizacao; o Bitstream Charter
+instalado e Type 1 (`.pfb`), que o Chromium nem carrega, por isso caia no
+substituto. Na impressao, o que passa da area util da pagina (dentro das
+margens do `@page`) e recortado.
+
+**Solucao:** fontes TrueType estaticas: Carlito e Caladea (mesmas metricas de
+Calibri e Cambria, que o Chrome usa no Windows) e JetBrains Mono; o diagrama
+embutido usa a mesma fonte do texto por CSS (`figure svg text`). Conferir com
+`pdffonts` (todas `CID TrueType`). O diagrama fica com 100% da largura do texto.
+
+**Arquivos:** `apresentacao/Trabalho3-relatorio.html`.
+
+---
+
+## 2026-11-10
+
+### No celular o cardapio fica mais largo que a tela e o + nao responde
+
+**Sintoma:** no Playwright com `devices['iPhone 13']` (390 px), o clique no `+`
+de um prato falhava por 30 s com `<div class="prato-pe"> intercepts pointer
+events` (e `<header class="topo">`, `<ul class="pratos">`). Medindo:
+`document.documentElement.scrollWidth` = 749 e `innerWidth` = 749 numa tela de
+390 px: a pagina inteira estava mais larga que o celular e reduzida para caber.
+
+**Causa:** a fileira de abas do cardapio (Todos, Entradas, Pratos principais...)
+nao quebra linha. No desktop a coluna e `minmax(0, 1fr)`, mas a regra do
+celular trocava para `1fr`, que nao deixa a coluna encolher abaixo do conteudo:
+as abas forcavam a coluna (e a pagina) a 733 px. Por cima, o zoom do card no
+`:hover` (que no toque fica "grudado") mudava o tamanho do card embaixo do dedo.
+
+**Solucao:** colunas do celular com `minmax(0, 1fr)` (as abas, que ja tinham
+`overflow-x: auto`, passam a rolar de lado) e o zoom do card e o `:hover` dos
+botoes de quantidade so dentro de `@media (hover: hover)`. Conferido: largura da
+pagina = 390, `+` responde, barra "Ver sacola" aparece e leva a sacola.
+
+**Arquivos:** `frontend/src/estilos.css`.
+
+### Fogo do botao nao aparece: a animacao termina no primeiro quadro
+
+**Sintoma:** depois de confirmar o pedido, o `<canvas class="fogo">` aparecia
+por um instante e sumia sem desenhar nada; o botao nem chegava a acender. Nas
+capturas (Playwright, servidor do Vite) nenhum quadro tinha fogo.
+
+**Causa:** o horario que o `requestAnimationFrame` passa para o quadro e o do
+inicio do quadro, que pode ser um pouco anterior ao `performance.now()` lido
+quando a animacao comecou. No primeiro quadro `t = agora - inicio` saia
+negativo, a intensidade (`t / SUBIDA_MS`) ficava abaixo de zero, nenhuma
+particula nascia e a condicao de continuar (`forca > 0 || particulas`) dava
+falso: a animacao chamava `aoTerminar` antes de comecar. Dependia do tempo da
+maquina, por isso na primeira versao (imagem de producao) funcionou.
+
+**Solucao:** `t` e `dt` presos em zero (`Math.max(0, ...)`) e a animacao so
+termina pelo relogio (`t < EMISSAO_MS`) ou quando nao sobra particula.
+
+**Arquivos:** `frontend/src/componentes/Fogo.jsx`.
+
+### Microsservico termina com `TypeError` no `docker stop`
+
+**Sintoma:** com o rastreamento ligado, o `docker stop` de um microsservico
+terminava assim (os testes passavam, porque so olham as respostas):
+
+```text
+Encerrando o servidor...
+    encerrar()  # envia os spans que ainda estao na fila
+TypeError: executar.<locals>.encerrar() missing 2 required positional arguments: '_sinal' and '_frame'
+```
+
+O `ao_encerrar` do servico (fechar o pool e o canal com o Catalogo) nao rodava
+e o "Servidor encerrado." nao aparecia.
+
+**Causa:** `servidor_grpc.py` importava `encerrar` do `rastreamento.py` e, dentro
+do `executar()`, definia o tratador de sinal tambem como `encerrar(_sinal,
+_frame)`. O nome local escondia o importado: a chamada `encerrar()` depois do
+`wait_for_termination()` ia para o tratador de sinal, sem os dois argumentos.
+
+**Solucao:** importar como `encerrar_rastreamento` e chamar o tratador de
+`ao_receber_sinal`. Conferido com `docker stop` nos tres servicos: codigo de
+saida 0 e "Servidor encerrado." no log.
+
+**Arquivos:** `src/comum/servidor_grpc.py`.
+
+### Login do `professor` recusado: `DEMO_SENHA ausente ou curta`
+
+**Sintoma:** depois de `docker compose up -d --build`, o login com `professor`
+respondia "Login ou senha invalidos", e o log do migrador dizia:
+
+```text
+  DEMO_SENHA ausente ou curta: usuario da cozinha nao criado.
+```
+
+`findstr DEMO_SENHA .env` mostrava a senha preenchida.
+
+**Causa:** o `.env.exemplo` tinha duas linhas `DEMO_SENHA`: a que vale, vazia,
+no bloco local, e outra comentada (`# DEMO_SENHA=<senha da cozinha>`) na secao
+das VMs do Trabalho 2. A senha foi escrita na linha comentada.
+
+**Solucao:** no `.env`, uma linha `DEMO_SENHA=...` sem `#` e
+`docker compose up -d --force-recreate migrador` (o migrador cria ou atualiza o
+usuario). Para nao acontecer de novo, o `.env.exemplo` passou a ter so o bloco
+do computador, com a `DEMO_SENHA` no topo (obrigatorio), e o exemplo de cada VM
+foi para o `docs/04`. A senha tambem nao pode ter `$`: o compose le como
+variavel e corta o valor.
+
+**Arquivos:** `.env.exemplo`, `docs/03-execucao-local.md`, `docs/04-deploy-gcp-vm.md`.
+
+## 2026-11-09
+
+### No Windows, `localhost` nao abre, mas `127.0.0.1` abre
+
+**Sintoma:** num Windows com Docker Desktop (WSL 2) e duas redes extras criadas
+no Hyper-V, todos os containers `Up (healthy)` e as portas publicadas
+(`0.0.0.0:80->8080/tcp, [::]:80->8080/tcp`), mas no navegador:
+
+```text
+http://localhost            Nao e possivel acessar esse site. A conexao foi redefinida. ERR_CONNECTION_RESET
+http://localhost:8000/saude pagina em branco, carregando sem fim
+http://127.0.0.1:8000/saude {"status":"ok", ...}
+```
+
+**Causa:** o navegador resolve `localhost` primeiro para o IPv6 `::1`. O Docker
+Desktop tambem publica as portas em IPv6 (`[::]:80`) e aceita a conexao, mas
+nessa maquina o encaminhamento IPv6 ate o container nao funcionava: a conexao
+era cortada (porta 80) ou ficava pendurada (porta 8000), e o navegador nao tenta
+o IPv4 depois de uma conexao aceita. Pelo IPv4 (`127.0.0.1`) tudo funciona. O
+frontend aberto pelo `127.0.0.1` ainda falhava no login, porque o `/config.js`
+mandava o navegador chamar o Gateway em `http://localhost:8000` (60 s esperando
+e "Gateway fora do ar").
+
+**Solucao:** as portas do Gateway e do frontend sao publicadas so em IPv4
+(`0.0.0.0:8000:8000` e `0.0.0.0:${FRONTEND_PORTA}:8080`): sem porta em IPv6, o
+`::1` e recusado na hora e o navegador passa para o `127.0.0.1`. O `API_URL`
+padrao e o `--url` padrao dos scripts de teste viraram `http://127.0.0.1:8000`.
+Quem ja tem um `.env` precisa trocar a linha `API_URL` para
+`http://127.0.0.1:8000` e recriar o frontend
+(`docker compose up -d --force-recreate frontend`; `restart` nao rele o `.env`).
+
+**Arquivos:** `docker-compose.yml`, `.env.exemplo`, `scripts/testar_gateway.py`,
+`scripts/testar_resiliencia.py`, `README.md`, `docs/03-execucao-local.md`,
+`docs/05-api-gateway.md`, `docs/06-frontend.md`, `docs/07-resiliencia.md`.
+
+### Catalogo volta, mas o Gateway continua sem conseguir chamar ele
+
+**Sintoma:** depois de `pkill`/`docker compose stop` e de religar o Catalogo, o
+Pedidos voltava a falar com ele na hora, mas o Gateway continuava servindo o
+cardapio do cache por mais de 1 minuto. A cada chamada de teste do circuito:
+
+```text
+[12:43:40] NOTICE: Circuito de catalogo MEIO_ABERTO: liberando uma chamada de teste
+[12:43:41] ERROR: catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:9091: Failed to connect to remote host: Timeout occurred: FD Shutdown
+[12:43:41] ERROR: Circuito de catalogo ABERTO apos 7 falhas seguidas: chamadas recusadas na hora por 15 s
+```
+
+**Causa:** backoff de reconexao do canal gRPC. No padrao, o intervalo entre
+tentativas de reconexao cresce (1 s, 1,6 s, 2,6 s... ate 120 s) e cada tentativa
+pode esperar ate 20 s (`min_reconnect_backoff`). Com o canal em
+`TRANSIENT_FAILURE`, toda chamada falha na hora, sem tentar conectar; a chamada
+de teste do circuito caia nisso e reabria o circuito. O canal do Pedidos tinha
+falhado menos vezes, entao o backoff dele era menor e ele voltou antes.
+
+**Solucao:** opcoes do canal em `OPCOES_CANAL` (`initial_reconnect_backoff_ms`
+500, `max_reconnect_backoff_ms` 5000, `min_reconnect_backoff_ms` 2000 e
+`dns_min_time_between_resolutions_ms` 1000, porque o container pode voltar com
+outro IP) e `wait_for_ready=True` so na chamada de teste do circuito: ela espera
+o canal conectar (ate o timeout) em vez de falhar na hora. Depois disso o
+circuito fecha no primeiro teste depois que o servico volta.
+
+**Arquivos:** `src/comum/canal.py`, `src/comum/resiliencia.py`,
+`src/gateway/clientes_grpc.py`, `src/pedidos/cliente_catalogo.py`.
+
+### `GET /cardapio` responde 500 logo depois de derrubar o Catalogo
+
+**Sintoma:** com o Catalogo recebendo `SIGTERM`, a primeira chamada respondeu
+`500 Erro interno ao processar a requisicao.` em 2 ms, sem retry e sem usar o
+cardapio salvo. Uma sonda direta no gRPC mostrou:
+
+```text
+ 0.0s CANCELLED: CANCELLED
+ 0.5s UNAVAILABLE: failed to connect to all addresses; ...
+```
+
+**Causa:** durante o encerramento (`servidor.stop(5)`), o servidor gRPC cancela
+as chamadas que chegam, e o cliente recebe `CANCELLED`. Esse codigo nao estava
+em `FALHAS_DO_SERVICO` nem no mapa de `erros.py`: virava erro "de negocio", nao
+tinha retry nem fallback e caia no 500 generico.
+
+**Solucao:** `CANCELLED` entrou em `REPETIR_SE_IDEMPOTENTE` (o Gateway nunca
+cancela chamada, entao ele so chega vindo do servidor) e no mapa para 503, junto
+com `RESOURCE_EXHAUSTED`. Agora a mesma situacao responde 200 com o cardapio
+salvo.
+
+**Arquivos:** `src/comum/resiliencia.py`, `src/gateway/erros.py`.
+
 ## 2026-10-14
 
 ### `remove-tags` nao remove nada quando chamado do PowerShell

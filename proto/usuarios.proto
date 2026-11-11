@@ -1,8 +1,9 @@
 // Contrato do microsservico de Usuarios do delivery.
 //
-// Usuarios e dono da tabela usuarios do PostgreSQL: guarda o login, o nome e o
-// hash bcrypt da senha. A senha nunca volta em nenhuma resposta. Quem emite o
-// token JWT e o Gateway, depois que este servico confirma as credenciais.
+// Usuarios e dono da tabela usuarios do PostgreSQL: guarda o login, o nome, os
+// dados de contato (telefone e endereco de entrega padrao) e o hash bcrypt da
+// senha. A senha nunca volta em nenhuma resposta. Quem emite o token JWT e o
+// Gateway, depois que este servico confirma as credenciais.
 //
 // papel: "cliente" (quem se cadastra pela API) ou "cozinha" (altera cardapio e
 // avanca pedidos). O Gateway coloca o papel no token e confere nas rotas.
@@ -17,6 +18,12 @@ service UsuarioService {
   // Confere login e senha. Credencial errada responde UNAUTHENTICATED, com a
   // mesma mensagem para login inexistente e senha errada.
   rpc VerificarCredenciais(VerificarCredenciaisRequest) returns (Usuario);
+  // Dados do usuario pelo id (o Gateway manda o id do token). NOT_FOUND se nao existe.
+  rpc ObterUsuario(ObterUsuarioRequest) returns (Usuario);
+  // Altera nome, telefone e endereco: so mudam os campos presentes.
+  rpc AtualizarUsuario(AtualizarUsuarioRequest) returns (Usuario);
+  // Troca a senha conferindo a atual. Senha atual errada: INVALID_ARGUMENT.
+  rpc TrocarSenha(TrocarSenhaRequest) returns (Usuario);
 }
 
 message Usuario {
@@ -25,6 +32,8 @@ message Usuario {
   string nome = 3;
   string criado_em = 4;    // ISO 8601
   string papel = 5;        // cliente | cozinha
+  string telefone = 6;     // vazio = nao informado
+  string endereco = 7;     // endereco de entrega padrao (o frontend preenche o pedido com ele)
 }
 
 message CadastrarUsuarioRequest {
@@ -36,4 +45,22 @@ message CadastrarUsuarioRequest {
 message VerificarCredenciaisRequest {
   string login = 1;
   string senha = 2;
+}
+
+message ObterUsuarioRequest {
+  string id = 1;
+}
+
+// Campo ausente = mantem o valor atual. Telefone ou endereco vazio = apaga.
+message AtualizarUsuarioRequest {
+  string id = 1;
+  optional string nome = 2;
+  optional string telefone = 3;
+  optional string endereco = 4;
+}
+
+message TrocarSenhaRequest {
+  string id = 1;
+  string senha_atual = 2;
+  string nova_senha = 3;
 }

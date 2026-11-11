@@ -1,0 +1,2 @@
+# Migrador do banco (schema + seed + usuario da cozinha): nao usa gRPC.
+-r banco.txt

@@ -1,0 +1,72 @@
+# Constroi as seis imagens do Hell's Kitchen e publica no Artifact Registry.
+# Chamado pelo implantar.sh (ou na mao, da raiz do repositorio):
+#
+#   gcloud builds submit --config scripts/gcp/cloud-run/cloudbuild.yaml \
+#     --substitutions _IMAGENS=us-central1-docker.pkg.dev/<projeto>/delivery,_TAG=<commit> .
+#
+# As imagens nao dependem umas das outras: os passos rodam em paralelo
+# (waitFor "-"). As bases vem do espelho do Google (mirror.gcr.io), nao do
+# Docker Hub, que limita downloads por IP (e o Cloud Build divide IPs).
+steps:
+  - id: gateway
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "-f", "docker/gateway.Dockerfile",
+           "--build-arg", "IMAGEM_PYTHON=mirror.gcr.io/library/python",
+           "-t", "${_IMAGENS}/gateway:${_TAG}", "."]
+    waitFor: ["-"]
+  - id: usuarios
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "-f", "docker/microsservico.Dockerfile", "--build-arg", "SERVICO=usuarios",
+           "--build-arg", "IMAGEM_PYTHON=mirror.gcr.io/library/python",
+           "-t", "${_IMAGENS}/usuarios:${_TAG}", "."]
+    waitFor: ["-"]
+  - id: catalogo
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "-f", "docker/microsservico.Dockerfile", "--build-arg", "SERVICO=catalogo",
+           "--build-arg", "IMAGEM_PYTHON=mirror.gcr.io/library/python",
+           "-t", "${_IMAGENS}/catalogo:${_TAG}", "."]
+    waitFor: ["-"]
+  - id: pedidos
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "-f", "docker/microsservico.Dockerfile", "--build-arg", "SERVICO=pedidos",
+           "--build-arg", "IMAGEM_PYTHON=mirror.gcr.io/library/python",
+           "-t", "${_IMAGENS}/pedidos:${_TAG}", "."]
+    waitFor: ["-"]
+  - id: migrador
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build", "-f", "docker/migrador.Dockerfile",
+           "--build-arg", "IMAGEM_PYTHON=mirror.gcr.io/library/python",
+           "-t", "${_IMAGENS}/migrador:${_TAG}", "."]
+    waitFor: ["-"]
+  - id: frontend
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args: ["build",
+           "--build-arg", "IMAGEM_NODE=mirror.gcr.io/library/node:22-alpine",
+           "--build-arg", "IMAGEM_NGINX=mirror.gcr.io/nginxinc/nginx-unprivileged:1.28-alpine",
+           "-t", "${_IMAGENS}/frontend:${_TAG}", "frontend"]
+    waitFor: ["-"]
+
+# Publicadas no Artifact Registry ao fim do build.
+images:
+  - "${_IMAGENS}/gateway:${_TAG}"
+  - "${_IMAGENS}/usuarios:${_TAG}"
+  - "${_IMAGENS}/catalogo:${_TAG}"
+  - "${_IMAGENS}/pedidos:${_TAG}"
+  - "${_IMAGENS}/migrador:${_TAG}"
+  - "${_IMAGENS}/frontend:${_TAG}"
+
+substitutions:
+  _IMAGENS: "us-central1-docker.pkg.dev/${PROJECT_ID}/delivery"
+  _TAG: "latest"
+
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

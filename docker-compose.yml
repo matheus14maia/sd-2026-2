@@ -1,19 +1,32 @@
 # Delivery Hell's Kitchen - Frontend + API Gateway + 3 microsservicos gRPC + PostgreSQL.
 #
-# Cada maquina sobe so a sua parte, escolhida pelo profile (variavel
-# COMPOSE_PROFILES no arquivo .env de cada maquina, ver .env.exemplo):
+# Cada componente tem a sua imagem, construida por um Dockerfile multi-stage:
+#   docker/microsservico.Dockerfile  usuarios, catalogo, pedidos (ARG SERVICO)
+#   docker/gateway.Dockerfile        API Gateway FastAPI
+#   docker/migrador.Dockerfile       schema + seed do banco (roda e termina)
+#   frontend/Dockerfile              React servido pelo nginx sem root
 #
-#   servicos     migrador + usuarios + catalogo + pedidos   (VM servidor-delivery)
-#   gateway      API Gateway FastAPI                        (VM delivery-gateway)
-#   frontend     React servido pelo nginx                   (VM delivery-frontend)
-#   banco-local  PostgreSQL em container                    (so na maquina local)
+# Profiles (variavel COMPOSE_PROFILES no .env, ver .env.exemplo):
+#   banco-local  PostgreSQL em container
+#   servicos     migrador + usuarios + catalogo + pedidos
+#   gateway      API Gateway
+#   frontend     React no nginx
 #
-#   Local, tudo junto:  COMPOSE_PROFILES=banco-local,servicos,gateway,frontend
-#   Em cada VM:         docker compose up -d --build   (o .env define o profile)
+#   No seu computador, tudo junto:  COMPOSE_PROFILES=banco-local,servicos,gateway,frontend
 #
-# Os servicos de profiles diferentes rodam em maquinas diferentes, por isso nao
-# ha depends_on entre eles: o Gateway responde 503 enquanto um microsservico
-# nao esta no ar, e os microsservicos esperam o banco em codigo.
+# Os servicos de profiles diferentes podem rodar em maquinas diferentes, por isso
+# nao ha depends_on entre eles: o Gateway responde 503 (e o circuit breaker abre)
+# enquanto um microsservico nao esta no ar, e os microsservicos esperam o banco.
+#
+# Tolerancia a falhas (ver docs/07-resiliencia.md):
+#   docker compose stop catalogo     derruba o Catalogo de verdade
+#   CATALOGO_FALHA_PERCENTUAL=50     no .env + `docker compose up -d catalogo`:
+#                                    metade das chamadas falha de proposito
+#   CATALOGO_FALHA_ATRASO_MS=6000    idem, mas cada chamada demora 6 s (timeout)
+#
+# Rastreamento (ver docs/08-rastreamento.md): com RASTREAMENTO=otlp no .env e o
+# profile "rastreamento", os spans vao para o Jaeger (http://127.0.0.1:16686).
+# No Google Cloud, RASTREAMENTO=gcp manda os mesmos spans para o Cloud Trace.
 
 x-banco: &banco
   DB_HOST: "${DB_HOST:-postgres}"
@@ -23,6 +36,24 @@ x-banco: &banco
   DB_PASSWORD: "${DB_PASSWORD:-postgres}"
   DB_SSLMODE: "${DB_SSLMODE:-disable}"
   TZ: "America/Sao_Paulo"
+
+# Parametros do retry e do circuit breaker de quem chama outro servico
+# (Gateway e Pedidos). Os padroes valem para a demonstracao.
+x-resiliencia: &resiliencia
+  GRPC_TIMEOUT: "${GRPC_TIMEOUT:-5}"
+  GRPC_PRAZO_TOTAL: "${GRPC_PRAZO_TOTAL:-12}"
+  RETRY_TENTATIVAS: "${RETRY_TENTATIVAS:-3}"
+  DISJUNTOR_FALHAS: "${DISJUNTOR_FALHAS:-3}"
+  DISJUNTOR_ABERTO_SEGUNDOS: "${DISJUNTOR_ABERTO_SEGUNDOS:-15}"
+
+# Para onde vao os spans do OpenTelemetry (vazio = nenhum lugar).
+x-rastreamento: &rastreamento
+  RASTREAMENTO: "${RASTREAMENTO:-}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}"
+
+x-imagem-servico: &imagem-servico
+  context: .
+  dockerfile: docker/microsservico.Dockerfile
 
 services:
   postgres:
@@ -36,34 +67,41 @@ services:
       TZ: "America/Sao_Paulo"
     volumes:
       - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     restart: always
 
   # ---------------------------------------------------------------- servicos
   migrador:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/migrador.Dockerfile
     profiles: ["servicos"]
     container_name: delivery-migrador
-    command: python scripts/migrar_banco.py
     environment:
       <<: *banco
-      NOME_SERVICO: migrador
       # Usuario da cozinha: senha so no .env da maquina, nunca no repositorio.
       DEMO_LOGIN: "${DEMO_LOGIN:-professor}"
       DEMO_SENHA: "${DEMO_SENHA:-}"
     restart: on-failure
 
   usuarios:
-    build: .
+    build:
+      <<: *imagem-servico
+      args:
+        SERVICO: usuarios
     profiles: ["servicos"]
     container_name: delivery-usuarios
-    command: python -m src.usuarios.servidor
     environment:
-      <<: *banco
-      NOME_SERVICO: usuarios
+      <<: [*banco, *rastreamento]
       PORTA: "9092"
-    # Portas gRPC: so 127.0.0.1 por padrao. Na VM dos microsservicos o .env
-    # define GRPC_BIND=0.0.0.0 para o Gateway (outra VM) alcancar, e o firewall
-    # do GCP so libera 9090-9092 para a VM do Gateway (tag delivery-gateway).
+      FALHA_PERCENTUAL: "${USUARIOS_FALHA_PERCENTUAL:-0}"
+      FALHA_ATRASO_MS: "${USUARIOS_FALHA_ATRASO_MS:-0}"
+    # Portas gRPC so em 127.0.0.1 por padrao: da para usar o grpcurl na propria
+    # maquina, mas nada na rede alcanca os microsservicos.
     ports:
       - "${GRPC_BIND:-127.0.0.1}:9092:9092"
     depends_on:
@@ -72,14 +110,17 @@ services:
     restart: always
 
   catalogo:
-    build: .
+    build:
+      <<: *imagem-servico
+      args:
+        SERVICO: catalogo
     profiles: ["servicos"]
     container_name: delivery-catalogo
-    command: python -m src.catalogo.servidor
     environment:
-      <<: *banco
-      NOME_SERVICO: catalogo
+      <<: [*banco, *rastreamento]
       PORTA: "9091"
+      FALHA_PERCENTUAL: "${CATALOGO_FALHA_PERCENTUAL:-0}"
+      FALHA_ATRASO_MS: "${CATALOGO_FALHA_ATRASO_MS:-0}"
     ports:
       - "${GRPC_BIND:-127.0.0.1}:9091:9091"
     depends_on:
@@ -88,15 +129,18 @@ services:
     restart: always
 
   pedidos:
-    build: .
+    build:
+      <<: *imagem-servico
+      args:
+        SERVICO: pedidos
     profiles: ["servicos"]
     container_name: delivery-pedidos
-    command: python -m src.pedidos.servidor
     environment:
-      <<: *banco
-      NOME_SERVICO: pedidos
+      <<: [*banco, *resiliencia, *rastreamento]
       PORTA: "9090"
-      # Pedidos -> Catalogo fica na mesma maquina: rede interna do compose.
+      FALHA_PERCENTUAL: "${PEDIDOS_FALHA_PERCENTUAL:-0}"
+      FALHA_ATRASO_MS: "${PEDIDOS_FALHA_ATRASO_MS:-0}"
+      # Pedidos -> Catalogo pela rede interna do compose.
       CATALOGO_HOST: catalogo
       CATALOGO_PORTA: "9091"
     ports:
@@ -108,24 +152,28 @@ services:
 
   # ----------------------------------------------------------------- gateway
   gateway:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
     profiles: ["gateway"]
     container_name: delivery-gateway
-    command: uvicorn src.gateway.app:app --host 0.0.0.0 --port 8000
     environment:
-      # Local: nomes dos containers. GCP: nome DNS interno da VM servidor-delivery.
+      <<: [*resiliencia, *rastreamento]
       USUARIOS_HOST: "${USUARIOS_HOST:-usuarios}"
-      USUARIOS_PORTA: "9092"
+      USUARIOS_PORTA: "${USUARIOS_PORTA:-9092}"
       CATALOGO_HOST: "${CATALOGO_HOST:-catalogo}"
-      CATALOGO_PORTA: "9091"
+      CATALOGO_PORTA: "${CATALOGO_PORTA:-9091}"
       PEDIDOS_HOST: "${PEDIDOS_HOST:-pedidos}"
-      PEDIDOS_PORTA: "9090"
+      PEDIDOS_PORTA: "${PEDIDOS_PORTA:-9090}"
       JWT_SEGREDO: "${JWT_SEGREDO:-}"
       JWT_EXPIRACAO_MINUTOS: "${JWT_EXPIRACAO_MINUTOS:-60}"
       CORS_ORIGENS: "${CORS_ORIGENS:-*}"
       TZ: "America/Sao_Paulo"
+    # Porta publicada so em IPv4 (0.0.0.0). No Docker Desktop do Windows o
+    # caminho IPv6 (localhost -> ::1) pode cortar ou travar a conexao; sem
+    # porta em IPv6, o navegador usa o 127.0.0.1, que funciona.
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8000:8000"
     restart: always
 
   # ---------------------------------------------------------------- frontend
@@ -135,9 +183,20 @@ services:
     container_name: delivery-frontend
     environment:
       # Endereco do Gateway que o navegador vai chamar (entregue em /config.js).
-      API_URL: "${API_URL:-http://localhost:8000}"
+      API_URL: "${API_URL:-http://127.0.0.1:8000}"
     ports:
-      - "${FRONTEND_PORTA:-80}:80"
+      - "0.0.0.0:${FRONTEND_PORTA:-80}:8080"
+    restart: always
+
+  # ------------------------------------------------------------- rastreamento
+  # Visualizador de traces no computador (o papel do Cloud Trace no Google
+  # Cloud). Recebe OTLP/HTTP na 4318; interface em http://127.0.0.1:16686.
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    profiles: ["rastreamento"]
+    container_name: delivery-jaeger
+    ports:
+      - "127.0.0.1:16686:16686"
     restart: always
 
 volumes:

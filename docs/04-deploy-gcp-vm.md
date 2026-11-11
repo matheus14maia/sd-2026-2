@@ -180,6 +180,48 @@ Ou pelo botao **SSH** do Console (entra como `maia_matheus`) e
 | `curl` na 8000 ou na 80 da timeout | VM parada ou sem a tag da regra | `gcloud compute instances describe NOME --zone us-central1-a --format="get(tags.items)"` |
 | containers sumiram apos religar | foi usado `docker compose down` | `implantar.ps1 -Somente <papel>` |
 
+## Referencia: o `.env` de cada VM
+
+O `scripts/gcp/preparar_vm.sh` grava estas variaveis; os valores entre `< >`
+ficam so na VM. (O `.env.exemplo` do repositorio traz so o que se usa no
+computador de cada um.)
+
+VM `servidor-delivery` (microsservicos + migrador, banco no Cloud SQL):
+
+```text
+COMPOSE_PROFILES=servicos
+# Abre as portas gRPC para a VM do Gateway (o firewall restringe a origem).
+GRPC_BIND=0.0.0.0
+DB_HOST=<IP publico do Cloud SQL>
+DB_PORT=5432
+DB_NAME=delivery
+DB_USER=postgres
+DB_PASSWORD=<senha do Cloud SQL>
+DB_SSLMODE=require
+# Gerada pelo preparar_vm.sh na primeira vez (openssl rand).
+DEMO_LOGIN=professor
+DEMO_SENHA=<senha da cozinha>
+```
+
+VM `delivery-gateway`:
+
+```text
+COMPOSE_PROFILES=gateway
+USUARIOS_HOST=servidor-delivery.us-central1-a.c.<projeto>.internal
+CATALOGO_HOST=servidor-delivery.us-central1-a.c.<projeto>.internal
+PEDIDOS_HOST=servidor-delivery.us-central1-a.c.<projeto>.internal
+JWT_SEGREDO=<segredo gerado na primeira vez>
+JWT_EXPIRACAO_MINUTOS=60
+CORS_ORIGENS=http://<IP do frontend>
+```
+
+VM `delivery-frontend`:
+
+```text
+COMPOSE_PROFILES=frontend
+API_URL=http://<IP do gateway>:8000
+```
+
 ## Referencia: o Cloud SQL
 
 A instancia ja existe. Foi criada assim:
