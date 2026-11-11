@@ -31,7 +31,7 @@ for vm in "${VMS_TRABALHO2[@]}"; do
   if simulando; then
     situacao="RUNNING"
   else
-    situacao="$(gcloud compute instances describe "$vm" --zone "$ZONA" --project "$PROJETO" \
+    situacao="$(gcloud compute instances describe "$vm" --zone "$ZONA" --project "$PROJETO" --quiet \
       --format 'value(status)' 2>/dev/null || true)"
   fi
   if [[ -z "$situacao" ]]; then
@@ -48,7 +48,8 @@ for vm in "${VMS_TRABALHO2[@]}"; do
 done
 if (( EXCLUIR_VMS )); then
   for ip in "${IPS_TRABALHO2[@]}"; do
-    if simulando || gcloud compute addresses describe "$ip" --region "$REGIAO" --project "$PROJETO" >/dev/null 2>&1; then
+    if simulando || gcloud compute addresses describe "$ip" --region "$REGIAO" --project "$PROJETO" --quiet \
+      >/dev/null 2>&1; then
       g compute addresses delete "$ip" --region "$REGIAO"
       info "IP fixo $ip liberado"
     fi

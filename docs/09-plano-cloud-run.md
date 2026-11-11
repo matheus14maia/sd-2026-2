@@ -115,8 +115,8 @@ onde tambem podem ser mudadas na mao (e o caso da demonstracao de falha abaixo).
 
 | Servico | Variaveis | Segredos |
 |---|---|---|
-| Gateway | `USUARIOS_HOST`, `CATALOGO_HOST`, `PEDIDOS_HOST` (endereco `.run.app`, sem `https://`), `*_PORTA=443`, `CORS_ORIGENS=<URL do frontend>`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `JWT_SEGREDO` |
-| Usuarios, Catalogo | `DB_HOST=/cloudsql/<projeto>:us-central1:delivery-postgres`, `DB_NAME=delivery`, `DB_USER=postgres`, `DB_SSLMODE=disable`, `DB_POOL_MAX=3`, `MAX_WORKERS=20`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `DB_PASSWORD` |
+| Gateway | `USUARIOS_HOST`, `CATALOGO_HOST`, `PEDIDOS_HOST` (endereco `.run.app`, sem `https://`), `*_PORTA=443`, `CORS_ORIGENS=<URL do frontend>`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `JWT_SEGREDO` |
+| Usuarios, Catalogo | `DB_HOST=/cloudsql/<projeto>:us-central1:delivery-postgres`, `DB_NAME=delivery`, `DB_USER=postgres`, `DB_SSLMODE=disable`, `DB_POOL_MAX=3`, `MAX_WORKERS=20`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `DB_PASSWORD` |
 | Pedidos | as do Catalogo + `CATALOGO_HOST=<catalogo .run.app>`, `CATALOGO_PORTA=443` | `DB_PASSWORD` |
 | Frontend | `API_URL=<URL do Gateway>` | - |
 | Migrador (job) | `DB_*` como acima, `DEMO_LOGIN=professor` | `DB_PASSWORD`, `DEMO_SENHA` |
@@ -124,6 +124,10 @@ onde tambem podem ser mudadas na mao (e o caso da demonstracao de falha abaixo).
 - **Porta 443 liga o TLS.** Com `*_PORTA=443`, o `src/comum/canal.py` usa TLS e
   manda o token de identidade da conta de servico em cada chamada gRPC.
 - `DB_POOL_MAX=3` porque o Cloud SQL `db-f1-micro` aceita cerca de 25 conexoes.
+- **Partida a frio.** Servico parado leva alguns segundos para subir na
+  primeira chamada. Por isso, no Cloud Run, cada tentativa gRPC espera ate 10 s
+  e a chamada inteira ate 25 s (no computador, 5 s e 12 s), e os servicos usam
+  `--cpu-boost` (mais CPU durante a subida).
 - `--timeout 3600` no Gateway e no Pedidos: o tempo real (SSE e o stream gRPC
   `AcompanharPedidos`) fica aberto ate 1 hora e reconecta sozinho.
 

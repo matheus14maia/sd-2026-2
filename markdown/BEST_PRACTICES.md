@@ -373,6 +373,11 @@ nada que nao esteja no contrato.
   papeis que usa; microsservicos privados (`--no-allow-unauthenticated`).
 - **Custo sob controle:** `--min-instances 0`, `--max-instances 2`, CPU so na
   requisicao; depois de testar, `desligar.sh` (Cloud SQL parado).
+- **`set -euo pipefail` em todo script**, e atribuicao com `$(...)` que pode
+  falhar sem ser erro (ex.: descobrir uma conta opcional) termina em `|| true`:
+  sem isso o script inteiro para ali.
+- **Tempo do gRPC conforme o ambiente:** `GRPC_TIMEOUT`/`GRPC_PRAZO_TOTAL` maiores
+  no Cloud Run (10/25 s) por causa da partida a frio; 5/12 s no compose.
 - **Imagens base por argumento** (`IMAGEM_PYTHON`, `IMAGEM_NODE`,
   `IMAGEM_NGINX`): Docker Hub por padrao, `mirror.gcr.io` no Cloud Build.
 

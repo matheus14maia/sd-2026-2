@@ -18,6 +18,6 @@ echo "VMs no Compute Engine (a Etapa 3 exige nenhuma ligada):"
 if simulando; then
   echo "+ gcloud compute instances list"
 else
-  gcloud compute instances list --project "$PROJETO" --format 'table(name,zone.basename(),status)' 2>/dev/null \
+  gcloud compute instances list --project "$PROJETO" --quiet --format 'table(name,zone.basename(),status)' 2>/dev/null \
     || echo "   (Compute Engine sem instancias ou API desligada)"
 fi

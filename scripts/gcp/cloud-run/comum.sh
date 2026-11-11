@@ -74,7 +74,7 @@ url_de() {
     echo "https://$1-simulado-uc.a.run.app"
     return
   fi
-  gcloud run services describe "$1" --region "$REGIAO" --project "$PROJETO" \
+  gcloud run services describe "$1" --region "$REGIAO" --project "$PROJETO" --quiet \
     --format 'value(status.url)' 2>/dev/null || true
 }
 
@@ -84,12 +84,13 @@ conexao_do_banco() {
     echo "$PROJETO:$REGIAO:$BANCO"
     return
   fi
-  gcloud sql instances describe "$BANCO" --project "$PROJETO" --format 'value(connectionName)'
+  gcloud sql instances describe "$BANCO" --project "$PROJETO" --quiet --format 'value(connectionName)'
 }
 
 estado_do_banco() {
   simulando && { echo "RUNNABLE"; return; }
-  gcloud sql instances describe "$BANCO" --project "$PROJETO" --format 'value(state)' 2>/dev/null || echo "INEXISTENTE"
+  gcloud sql instances describe "$BANCO" --project "$PROJETO" --quiet --format 'value(state)' 2>/dev/null \
+    || echo "INEXISTENTE"
 }
 
 esperar_banco() {

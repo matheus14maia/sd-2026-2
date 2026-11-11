@@ -138,8 +138,9 @@ acesso_ao_segredo delivery-jwt-segredo "$SA_GATEWAY"
 if simulando; then
   SA_BUILD="NUMERO-compute@developer.gserviceaccount.com"
 else
+  # "|| true": sem isso, com pipefail, uma falha aqui pararia o script inteiro.
   SA_BUILD="$(gcloud builds get-default-service-account --project "$PROJETO" \
-    --format 'value(serviceAccountEmail)' 2>/dev/null | sed 's#.*/##')"
+    --format 'value(serviceAccountEmail)' 2>/dev/null | sed 's#.*/##' || true)"
 fi
 if [[ -n "$SA_BUILD" ]]; then
   for papel in roles/artifactregistry.writer roles/logging.logWriter roles/storage.objectViewer; do
@@ -166,7 +167,11 @@ g run jobs execute delivery-migrador --region "$REGIAO" --wait
 
 # ----------------------------------------------------------- microsservicos
 etapa "8/9 Microsservicos no Cloud Run (privados, gRPC com HTTP/2)"
-COMUM_SERVICOS="$VARIAVEIS_BANCO,DB_POOL_MAX=3,MAX_WORKERS=20,LOG_JSON=1,GOOGLE_CLOUD_PROJECT=$PROJETO,RASTREAMENTO=gcp"
+# Tempo do gRPC maior que no computador (5 s por tentativa, 12 s no total): no
+# Cloud Run o servico chamado pode estar parado e leva alguns segundos para
+# subir (partida a frio) na primeira chamada.
+TEMPOS_GRPC="GRPC_TIMEOUT=10,GRPC_PRAZO_TOTAL=25"
+COMUM_SERVICOS="$VARIAVEIS_BANCO,DB_POOL_MAX=3,MAX_WORKERS=20,$TEMPOS_GRPC,LOG_JSON=1,GOOGLE_CLOUD_PROJECT=$PROJETO,RASTREAMENTO=gcp"
 
 implantar_microsservico() {
   local nome="$1" extra="${2:-}"
@@ -178,7 +183,7 @@ implantar_microsservico() {
     --set-cloudsql-instances "$CONEXAO" \
     --set-env-vars "$COMUM_SERVICOS${extra:+,$extra}" \
     --set-secrets "DB_PASSWORD=delivery-db-senha:latest" \
-    --cpu 1 --memory 512Mi --concurrency 20 --min-instances 0 --max-instances "$MAX_INSTANCIAS" \
+    --cpu 1 --cpu-boost --memory 512Mi --concurrency 20 --min-instances 0 --max-instances "$MAX_INSTANCIAS" \
     --timeout 3600
 }
 implantar_microsservico catalogo
@@ -217,9 +222,9 @@ host_de() { local url; url="$(url_de "$1")"; echo "${url#https://}"; }
 URL_FRONTEND="$(url_de delivery-frontend)"
 g run deploy delivery-gateway --image "$IMAGENS/gateway:$TAG" --region "$REGIAO" \
   --service-account "$SA_GATEWAY" \
-  --set-env-vars "USUARIOS_HOST=$(host_de delivery-usuarios),USUARIOS_PORTA=443,CATALOGO_HOST=$HOST_CATALOGO,CATALOGO_PORTA=443,PEDIDOS_HOST=$(host_de delivery-pedidos),PEDIDOS_PORTA=443,CORS_ORIGENS=${URL_FRONTEND:-*},LOG_JSON=1,GOOGLE_CLOUD_PROJECT=$PROJETO,RASTREAMENTO=gcp" \
+  --set-env-vars "USUARIOS_HOST=$(host_de delivery-usuarios),USUARIOS_PORTA=443,CATALOGO_HOST=$HOST_CATALOGO,CATALOGO_PORTA=443,PEDIDOS_HOST=$(host_de delivery-pedidos),PEDIDOS_PORTA=443,CORS_ORIGENS=${URL_FRONTEND:-*},$TEMPOS_GRPC,LOG_JSON=1,GOOGLE_CLOUD_PROJECT=$PROJETO,RASTREAMENTO=gcp" \
   --set-secrets "JWT_SEGREDO=delivery-jwt-segredo:latest" \
-  --cpu 1 --memory 512Mi --min-instances 0 --max-instances "$MAX_INSTANCIAS" --timeout 3600
+  --cpu 1 --cpu-boost --memory 512Mi --min-instances 0 --max-instances "$MAX_INSTANCIAS" --timeout 3600
 tornar_publico delivery-gateway
 URL_GATEWAY="$(url_de delivery-gateway)"
 

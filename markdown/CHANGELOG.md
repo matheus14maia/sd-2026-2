@@ -14,6 +14,12 @@
 
 ---
 
+## 2026-11-11
+
+| Horario | Task | Detalhe |
+|---------|------|---------|
+| 08:31 | Revisao dos scripts do Cloud Run | Antes da primeira execucao no projeto: o `implantar.sh` parava inteiro se o `gcloud builds get-default-service-account` falhasse (atribuicao com `$(...)` e `pipefail`; agora `|| true`, conferido com um caso minimo); `--quiet` nas chamadas diretas ao `gcloud` (sem pergunta y/N travando o Cloud Shell); `GRPC_TIMEOUT=10` e `GRPC_PRAZO_TOTAL=25` no Gateway e nos microsservicos e `--cpu-boost`, por causa da partida a frio do Cloud Run (o cadastro, que nao e repetido, responderia 503 na primeira chamada depois de um tempo parado). Arquivos: `scripts/gcp/cloud-run/*.sh`, `docs/09-plano-cloud-run.md`. |
+
 ## 2026-11-10
 
 | Horario | Task | Detalhe |
