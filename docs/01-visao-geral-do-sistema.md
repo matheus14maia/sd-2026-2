@@ -22,19 +22,23 @@ API HTTP) e possivel:
 Tudo o que e consultado, criado ou alterado fica no PostgreSQL. Nao existe lista
 estatica nem dicionario em memoria: reiniciar qualquer container nao perde nada.
 
-![Arquitetura](arquitetura.png)
+![Arquitetura no Cloud Run](arquitetura-cloud-run.png)
+
+No Trabalho 2 os mesmos componentes rodaram em 3 VMs do Compute Engine
+([diagrama](arquitetura.png), [04-deploy-gcp-vm.md](04-deploy-gcp-vm.md)); no
+Trabalho 3 cada um e um servico gerenciado ([09-plano-cloud-run.md](09-plano-cloud-run.md)).
 
 ## Componentes
 
-| Componente | Papel | Protocolo de entrada | Dono de | Onde roda no GCP |
+| Componente | Papel | Protocolo de entrada | Dono de | No GCP (Trabalho 3) |
 |---|---|---|---|---|
-| **Frontend** (`frontend/`) | telas para o usuario; so conversa com o Gateway | HTTP na porta 80 (publica) | - | VM `delivery-frontend` |
-| **Gateway** (`src/gateway/`) | ponto unico de entrada; autentica o JWT, confere o papel, valida o JSON, traduz para Protobuf e despacha | HTTP/JSON na porta 8000 (publica) | nenhuma tabela | VM `delivery-gateway` |
-| **Usuarios** (`src/usuarios/`) | cadastro e conferencia de login e senha (bcrypt) | gRPC na porta 9092 (so o Gateway) | `usuarios` | VM `servidor-delivery` |
-| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, alterar disponibilidade/preco | gRPC na porta 9091 (so o Gateway) | `itens_cardapio` | VM `servidor-delivery` |
-| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido` | VM `servidor-delivery` |
-| **PostgreSQL** | persistencia | SQL na porta 5432 (TLS) | - | Cloud SQL `delivery-postgres` |
-| **Migrador** | cria as tabelas e carrega a carga inicial a cada deploy e depois termina | - | - | VM `servidor-delivery` |
+| **Frontend** (`frontend/`) | telas para o usuario; so conversa com o Gateway | HTTP na porta 80 (publica) | - | Cloud Run `delivery-frontend`, publico |
+| **Gateway** (`src/gateway/`) | ponto unico de entrada; autentica o JWT, confere o papel, valida o JSON, traduz para Protobuf e despacha | HTTP/JSON na porta 8000 (publica) | nenhuma tabela | Cloud Run `delivery-gateway`, publico |
+| **Usuarios** (`src/usuarios/`) | cadastro, conferencia de login e senha (bcrypt) e dados da conta | gRPC na porta 9092 (so o Gateway) | `usuarios` | Cloud Run `delivery-usuarios`, privado |
+| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, cadastrar, editar e excluir pratos, disponibilidade e fotos | gRPC na porta 9091 (o Gateway e o Pedidos) | `itens_cardapio`, `fotos_itens` | Cloud Run `delivery-catalogo`, privado |
+| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido`, `etapas_pedido` | Cloud Run `delivery-pedidos`, privado |
+| **PostgreSQL** | persistencia | SQL na porta 5432 | - | Cloud SQL `delivery-postgres`, pelo conector do Cloud Run |
+| **Migrador** | cria as tabelas e carrega a carga inicial a cada deploy e depois termina | - | - | Cloud Run job `delivery-migrador` |
 
 Cada microsservico so le e escreve as proprias tabelas. Pedidos nao faz `SELECT`
 em `itens_cardapio`: ele pergunta ao Catalogo por gRPC. Por isso a linha do
@@ -164,4 +168,4 @@ depender de quem o chama (defesa em profundidade).
 | Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
 | Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |
 | Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
-| Uma VM por camada | frontend, Gateway e microsservicos sobem e caem de forma independente; as portas gRPC so aceitam a VM do Gateway |
+| Um servico do Cloud Run por componente (no Trabalho 2, uma VM por camada) | frontend, Gateway e cada microsservico sobem, escalam e caem de forma independente; os microsservicos so aceitam chamada com o ID token de quem tem `roles/run.invoker` (o Gateway; o Pedidos, no Catalogo), como no Trabalho 2 as portas gRPC so aceitavam a VM do Gateway |

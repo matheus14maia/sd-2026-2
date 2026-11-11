@@ -7,6 +7,14 @@
 
 ## Cada componente num servico gerenciado
 
+![Arquitetura no Cloud Run](arquitetura-cloud-run.png)
+
+Fonte editavel do diagrama: [arquitetura-cloud-run.svg](arquitetura-cloud-run.svg). O
+relatorio tecnico do Trabalho 3 fica em
+[apresentacao/Trabalho3-relatorio.html](../apresentacao/Trabalho3-relatorio.html): abra no
+Chrome, Ctrl+P, "Salvar como PDF", papel A4, com "Graficos de plano de fundo"
+marcado. Os links da tabela da secao 5 saem do fim do `implantar.sh`.
+
 | Componente | No seu computador | No Google Cloud |
 |---|---|---|
 | Frontend | container nginx | Cloud Run `delivery-frontend`, publico (HTTPS) |

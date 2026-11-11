@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 826" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos servicos publicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, com ID token, com os microsservicos privados Usuarios, Catalogo e Pedidos, tambem no Cloud Run; Pedidos consulta o Catalogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vem do Secret Manager, logs e traces vao para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Trabalho 2 ficam paradas ou excluidas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d2329"/>
+    </marker>
+    <marker id="seta-vermelha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b42318"/>
+    </marker>
+    <marker id="seta-cinza" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7785"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="826" fill="#ffffff"/>
+
+  <!-- titulo -->
+  <text x="24" y="38" font-size="22" font-weight="700" fill="#1d2329">Hell's Kitchen Delivery: arquitetura serverless no GCP (Trabalho 3)</text>
+  <text x="24" y="62" font-size="13.5" fill="#4a5560">Cloud Run (frontend, Gateway, 3 microsservicos gRPC e job de migracao), Cloud SQL, Artifact Registry, Secret Manager e Cloud Logging</text>
+
+  <!-- navegador (internet) -->
+  <rect x="90" y="84" width="310" height="62" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <rect x="90" y="84" width="310" height="22" rx="10" fill="#1d2329"/>
+  <rect x="90" y="96" width="310" height="10" fill="#1d2329"/>
+  <circle cx="104" cy="95" r="4" fill="#e8ecef"/><circle cx="118" cy="95" r="4" fill="#e8ecef"/><circle cx="132" cy="95" r="4" fill="#e8ecef"/>
+  <text x="245" y="124" font-size="16.5" font-weight="700" fill="#1d2329" text-anchor="middle">Navegador</text>
+  <text x="245" y="140" font-size="12.5" fill="#4a5560" text-anchor="middle">cliente ou cozinha · JWT na sessao</text>
+
+  <!-- projeto GCP -->
+  <rect x="16" y="206" width="968" height="606" rx="14" fill="#f7f8fa" stroke="#8a96a2" stroke-width="1.5" stroke-dasharray="7 5"/>
+
+  <!-- Cloud Run -->
+  <rect x="32" y="222" width="648" height="352" rx="12" fill="#edf2f7" stroke="#6b8299" stroke-width="1.5"/>
+  <text x="664" y="244" font-size="13.5" fill="#33506b" text-anchor="end"><tspan font-weight="700">Cloud Run</tspan> · HTTPS gerenciado</text>
+
+  <!-- frontend -->
+  <rect x="48" y="252" width="244" height="118" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+  <text x="62" y="272" font-size="11" font-weight="700" fill="#2f7a4d" letter-spacing="0.6">PUBLICO · HTTPS</text>
+  <text x="62" y="294" font-size="16.5" font-weight="700" fill="#1d2329">delivery-frontend</text>
+  <text x="62" y="316" font-size="12.5" fill="#4a5560">React (Vite) servido por nginx</text>
+  <text x="62" y="334" font-size="12.5" fill="#4a5560">sem root, porta 8080</text>
+  <text x="62" y="352" font-size="12.5" fill="#4a5560">/config.js traz a URL do Gateway</text>
+
+  <!-- gateway -->
+  <rect x="316" y="252" width="348" height="150" rx="10" fill="#ffffff" stroke="#b42318" stroke-width="2.4"/>
+  <text x="330" y="272" font-size="11" font-weight="700" fill="#2f7a4d" letter-spacing="0.6">PUBLICO · HTTPS</text>
+  <text x="330" y="294" font-size="16.5" font-weight="700" fill="#1d2329">delivery-gateway <tspan font-size="13" font-weight="400" fill="#4a5560">API Gateway FastAPI</tspan></text>
+  <text x="330" y="316" font-size="12.5" fill="#4a5560">CORS → JWT (401/403) → Pydantic (400)</text>
+  <text x="330" y="334" font-size="12.5" fill="#4a5560">JSON → Protobuf → gRPC, e a volta</text>
+  <text x="330" y="352" font-size="12.5" fill="#4a5560">SSE: um stream gRPC por instancia</text>
+  <rect x="330" y="364" width="320" height="26" rx="5" fill="#fbe4e1"/>
+  <text x="342" y="382" font-size="12.5" font-weight="700" fill="#b42318">timeout, retry, disjuntor, cache do cardapio</text>
+
+  <!-- gateway -> microsservicos (gRPC) -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <polyline points="490,402 490,426 574,426 574,446" marker-end="url(#seta)"/>
+    <polyline points="490,426 138,426 138,446" marker-end="url(#seta)"/>
+    <line x1="334" y1="426" x2="334" y2="446" marker-end="url(#seta)"/>
+  </g>
+  <circle cx="490" cy="426" r="4" fill="#1d2329"/>
+  <circle cx="334" cy="426" r="4" fill="#1d2329"/>
+  <text x="56" y="392" font-size="12" font-weight="700" fill="#1d2329">gRPC sobre HTTP/2 e TLS (porta 443)</text>
+  <text x="56" y="409" font-size="12" fill="#4a5560">ID token do Gateway · roles/run.invoker</text>
+
+  <!-- microsservicos -->
+  <g>
+    <rect x="48" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="60" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="60" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-usuarios</text>
+    <text x="60" y="512" font-size="12.5" fill="#4a5560">cadastro e login</text>
+    <text x="60" y="530" font-size="12.5" fill="#4a5560">bcrypt, dados da conta</text>
+
+    <rect x="244" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="256" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="256" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-catalogo</text>
+    <text x="256" y="512" font-size="12.5" fill="#4a5560">cardapio, opcoes, fotos</text>
+    <text x="256" y="530" font-size="12.5" fill="#4a5560">disponibilidade do dia</text>
+
+    <rect x="484" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="496" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="496" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-pedidos</text>
+    <text x="496" y="512" font-size="12.5" fill="#4a5560">pedidos e etapas</text>
+    <text x="496" y="530" font-size="12.5" fill="#4a5560">stream LISTEN/NOTIFY</text>
+  </g>
+
+  <!-- pedidos -> catalogo -->
+  <line x1="484" y1="504" x2="426" y2="504" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="454" y="496" font-size="12" font-weight="700" fill="#1d2329" text-anchor="middle">gRPC</text>
+  <text x="454" y="520" font-size="11" fill="#4a5560" text-anchor="middle">Consultar</text>
+  <text x="454" y="533" font-size="11" fill="#4a5560" text-anchor="middle">Itens</text>
+
+  <!-- Cloud SQL -->
+  <rect x="32" y="598" width="648" height="166" rx="12" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <g font-size="12.5" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#1d2329">
+    <rect x="48" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="60" y="631">usuarios</text>
+    <rect x="244" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="256" y="631">itens_cardapio</text>
+    <rect x="244" y="644" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="256" y="661">fotos_itens</text>
+    <rect x="484" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="631">pedidos</text>
+    <rect x="484" y="644" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="661">itens_pedido</text>
+    <rect x="484" y="674" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="691">etapas_pedido</text>
+  </g>
+  <text x="48" y="730" font-size="16.5" font-weight="700" fill="#1d2329">Cloud SQL · PostgreSQL 16 <tspan font-size="13" font-weight="400" fill="#4a5560">instancia delivery-postgres, banco delivery</tspan></text>
+  <text x="48" y="750" font-size="12.5" fill="#4a5560">conector do Cloud SQL (socket /cloudsql) · cada servico e dono das suas tabelas</text>
+
+  <!-- microsservicos -> Cloud SQL -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <line x1="138" y1="556" x2="138" y2="612" marker-end="url(#seta)"/>
+    <line x1="334" y1="556" x2="334" y2="612" marker-end="url(#seta)"/>
+    <line x1="574" y1="556" x2="574" y2="612" marker-end="url(#seta)"/>
+  </g>
+  <text x="146" y="590" font-size="12" font-weight="700" fill="#1d2329">SQL</text>
+
+  <!-- 1. navegador -> frontend -->
+  <line x1="120" y1="146" x2="120" y2="250" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="130" y="176" font-size="12.5" font-weight="700" fill="#1d2329">1. HTTPS</text>
+  <text x="130" y="192" font-size="12" fill="#4a5560">HTML, JS e /config.js</text>
+
+  <!-- 2. navegador -> gateway -->
+  <line x1="360" y1="146" x2="360" y2="249" stroke="#b42318" stroke-width="3" marker-end="url(#seta-vermelha)"/>
+  <text x="370" y="176" font-size="12.5" font-weight="700" fill="#b42318">2. HTTPS · JSON + Bearer (JWT)</text>
+  <text x="370" y="192" font-size="12" fill="#b42318">SSE em /pedidos/eventos (tempo real)</text>
+
+  <!-- coluna dos servicos de apoio -->
+  <g font-size="12.5">
+    <!-- build -->
+    <rect x="736" y="222" width="232" height="112" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="242" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">BUILD E IMAGENS</text>
+    <text x="750" y="264" font-size="15" font-weight="700" fill="#1d2329">Cloud Build</text>
+    <text x="750" y="282" fill="#4a5560">cloudbuild.yaml, 6 imagens</text>
+    <text x="750" y="306" font-size="15" font-weight="700" fill="#1d2329">Artifact Registry</text>
+    <text x="750" y="324" fill="#4a5560">repositorio delivery</text>
+
+    <!-- segredos -->
+    <rect x="736" y="348" width="232" height="108" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="368" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">SEGREDOS</text>
+    <text x="750" y="390" font-size="15" font-weight="700" fill="#1d2329">Secret Manager</text>
+    <g font-size="12" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#4a5560">
+      <text x="750" y="410">delivery-db-senha</text>
+      <text x="750" y="427">delivery-demo-senha</text>
+      <text x="750" y="444">delivery-jwt-segredo</text>
+    </g>
+
+    <!-- observabilidade -->
+    <rect x="736" y="470" width="232" height="112" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="490" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">OBSERVABILIDADE</text>
+    <text x="750" y="512" font-size="15" font-weight="700" fill="#1d2329">Cloud Logging</text>
+    <text x="750" y="530" fill="#4a5560">logs JSON por requisicao</text>
+    <text x="750" y="554" font-size="15" font-weight="700" fill="#1d2329">Cloud Trace</text>
+    <text x="750" y="572" fill="#4a5560">spans OpenTelemetry</text>
+
+    <!-- job de migracao -->
+    <rect x="736" y="598" width="232" height="82" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="750" y="618" font-size="11" font-weight="700" fill="#33506b" letter-spacing="0.6">CLOUD RUN JOB</text>
+    <text x="750" y="640" font-size="15" font-weight="700" fill="#1d2329">delivery-migrador</text>
+    <text x="750" y="658" fill="#4a5560">aplica schema.sql e seed.sql</text>
+    <text x="750" y="674" fill="#4a5560">cria o usuario cozinha</text>
+
+    <!-- VMs do Trabalho 2 -->
+    <rect x="736" y="694" width="232" height="70" rx="10" fill="#f4f6f8" stroke="#b8c0c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="750" y="714" font-size="11" font-weight="700" fill="#8a96a2" letter-spacing="0.6">COMPUTE ENGINE</text>
+    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs do Trabalho 2</text>
+    <text x="750" y="754" fill="#8a96a2">paradas ou excluidas</text>
+    <circle cx="938" cy="730" r="13" fill="none" stroke="#b42318" stroke-width="2.2"/>
+    <line x1="929" y1="721" x2="947" y2="739" stroke="#b42318" stroke-width="2.2"/>
+  </g>
+
+  <!-- setas dos servicos de apoio -->
+  <g stroke="#6b7785" stroke-width="1.5" stroke-dasharray="5 4" fill="none">
+    <line x1="736" y1="300" x2="683" y2="300" marker-end="url(#seta-cinza)"/>
+    <line x1="736" y1="404" x2="683" y2="404" marker-end="url(#seta-cinza)"/>
+    <line x1="680" y1="526" x2="733" y2="526" marker-end="url(#seta-cinza)"/>
+  </g>
+  <g font-size="11" fill="#4a5560" text-anchor="middle">
+    <text x="708" y="292">imagens</text>
+    <text x="708" y="396">segredos</text>
+    <text x="708" y="518">logs</text>
+  </g>
+  <line x1="736" y1="650" x2="683" y2="650" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="708" y="642" font-size="11" font-weight="700" fill="#1d2329" text-anchor="middle">SQL</text>
+
+  <!-- legenda -->
+  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · regiao us-central1 · nenhuma VM ligada</text>
+  <text x="32" y="803" font-size="12" fill="#4a5560">PUBLICO: HTTPS aberto na internet · PRIVADO: so contas de servico com roles/run.invoker (o Gateway; o Pedidos, para o Catalogo)</text>
+</svg>

@@ -20,6 +20,33 @@
 
 ---
 
+## 2026-11-11
+
+### PDF do relatorio com fontes Type 3 e diagrama cortado nas laterais
+
+**Sintoma:** o PDF gerado do `apresentacao/Trabalho3-relatorio.html` pelo
+Chromium (Playwright `page.pdf` ou Ctrl+P > Salvar como PDF) saia com
+`pdffonts` listando `Inter-Regular Type 3` (o `pdftoppm` avisava `Bad bounding
+box in Type 3 glyph`), e o texto do corpo em Liberation Serif em vez do Charter
+pedido no CSS. Ao alargar o diagrama com margem negativa (`margin-left: -10mm`),
+a borda do projeto GCP e o comeco da legenda sumiam na pagina.
+
+**Causa:** o Chromium embute fonte OpenType com contornos CFF (os `.otf` do
+Inter) e fonte variavel (Inter e Source Serif 4 do Google Fonts) como Type 3,
+que alguns leitores de PDF mostram sem suavizacao; o Bitstream Charter
+instalado e Type 1 (`.pfb`), que o Chromium nem carrega, por isso caia no
+substituto. Na impressao, o que passa da area util da pagina (dentro das
+margens do `@page`) e recortado.
+
+**Solucao:** fontes TrueType estaticas: Carlito e Caladea (mesmas metricas de
+Calibri e Cambria, que o Chrome usa no Windows) e JetBrains Mono; o diagrama
+embutido usa a mesma fonte do texto por CSS (`figure svg text`). Conferir com
+`pdffonts` (todas `CID TrueType`). O diagrama fica com 100% da largura do texto.
+
+**Arquivos:** `apresentacao/Trabalho3-relatorio.html`.
+
+---
+
 ## 2026-11-10
 
 ### No celular o cardapio fica mais largo que a tela e o + nao responde

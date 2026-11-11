@@ -8,7 +8,8 @@ falhas**: retry com backoff, circuit breaker, fallback e idempotencia.
 
 Tudo roda no seu computador com `docker compose up` (ver
 [Comecando rapido](#comecando-rapido-local-tudo-em-containers)). No Trabalho 2
-cada camada rodou em uma VM propria no GCP.
+cada camada rodou em uma VM propria no GCP; no Trabalho 3 cada componente vira
+um servico gerenciado (Cloud Run e Cloud SQL), implantado pelo Cloud Shell.
 
 No seu computador (`docker compose`):
 
@@ -25,6 +26,14 @@ No seu computador (`docker compose`):
                                        v
                      postgres (container)  usuarios, itens_cardapio, pedidos, itens_pedido
 ```
+
+No Trabalho 3, a mesma arquitetura vai para servicos gerenciados do GCP: os
+componentes no Cloud Run (frontend e Gateway publicos; microsservicos privados,
+chamados pelo Gateway com ID token), o banco no Cloud SQL pelo conector do Cloud
+Run, as imagens no Artifact Registry, as senhas no Secret Manager e os logs no
+Cloud Logging. Passo a passo em [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md).
+
+![Arquitetura no Cloud Run](docs/arquitetura-cloud-run.png)
 
 No Trabalho 2, a mesma arquitetura rodou em 3 VMs no GCP:
 
@@ -61,7 +70,7 @@ Deploy do Trabalho 2 no GCP (VMs; ligado so para demonstracao, com `scripts/gcp/
 | Banco de dados | PostgreSQL 16 (Cloud SQL no GCP, container no ambiente local), psycopg 3 |
 | Execucao | Docker + Docker Compose; um Dockerfile multi-stage por componente (`docker/`, `frontend/Dockerfile`), um profile por papel |
 | Tolerancia a falhas | timeout + prazo propagado, retry com backoff exponencial e jitter, circuit breaker por servico, fallback do cardapio, idempotencia, health check gRPC ([docs/07](docs/07-resiliencia.md)) |
-| Infraestrutura | 3 VMs no Compute Engine + Cloud SQL + firewall VPC por tag |
+| Infraestrutura | Trabalho 3: Cloud Run (5 servicos e o job de migracao), Cloud SQL, Artifact Registry, Cloud Build, Secret Manager, Cloud Logging e Cloud Trace ([docs/09](docs/09-plano-cloud-run.md)). Trabalho 2: 3 VMs no Compute Engine + Cloud SQL + firewall VPC por tag |
 
 ## Rotas do Gateway
 
@@ -141,7 +150,7 @@ Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 | [docs/07-resiliencia.md](docs/07-resiliencia.md) | tolerancia a falhas: retry, circuit breaker, fallback, idempotencia e como demonstrar |
 | [docs/08-rastreamento.md](docs/08-rastreamento.md) | rastreamento distribuido: spans de cada requisicao no Jaeger (local) e no Cloud Trace |
 | [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md) | implantacao do Trabalho 3 no Google Cloud pelo Cloud Shell (`scripts/gcp/cloud-run/`): Cloud Run, Cloud SQL, Artifact Registry, Secret Manager, Cloud Trace; ligar, desligar e custo |
-| [apresentacao/](apresentacao/) | slides da arquitetura (`.pptx` e `.pdf`) |
+| [apresentacao/](apresentacao/) | slides do Trabalho 2 (`.pptx` e `.pdf`) e relatorio tecnico do Trabalho 3 (`Trabalho3-relatorio.html`: abrir no Chrome e salvar como PDF, A4) |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
 [markdown/](markdown/).

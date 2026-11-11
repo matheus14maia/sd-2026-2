@@ -380,6 +380,11 @@ nada que nao esteja no contrato.
   no Cloud Run (10/25 s) por causa da partida a frio; 5/12 s no compose.
 - **Imagens base por argumento** (`IMAGEM_PYTHON`, `IMAGEM_NODE`,
   `IMAGEM_NGINX`): Docker Hub por padrao, `mirror.gcr.io` no Cloud Build.
+- **Diagrama e relatorio:** a fonte do diagrama e `docs/arquitetura-cloud-run.svg`
+  (sem acento, como a documentacao); o PNG 2x sai dele para o README e os slides.
+  O relatorio (`apresentacao/Trabalho3-relatorio.html`, ate 5 paginas A4) leva
+  acento e traz o mesmo diagrama embutido: mudou o SVG, atualize os dois. PDF so
+  com fontes TrueType (Carlito, Caladea, JetBrains Mono); conferir com `pdffonts`.
 
 ## Deploy em varias VMs
 

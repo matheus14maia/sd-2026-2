@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relatório técnico do Trabalho 3</title>
+<!--
+  Fonte do relatorio tecnico do Trabalho 3 (Etapa 3). Para gerar o PDF: abra este
+  arquivo no Chrome, Ctrl+P, destino "Salvar como PDF", papel A4, margens
+  "Padrao" e "Graficos de plano de fundo" marcado. As margens e o rodape vem do
+  @page abaixo. Os links da secao 5 saem do fim do implantar.sh (ou do status.sh).
+-->
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 17mm 16mm 17mm;
+    @bottom-left {
+      content: "Hell's Kitchen Delivery · Relatório técnico do Trabalho 3";
+      font: 8pt Carlito, Calibri, "Segoe UI", Arial, sans-serif;
+      color: #6b7785;
+    }
+    @bottom-right {
+      content: "página " counter(page) " de " counter(pages);
+      font: 8pt Carlito, Calibri, "Segoe UI", Arial, sans-serif;
+      color: #6b7785;
+    }
+  }
+  :root {
+    --tinta: #1d2329;
+    --cinza: #4a5560;
+    --linha: #d5dbe1;
+    --fundo: #f4f6f8;
+    --vermelho: #b42318;
+    --verde: #2f7a4d;
+    --sans: Carlito, Calibri, "Segoe UI", Arial, sans-serif;
+    --serif: Caladea, Cambria, Georgia, serif;
+    --mono: "JetBrains Mono", Consolas, Menlo, monospace;
+  }
+  html { background: #ffffff; }
+  body {
+    margin: 0;
+    color: var(--tinta);
+    background: #ffffff;
+    font-family: var(--serif);
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+  /* na tela, simula a folha A4 */
+  @media screen {
+    html { background: #e8ecef; }
+    body { max-width: 176mm; margin: 24px auto; padding: 15mm 17mm; background: #ffffff;
+           box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
+  }
+  h1, h2, h3, table, figcaption, .cabecalho, .nota { font-family: var(--sans); }
+  p { margin: 0 0 5.5pt; text-align: justify; }
+  /* nowrap: nome de recurso nao quebra no hifen ("delivery-|frontend") */
+  code { font-family: var(--mono); font-size: 0.84em; background: #f0f2f4; padding: 0 2px; border-radius: 2px;
+         white-space: nowrap; font-variant-ligatures: none; }
+  b, strong { font-weight: 700; }
+
+  .cabecalho { border-bottom: 1.6pt solid var(--tinta); padding-bottom: 7pt; margin-bottom: 9pt; }
+  .disciplina { font-size: 8.4pt; letter-spacing: .04em; text-transform: uppercase; color: var(--cinza); font-weight: 600; }
+  h1 { font-size: 20pt; line-height: 1.15; margin: 4pt 0 3pt; letter-spacing: -.01em; }
+  .subtitulo { font-family: var(--serif); font-style: italic; font-size: 11pt; color: var(--cinza); margin-bottom: 7pt; }
+  .meta { display: grid; grid-template-columns: 1.35fr 1.25fr .55fr; gap: 2pt 12pt; font-size: 9pt; }
+  .meta div span { display: block; color: var(--cinza); font-size: 7pt; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+
+  h2 { font-size: 13.5pt; margin: 11pt 0 5pt; padding-bottom: 2pt; border-bottom: .8pt solid var(--linha); }
+  h2 .num { color: var(--vermelho); margin-right: 5pt; }
+  h3 { font-size: 10.8pt; margin: 8pt 0 3pt; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.6pt; line-height: 1.28; margin: 3pt 0 4pt; }
+  th { text-align: left; font-weight: 700; background: var(--fundo); border-top: 1pt solid var(--tinta);
+       border-bottom: .8pt solid var(--tinta); padding: 2.6pt 5pt; }
+  td { border-bottom: .5pt solid var(--linha); padding: 2.6pt 5pt; vertical-align: top; }
+  tr:last-child td { border-bottom: .8pt solid var(--tinta); }
+  td code, th code { font-size: .84em; }
+  td.forte { font-weight: 700; }
+  td .funcao { display: block; color: var(--cinza); font-size: .95em; }
+  .legenda-tabela { font-family: var(--sans); font-size: 8.6pt; color: var(--cinza); margin: 6pt 0 2pt; }
+  .legenda-tabela b { color: var(--tinta); }
+  tr, figure, .bloco { break-inside: avoid; }
+  h2, h3, .legenda-tabela { break-after: avoid; }
+
+  figure { margin: 4pt 0 6pt; }
+  figure svg { display: block; width: 100%; height: auto; }
+  /* o diagrama usa a mesma fonte do texto; os nomes de tabela e de segredo, a monoespacada */
+  figure svg text { font-family: var(--sans); }
+  figure svg g[font-family*="Mono"] text { font-family: var(--mono); }
+  figcaption { font-size: 8.6pt; color: var(--cinza); margin-top: 3pt; }
+  figcaption b { color: var(--tinta); }
+
+  ol { margin: 2pt 0 6pt; padding-left: 15pt; }
+  ol li { margin-bottom: 2pt; text-align: justify; }
+  .nota { font-size: 8.4pt; color: var(--cinza); }
+  .pendente { background: #fff1b8; outline: .5pt dashed #c79100; }
+  .url { font-family: var(--mono); font-size: 7.6pt; word-break: break-all; }
+  .acesso-publico { color: var(--verde); font-weight: 700; }
+  .acesso-iam { color: var(--cinza); font-weight: 700; }
+  .quebra { break-before: page; }
+</style>
+</head>
+<body>
+
+<header class="cabecalho">
+  <div class="disciplina">Sistemas Distribuídos 2026/2 · Instituto de Informática (INF/UFG) · Trabalho 3 · Relatório técnico</div>
+  <h1>Hell's Kitchen Delivery no Google Cloud</h1>
+  <div class="subtitulo">Microsserviços em contêineres no Cloud Run, banco no Cloud SQL e tolerância a falhas</div>
+  <div class="meta">
+    <div><span>Integrantes</span>Matheus Maia, Kelvin Bruno e <mark class="pendente">nome do 3º integrante</mark></div>
+    <div><span>Código-fonte</span>github.com/matheus14maia/sd-2026-2</div>
+    <div><span>Entrega</span>02/12/2026</div>
+  </div>
+</header>
+
+<h2><span class="num">1</span>Contextualização e motivação</h2>
+
+<p>O Hell's Kitchen Delivery é o sistema de pedidos de um restaurante, com dois papéis que enxergam o mesmo dado por lados diferentes. O <b>cliente</b> cria a conta, monta a sacola a partir do cardápio (escolhendo, por exemplo, o sabor do refrigerante ou a água com ou sem gás), informa a entrega e acompanha o pedido em tempo real. A <b>cozinha</b> mantém o cardápio (pratos, descrições, fotos, preços e disponibilidade do dia, inclusive de cada opção), aceita os pedidos novos, avança as etapas até a entrega e vê em destaque os atrasados. Toda escolha oferecida ao cliente tem um controle correspondente na cozinha.</p>
+
+<p>O domínio se divide em três contextos com dados e ritmos de uso próprios: <b>Usuários</b> (contas, credenciais e dados de entrega), <b>Catálogo</b> (o cardápio, lido por todos os clientes a cada 30 s e alterado pela cozinha) e <b>Pedidos</b> (escrita transacional, histórico de etapas e eventos em tempo real). Cada contexto é um microsserviço gRPC dono das próprias tabelas, sem chave estrangeira entre serviços; o pedido guarda uma cópia dos itens comprados. À frente deles, um <b>API Gateway</b> é a única porta de entrada do navegador: valida o JWT e o corpo da requisição, traduz JSON para Protobuf e concentra a política de tolerância a falhas.</p>
+
+<p>No Trabalho 2 esse sistema rodava em três VMs do Compute Engine, e o grupo administrava sistema operacional, Docker, firewall, IPs fixos e a lista de IPs autorizados no banco, pagando pelas máquinas 24 horas por dia mesmo sem uso. A motivação desta etapa é entregar essas responsabilidades à plataforma. Cada componente virou uma imagem de contêiner publicada no <b>Artifact Registry</b> e implantada no <b>Cloud Run</b>, que fornece HTTPS com certificado automático, escala de zero a duas instâncias por serviço, substituição de instâncias com falha e logs centralizados. O PostgreSQL continua no <b>Cloud SQL</b>, agora acessado pelo conector do Cloud Run com autorização via IAM, e as senhas saíram dos arquivos <code>.env</code> para o <b>Secret Manager</b>. O resultado é uma infraestrutura 100% gerenciada, sem VM ligada, que fora do horário de uso custa centavos: o Cloud SQL é desligado entre os testes por um script.</p>
+
+<h2><span class="num">2</span>Arquitetura no Google Cloud</h2>
+
+<p>A Figura 1 mostra os componentes implantados no projeto <code>sistemas-distribuidos-505422</code>, região <code>us-central1</code>, e a Tabela 1 resume o papel de cada serviço gerenciado. O caminho de um pedido (<code>POST /pedidos</code>) atravessa todas as camadas:</p>
+<ol>
+  <li>O navegador baixa a interface do <code>delivery-frontend</code>; o arquivo <code>/config.js</code>, gerado pelo nginx a partir da variável <code>API_URL</code>, informa o endereço do Gateway.</li>
+  <li>A chamada de dados vai direto ao <code>delivery-gateway</code> com <code>Authorization: Bearer</code>. O Gateway barra na borda o que é inválido (401 sem token válido, 403 sem o papel exigido, 400 para corpo fora do contrato) antes de qualquer chamada gRPC, e tira o dono do pedido do próprio token.</li>
+  <li>O Gateway monta o <code>CriarPedidoRequest</code> (Protobuf) e chama o <code>delivery-pedidos</code> por gRPC sobre HTTP/2 com TLS (porta 443), anexando um ID token da sua conta de serviço. O Cloud Run só entrega a chamada se essa conta tiver <code>roles/run.invoker</code> no serviço.</li>
+  <li>O Pedidos confere preço, disponibilidade e opção de cada item no Catálogo (<code>ConsultarItens</code>) com o prazo que resta da chamada original e grava pedido, itens e primeira etapa numa única transação no Cloud SQL; um <code>pg_notify</code> na mesma transação alimenta o tempo real.</li>
+  <li>A resposta volta como JSON (201). O id da requisição (<code>X-Requisicao-Id</code>) é o trace id e aparece em todas as linhas de log do caminho.</li>
+</ol>
+
+<p><b>Endpoints públicos e privados.</b> Os cinco serviços têm endpoint HTTPS público gerenciado pelo Cloud Run (domínio <code>run.app</code>, certificado automático). Frontend e Gateway aceitam qualquer cliente; os três microsserviços exigem o ID token de uma conta de serviço autorizada e respondem 403 a quem não o apresenta. Assim continua valendo a regra do Trabalho 2: o navegador só fala com o Gateway, e ninguém chega ao gRPC sem passar pela validação do JWT.</p>
+
+<figure>
+<!-- inicio do diagrama (gerado de docs/arquitetura-cloud-run.svg) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 72 1000 754" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos serviços públicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, com ID token, com os microsserviços privados Usuários, Catálogo e Pedidos, também no Cloud Run; Pedidos consulta o Catálogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vêm do Secret Manager, logs e traces vão para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Trabalho 2 ficam paradas ou excluídas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d2329"/>
+    </marker>
+    <marker id="seta-vermelha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b42318"/>
+    </marker>
+    <marker id="seta-cinza" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7785"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="826" fill="#ffffff"/>
+
+  <!-- navegador (internet) -->
+  <rect x="90" y="84" width="310" height="62" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <rect x="90" y="84" width="310" height="22" rx="10" fill="#1d2329"/>
+  <rect x="90" y="96" width="310" height="10" fill="#1d2329"/>
+  <circle cx="104" cy="95" r="4" fill="#e8ecef"/><circle cx="118" cy="95" r="4" fill="#e8ecef"/><circle cx="132" cy="95" r="4" fill="#e8ecef"/>
+  <text x="245" y="124" font-size="16.5" font-weight="700" fill="#1d2329" text-anchor="middle">Navegador</text>
+  <text x="245" y="140" font-size="12.5" fill="#4a5560" text-anchor="middle">cliente ou cozinha · JWT na sessão</text>
+
+  <!-- projeto GCP -->
+  <rect x="16" y="206" width="968" height="606" rx="14" fill="#f7f8fa" stroke="#8a96a2" stroke-width="1.5" stroke-dasharray="7 5"/>
+
+  <!-- Cloud Run -->
+  <rect x="32" y="222" width="648" height="352" rx="12" fill="#edf2f7" stroke="#6b8299" stroke-width="1.5"/>
+  <text x="664" y="244" font-size="13.5" fill="#33506b" text-anchor="end"><tspan font-weight="700">Cloud Run</tspan> · HTTPS gerenciado</text>
+
+  <!-- frontend -->
+  <rect x="48" y="252" width="244" height="118" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+  <text x="62" y="272" font-size="11" font-weight="700" fill="#2f7a4d" letter-spacing="0.6">PÚBLICO · HTTPS</text>
+  <text x="62" y="294" font-size="16.5" font-weight="700" fill="#1d2329">delivery-frontend</text>
+  <text x="62" y="316" font-size="12.5" fill="#4a5560">React (Vite) servido por nginx</text>
+  <text x="62" y="334" font-size="12.5" fill="#4a5560">sem root, porta 8080</text>
+  <text x="62" y="352" font-size="12.5" fill="#4a5560">/config.js traz a URL do Gateway</text>
+
+  <!-- gateway -->
+  <rect x="316" y="252" width="348" height="150" rx="10" fill="#ffffff" stroke="#b42318" stroke-width="2.4"/>
+  <text x="330" y="272" font-size="11" font-weight="700" fill="#2f7a4d" letter-spacing="0.6">PÚBLICO · HTTPS</text>
+  <text x="330" y="294" font-size="16.5" font-weight="700" fill="#1d2329">delivery-gateway <tspan font-size="13" font-weight="400" fill="#4a5560">API Gateway FastAPI</tspan></text>
+  <text x="330" y="316" font-size="12.5" fill="#4a5560">CORS → JWT (401/403) → Pydantic (400)</text>
+  <text x="330" y="334" font-size="12.5" fill="#4a5560">JSON → Protobuf → gRPC, e a volta</text>
+  <text x="330" y="352" font-size="12.5" fill="#4a5560">SSE: um stream gRPC por instância</text>
+  <rect x="330" y="364" width="320" height="26" rx="5" fill="#fbe4e1"/>
+  <text x="342" y="382" font-size="12.5" font-weight="700" fill="#b42318">timeout, retry, disjuntor, cache do cardápio</text>
+
+  <!-- gateway -> microsserviços (gRPC) -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <polyline points="490,402 490,426 574,426 574,446" marker-end="url(#seta)"/>
+    <polyline points="490,426 138,426 138,446" marker-end="url(#seta)"/>
+    <line x1="334" y1="426" x2="334" y2="446" marker-end="url(#seta)"/>
+  </g>
+  <circle cx="490" cy="426" r="4" fill="#1d2329"/>
+  <circle cx="334" cy="426" r="4" fill="#1d2329"/>
+  <text x="56" y="392" font-size="12" font-weight="700" fill="#1d2329">gRPC sobre HTTP/2 e TLS (porta 443)</text>
+  <text x="56" y="409" font-size="12" fill="#4a5560">ID token do Gateway · roles/run.invoker</text>
+
+  <!-- microsservicos -->
+  <g>
+    <rect x="48" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="60" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="60" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-usuarios</text>
+    <text x="60" y="512" font-size="12.5" fill="#4a5560">cadastro e login</text>
+    <text x="60" y="530" font-size="12.5" fill="#4a5560">bcrypt, dados da conta</text>
+
+    <rect x="244" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="256" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="256" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-catalogo</text>
+    <text x="256" y="512" font-size="12.5" fill="#4a5560">cardápio, opções, fotos</text>
+    <text x="256" y="530" font-size="12.5" fill="#4a5560">disponibilidade do dia</text>
+
+    <rect x="484" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="496" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="496" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-pedidos</text>
+    <text x="496" y="512" font-size="12.5" fill="#4a5560">pedidos e etapas</text>
+    <text x="496" y="530" font-size="12.5" fill="#4a5560">stream LISTEN/NOTIFY</text>
+  </g>
+
+  <!-- pedidos -> catalogo -->
+  <line x1="484" y1="504" x2="426" y2="504" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="454" y="496" font-size="12" font-weight="700" fill="#1d2329" text-anchor="middle">gRPC</text>
+  <text x="454" y="520" font-size="11" fill="#4a5560" text-anchor="middle">Consultar</text>
+  <text x="454" y="533" font-size="11" fill="#4a5560" text-anchor="middle">Itens</text>
+
+  <!-- Cloud SQL -->
+  <rect x="32" y="598" width="648" height="166" rx="12" fill="#ffffff" stroke="#1d2329" stroke-width="2"/>
+  <g font-size="12.5" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#1d2329">
+    <rect x="48" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="60" y="631">usuarios</text>
+    <rect x="244" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="256" y="631">itens_cardapio</text>
+    <rect x="244" y="644" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="256" y="661">fotos_itens</text>
+    <rect x="484" y="614" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="631">pedidos</text>
+    <rect x="484" y="644" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="661">itens_pedido</text>
+    <rect x="484" y="674" width="180" height="24" rx="5" fill="#f4f6f8" stroke="#8a96a2"/>
+    <text x="496" y="691">etapas_pedido</text>
+  </g>
+  <text x="48" y="730" font-size="16.5" font-weight="700" fill="#1d2329">Cloud SQL · PostgreSQL 16 <tspan font-size="13" font-weight="400" fill="#4a5560">instância delivery-postgres, banco delivery</tspan></text>
+  <text x="48" y="750" font-size="12.5" fill="#4a5560">conector do Cloud SQL (socket /cloudsql) · cada serviço é dono das suas tabelas</text>
+
+  <!-- microsservicos -> Cloud SQL -->
+  <g stroke="#1d2329" stroke-width="2" fill="none">
+    <line x1="138" y1="556" x2="138" y2="612" marker-end="url(#seta)"/>
+    <line x1="334" y1="556" x2="334" y2="612" marker-end="url(#seta)"/>
+    <line x1="574" y1="556" x2="574" y2="612" marker-end="url(#seta)"/>
+  </g>
+  <text x="146" y="590" font-size="12" font-weight="700" fill="#1d2329">SQL</text>
+
+  <!-- 1. navegador -> frontend -->
+  <line x1="120" y1="146" x2="120" y2="250" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="130" y="176" font-size="12.5" font-weight="700" fill="#1d2329">1. HTTPS</text>
+  <text x="130" y="192" font-size="12" fill="#4a5560">HTML, JS e /config.js</text>
+
+  <!-- 2. navegador -> gateway -->
+  <line x1="360" y1="146" x2="360" y2="249" stroke="#b42318" stroke-width="3" marker-end="url(#seta-vermelha)"/>
+  <text x="370" y="176" font-size="12.5" font-weight="700" fill="#b42318">2. HTTPS · JSON + Bearer (JWT)</text>
+  <text x="370" y="192" font-size="12" fill="#b42318">SSE em /pedidos/eventos (tempo real)</text>
+
+  <!-- coluna dos servicos de apoio -->
+  <g font-size="12.5">
+    <!-- build -->
+    <rect x="736" y="222" width="232" height="112" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="242" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">BUILD E IMAGENS</text>
+    <text x="750" y="264" font-size="15" font-weight="700" fill="#1d2329">Cloud Build</text>
+    <text x="750" y="282" fill="#4a5560">cloudbuild.yaml, 6 imagens</text>
+    <text x="750" y="306" font-size="15" font-weight="700" fill="#1d2329">Artifact Registry</text>
+    <text x="750" y="324" fill="#4a5560">repositório delivery</text>
+
+    <!-- segredos -->
+    <rect x="736" y="348" width="232" height="108" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="368" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">SEGREDOS</text>
+    <text x="750" y="390" font-size="15" font-weight="700" fill="#1d2329">Secret Manager</text>
+    <g font-size="12" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#4a5560">
+      <text x="750" y="410">delivery-db-senha</text>
+      <text x="750" y="427">delivery-demo-senha</text>
+      <text x="750" y="444">delivery-jwt-segredo</text>
+    </g>
+
+    <!-- observabilidade -->
+    <rect x="736" y="470" width="232" height="112" rx="10" fill="#ffffff" stroke="#8a96a2" stroke-width="1.5"/>
+    <text x="750" y="490" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">OBSERVABILIDADE</text>
+    <text x="750" y="512" font-size="15" font-weight="700" fill="#1d2329">Cloud Logging</text>
+    <text x="750" y="530" fill="#4a5560">logs JSON por requisição</text>
+    <text x="750" y="554" font-size="15" font-weight="700" fill="#1d2329">Cloud Trace</text>
+    <text x="750" y="572" fill="#4a5560">spans OpenTelemetry</text>
+
+    <!-- job de migracao -->
+    <rect x="736" y="598" width="232" height="82" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
+    <text x="750" y="618" font-size="11" font-weight="700" fill="#33506b" letter-spacing="0.6">CLOUD RUN JOB</text>
+    <text x="750" y="640" font-size="15" font-weight="700" fill="#1d2329">delivery-migrador</text>
+    <text x="750" y="658" fill="#4a5560">aplica schema.sql e seed.sql</text>
+    <text x="750" y="674" fill="#4a5560">cria o usuário cozinha</text>
+
+    <!-- VMs do Trabalho 2 -->
+    <rect x="736" y="694" width="232" height="70" rx="10" fill="#f4f6f8" stroke="#b8c0c8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="750" y="714" font-size="11" font-weight="700" fill="#8a96a2" letter-spacing="0.6">COMPUTE ENGINE</text>
+    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs do Trabalho 2</text>
+    <text x="750" y="754" fill="#8a96a2">paradas ou excluídas</text>
+    <circle cx="938" cy="730" r="13" fill="none" stroke="#b42318" stroke-width="2.2"/>
+    <line x1="929" y1="721" x2="947" y2="739" stroke="#b42318" stroke-width="2.2"/>
+  </g>
+
+  <!-- setas dos servicos de apoio -->
+  <g stroke="#6b7785" stroke-width="1.5" stroke-dasharray="5 4" fill="none">
+    <line x1="736" y1="300" x2="683" y2="300" marker-end="url(#seta-cinza)"/>
+    <line x1="736" y1="404" x2="683" y2="404" marker-end="url(#seta-cinza)"/>
+    <line x1="680" y1="526" x2="733" y2="526" marker-end="url(#seta-cinza)"/>
+  </g>
+  <g font-size="11" fill="#4a5560" text-anchor="middle">
+    <text x="708" y="292">imagens</text>
+    <text x="708" y="396">segredos</text>
+    <text x="708" y="518">logs</text>
+  </g>
+  <line x1="736" y1="650" x2="683" y2="650" stroke="#1d2329" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="708" y="642" font-size="11" font-weight="700" fill="#1d2329" text-anchor="middle">SQL</text>
+
+  <!-- legenda -->
+  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · região us-central1 · nenhuma VM ligada</text>
+  <text x="32" y="803" font-size="12" fill="#4a5560">PÚBLICO: HTTPS aberto na internet · PRIVADO: só contas de serviço com roles/run.invoker (o Gateway; o Pedidos, para o Catálogo)</text>
+</svg>
+<!-- fim do diagrama -->
+  <figcaption><b>Figura 1.</b> Arquitetura implantada no GCP. A seta vermelha é o caminho de uma requisição de dados do navegador; as setas tracejadas ligam os serviços de apoio (imagens, segredos e telemetria) ao Cloud Run. Fonte editável em <code>docs/arquitetura-cloud-run.svg</code>.</figcaption>
+</figure>
+
+<div class="legenda-tabela"><b>Tabela 1.</b> Serviços gerenciados do GCP utilizados.</div>
+<table>
+  <thead><tr><th style="width:17%">Serviço</th><th style="width:33%">Recursos</th><th>Uso no sistema</th></tr></thead>
+  <tbody>
+    <tr><td class="forte">Cloud Run (serviços)</td><td><code>delivery-frontend</code>, <code>delivery-gateway</code>, <code>delivery-usuarios</code>, <code>delivery-catalogo</code>, <code>delivery-pedidos</code></td><td>Executa os contêineres com HTTPS gerenciado, de 0 a 2 instâncias por serviço e CPU extra na partida dos serviços Python (<code>--cpu-boost</code>); nos microsserviços, HTTP/2 de ponta a ponta para o gRPC (<code>--use-http2</code>)</td></tr>
+    <tr><td class="forte">Cloud Run (job)</td><td><code>delivery-migrador</code></td><td>Aplica <code>db/schema.sql</code> e <code>db/seed.sql</code> (idempotentes) e cria o usuário da cozinha a cada implantação</td></tr>
+    <tr><td class="forte">Cloud SQL</td><td><code>delivery-postgres</code> (PostgreSQL 16, <code>db-f1-micro</code>), banco <code>delivery</code></td><td>Persistência real dos dados; conexão pelo conector do Cloud Run (socket <code>/cloudsql</code>), com o papel <code>roles/cloudsql.client</code> e sem IP autorizado</td></tr>
+    <tr><td class="forte">Artifact Registry</td><td>repositório Docker <code>delivery</code> (<code>us-central1</code>)</td><td>Guarda as seis imagens, etiquetadas com o commit implantado</td></tr>
+    <tr><td class="forte">Cloud Build</td><td><code>cloudbuild.yaml</code></td><td>Constrói as seis imagens em paralelo (BuildKit) e publica no Artifact Registry</td></tr>
+    <tr><td class="forte">Secret Manager</td><td><code>delivery-db-senha</code>, <code>delivery-demo-senha</code>, <code>delivery-jwt-segredo</code></td><td>Segredos entregues ao contêiner como variáveis de ambiente (<code>--set-secrets</code>); cada conta de serviço lê só os seus</td></tr>
+    <tr><td class="forte">IAM</td><td>contas <code>delivery-gateway</code>, <code>delivery-servicos</code>, <code>delivery-frontend</code></td><td>Menor privilégio por papel; <code>roles/run.invoker</code> define quem pode chamar cada microsserviço</td></tr>
+    <tr><td class="forte">Logging e Trace</td><td>Cloud Logging, Cloud Trace</td><td>Logs em JSON com o id da requisição; spans OpenTelemetry do Gateway até o banco, um por tentativa de retry</td></tr>
+    <tr><td class="forte">Compute Engine</td><td>VMs do Trabalho 2</td><td>Paradas ou excluídas por <code>desligar.sh</code>; <code>status.sh</code> lista as instâncias para comprovar</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">3</span>Tecnologias e frameworks</h2>
+
+<div class="legenda-tabela"><b>Tabela 2.</b> Tecnologias por camada.</div>
+<table>
+  <thead><tr><th style="width:13%">Camada</th><th style="width:30%">Tecnologias</th><th>Decisões principais</th></tr></thead>
+  <tbody>
+    <tr><td class="forte">Frontend</td><td>React 18.3, Vite 5.4, nginx-unprivileged 1.28 (Alpine)</td><td>SPA sem biblioteca de componentes; <code>api.js</code> é o único módulo que fala com o backend; tempo real por SSE lido com <code>fetch</code>; URL do Gateway injetada na partida (<code>/config.js</code>), então a mesma imagem serve qualquer ambiente</td></tr>
+    <tr><td class="forte">API Gateway</td><td>Python 3.12, FastAPI 0.141, Pydantic 2.13, Uvicorn 0.53, PyJWT 2.10, grpcio 1.68</td><td>Middleware JWT (HS256) e checagem de papel; modelos com <code>extra="forbid"</code>; erros gRPC traduzidos para HTTP (indisponibilidade vira 503 com <code>Retry-After</code>); rotas finas, sem acesso ao banco</td></tr>
+    <tr><td class="forte">Microsserviços</td><td>Python 3.12, gRPC 1.68, Protocol Buffers 5.29, <code>grpc.health.v1</code>, reflection</td><td>Contratos em <code>proto/*.proto</code> como fonte da verdade (stubs gerados no build); <code>servico.py</code> com as regras e <code>repositorio.py</code> como único lugar com SQL; interceptador comum para trace, injeção de falha e erro de banco</td></tr>
+    <tr><td class="forte">Banco de dados</td><td>PostgreSQL 16 (Cloud SQL), psycopg 3.3 com pool, bcrypt</td><td>SQL puro, sem ORM; scripts idempotentes; fotos em <code>BYTEA</code>; <code>LISTEN/NOTIFY</code> para eventos; exclusão lógica; código de prato gerado sob <code>pg_advisory_xact_lock</code></td></tr>
+    <tr><td class="forte">Observabilidade</td><td>OpenTelemetry 1.45 (exportador do Cloud Trace), logs JSON</td><td>O trace id é o id da requisição e viaja nos metadados gRPC; no ambiente local, Jaeger</td></tr>
+    <tr><td class="forte">Implantação</td><td>Docker multi-stage, Cloud Build, <code>gcloud</code> em scripts Bash, docker compose</td><td><code>implantar.sh</code> (nove etapas, pode rodar de novo), <code>ligar.sh</code>, <code>desligar.sh</code>, <code>status.sh</code>; <code>SIMULAR=1</code> mostra os comandos sem executar</td></tr>
+  </tbody>
+</table>
+
+<h3>Dockerfiles e imagens</h3>
+<p>Há um Dockerfile por papel: <code>frontend/Dockerfile</code>, <code>docker/gateway.Dockerfile</code>, <code>docker/migrador.Dockerfile</code> e <code>docker/microsservico.Dockerfile</code>, que gera Usuários, Catálogo e Pedidos pelo argumento <code>SERVICO</code>. Todos são multi-stage. No Gateway e nos microsserviços, um estágio compila os <code>.proto</code> (o <code>grpcio-tools</code> fica fora da imagem final), outro instala as dependências num venv com cache do BuildKit e remove o <code>pip</code>, e o final copia só o venv, os stubs e o código do componente, já compilado em bytecode; o migrador segue o mesmo padrão sem o estágio dos stubs, e no frontend o Node existe só no estágio de build: a imagem final é o nginx com os arquivos estáticos. Todas rodam sem root; os serviços têm <code>HEALTHCHECK</code> e recebem o <code>SIGTERM</code> no processo principal, para encerrar de forma limpa; e o <code>.dockerignore</code> funciona como lista de permissão. As dependências são separadas por papel: o Gateway não leva o driver do PostgreSQL e o migrador não leva gRPC.</p>
+
+<div class="bloco">
+<div class="legenda-tabela"><b>Tabela 3.</b> Imagens publicadas no Artifact Registry (tamanho descompactado, <code>docker images</code>).</div>
+<table>
+  <thead><tr><th style="width:28%">Imagem</th><th style="width:34%">Base do estágio final</th><th>Tamanho</th></tr></thead>
+  <tbody>
+    <tr><td><code>frontend</code></td><td><code>nginx-unprivileged:1.28-alpine</code></td><td>81,8 MB (o build do Vite soma menos de 1 MB à base)</td></tr>
+    <tr><td><code>gateway</code></td><td><code>python:3.12-slim</code></td><td>276 MB</td></tr>
+    <tr><td><code>usuarios</code>, <code>catalogo</code>, <code>pedidos</code></td><td><code>python:3.12-slim</code></td><td>281 MB cada; as três compartilham as camadas de base e de dependências</td></tr>
+    <tr><td><code>migrador</code></td><td><code>python:3.12-slim</code></td><td>208 MB</td></tr>
+    <tr><td class="nota">referência: imagem única do Trabalho 2</td><td class="nota"><code>python:3.12-slim</code>, um estágio, root</td><td class="nota">308 MB, com o compilador de Protobuf e todas as dependências em todos os papéis</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">4</span>Estratégia de resiliência</h2>
+
+<p>Na nuvem, falha parcial é rotina: instância que sobe a frio, revisão nova substituindo a anterior, banco reiniciando, oscilação de rede. A estratégia combina recursos da plataforma com mecanismos no código, concentrados na classe <code>ClienteResiliente</code> (<code>src/comum/resiliencia.py</code>), usada pelo Gateway para chamar os três microsserviços e pelo Pedidos para chamar o Catálogo, e no interceptador comum dos servidores gRPC (<code>src/comum/servidor_grpc.py</code>). Todos os parâmetros vêm de variáveis de ambiente com valor padrão.</p>
+
+<div class="legenda-tabela"><b>Tabela 4.</b> Mecanismos de tolerância a falhas.</div>
+<table>
+  <thead><tr><th style="width:15%">Mecanismo</th><th>Funcionamento</th><th style="width:27%">Configuração no Cloud Run</th></tr></thead>
+  <tbody>
+    <tr><td class="forte">Timeout e prazo total</td><td>Cada tentativa tem um limite e a soma das tentativas também: nenhuma requisição fica pendurada esperando um serviço lento.</td><td><code>GRPC_TIMEOUT=10</code> s e <code>GRPC_PRAZO_TOTAL=25</code> s (5 e 12 s no ambiente local; a folga cobre a partida a frio)</td></tr>
+    <tr><td class="forte">Retry com backoff</td><td>Até 3 tentativas, com esperas de ~0,2 s e ~0,4 s sorteadas entre 50% e 100% (jitter) para os clientes não repetirem juntos. Só repete o que é seguro: <code>UNAVAILABLE</code> sempre, pois ocorre antes de qualquer escrita; <code>DEADLINE_EXCEEDED</code> e <code>CANCELLED</code> só em operação idempotente.</td><td><code>RETRY_TENTATIVAS=3</code></td></tr>
+    <tr><td class="forte">Idempotência</td><td>O Gateway gera o <code>pedido_id</code> antes da primeira tentativa; repetir <code>CriarPedido</code> devolve o pedido já gravado (<code>ON CONFLICT DO NOTHING</code>), sem duplicar. Cadastro de prato e mudança de etapa também podem ser repetidos.</td><td>chave criada no Gateway</td></tr>
+    <tr><td class="forte">Circuit breaker</td><td>Um circuito por serviço. Após 3 chamadas seguidas que falharam mesmo com retry, ele abre e recusa na hora (503 com <code>Retry-After</code>); depois de 15 s libera uma chamada de teste (meio-aberto) e fecha se ela passar. O Catálogo fora não abre o circuito de Usuários nem de Pedidos.</td><td><code>DISJUNTOR_FALHAS=3</code>, <code>DISJUNTOR_ABERTO_SEGUNDOS=15</code></td></tr>
+    <tr><td class="forte">Fallback do cardápio</td><td>A última lista boa de cada categoria fica em memória no Gateway e é servida, com <code>"origem": "cache"</code> e um aviso, quando o Catálogo não responde. O cache só exibe o cardápio: pedido é sempre conferido no banco.</td><td><code>CACHE_CARDAPIO_SEGUNDOS=1800</code></td></tr>
+    <tr><td class="forte">Prazo propagado</td><td>O Pedidos chama o Catálogo com o tempo que resta da chamada do Gateway e, se o Catálogo falhar, avisa no metadado <code>x-falha-dependencia</code>: o Gateway não repete o <code>CriarPedido</code> (evita tempestade de retries) nem conta a falha contra o Pedidos.</td><td>automático</td></tr>
+    <tr><td class="forte">Banco indisponível</td><td>O interceptador converte erro de conexão com o PostgreSQL em <code>UNAVAILABLE</code>, que o cliente pode repetir, e o pool testa cada conexão antes de usar, reabrindo sozinho quando o Cloud SQL volta.</td><td><code>DB_POOL_MAX=3</code> por instância</td></tr>
+    <tr><td class="forte">Tempo real</td><td>Se o stream gRPC <code>AcompanharPedidos</code> cair, o Gateway reabre com espera de 1 a 15 s e os navegadores veem "Reconectando..."; o <code>LISTEN</code> do PostgreSQL também reconecta e a tela segue consultando periodicamente.</td><td><code>--timeout 3600</code> no Gateway e no Pedidos</td></tr>
+    <tr><td class="forte">Plataforma</td><td>O Cloud Run substitui instâncias com falha e só manda tráfego a uma revisão nova depois que ela sobe; no <code>SIGTERM</code> o serviço marca o health check como <code>NOT_SERVING</code> e termina as chamadas em andamento.</td><td><code>--min-instances 0</code>, <code>--max-instances 2</code>, <code>--cpu-boost</code></td></tr>
+  </tbody>
+</table>
+
+<p><b>O que o usuário vê.</b> Indisponibilidade nunca vira erro 500 genérico: <code>UNAVAILABLE</code>, <code>DEADLINE_EXCEEDED</code>, <code>CANCELLED</code> e <code>RESOURCE_EXHAUSTED</code> viram 503 com <code>Retry-After</code> e uma mensagem que o frontend apresenta em linguagem clara; o cardápio entra em modo de segurança com a lista salva; e a aba Saúde da cozinha mostra o health check de cada microsserviço e o estado de cada circuito.</p>
+
+<div class="bloco">
+<div class="legenda-tabela"><b>Tabela 5.</b> Roteiro automático <code>scripts/testar_resiliencia.py</code>, medido com docker compose derrubando o contêiner do Catálogo.</div>
+<table>
+  <thead><tr><th style="width:36%">Situação</th><th>Resultado medido</th></tr></thead>
+  <tbody>
+    <tr><td>Catálogo fora: <code>GET /cardapio</code></td><td>200 com a lista salva (<code>origem: cache</code>) em 2,4 s, depois de esgotar o retry</td></tr>
+    <tr><td>Catálogo fora: <code>POST /pedidos</code></td><td>503 em 0,5 s com <code>Retry-After: 5</code>; nada gravado</td></tr>
+    <tr><td>Isolamento: <code>GET /pedidos</code></td><td>200 normal: Pedidos e Usuários continuam no ar</td></tr>
+    <tr><td>Depois de 3 falhas seguidas</td><td>circuito do Catálogo aberto; 503 em 3 ms, sem chamar o serviço</td></tr>
+    <tr><td>Catálogo religado</td><td>em ~16 s o circuito fecha, o cardápio volta a vir do Catálogo e <code>POST /pedidos</code> responde 201</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><b>Demonstração no Cloud Run.</b> A falha é provocada pelo painel do GCP, sem mudar código: em <i>Cloud Run › delivery-catalogo › Editar e implantar nova revisão › Variáveis e secrets</i>, define-se <code>FALHA_PERCENTUAL=100</code>, e o interceptador passa a responder <code>UNAVAILABLE</code> como um serviço fora do ar. Ao vivo se observa o cardápio servido do cache, o pedido recusado com 503, o circuito aberto na aba Saúde e, no Cloud Logging, cada tentativa do retry (<code>repetindo em ... ms</code>) com o id da requisição. Com <code>FALHA_PERCENTUAL=50</code> o retry absorve as falhas sem o usuário perceber; com <code>FALHA_ATRASO_MS=12000</code> é o timeout que corta a espera. Voltando para 0, tudo se recupera em cerca de 15 s. O mesmo roteiro da Tabela 5 roda contra a nuvem (<code>testar_resiliencia.py --url</code> com os comandos <code>gcloud run services update</code> de derrubar e religar), assim como os 84 cenários de <code>scripts/testar_gateway.py</code> (status HTTP, autenticação e regras de negócio).</p>
+
+<h2><span class="num">5</span>Links públicos HTTPS e configuração no Cloud Run</h2>
+
+<div class="bloco">
+<div class="legenda-tabela"><b>Tabela 6.</b> Serviços implantados no Cloud Run (região <code>us-central1</code>). A tabela é impressa no fim de <code>scripts/gcp/cloud-run/implantar.sh</code> e por <code>status.sh</code>.</div>
+<table>
+  <thead><tr><th style="width:31%">Serviço</th><th style="width:13%">Acesso</th><th>URL</th></tr></thead>
+  <tbody>
+    <tr><td><code>delivery-frontend</code><span class="funcao">interface do cliente e da cozinha</span></td><td class="acesso-publico">público</td><td class="url"><mark class="pendente">https://delivery-frontend-…run.app</mark></td></tr>
+    <tr><td><code>delivery-gateway</code><span class="funcao">API HTTP/JSON, documentação em <code>/docs</code></span></td><td class="acesso-publico">público</td><td class="url"><mark class="pendente">https://delivery-gateway-…run.app</mark></td></tr>
+    <tr><td><code>delivery-usuarios</code><span class="funcao">gRPC: contas e login</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><mark class="pendente">https://delivery-usuarios-…run.app</mark></td></tr>
+    <tr><td><code>delivery-catalogo</code><span class="funcao">gRPC: cardápio, opções e fotos</span></td><td class="acesso-iam">IAM: Gateway e Pedidos</td><td class="url"><mark class="pendente">https://delivery-catalogo-…run.app</mark></td></tr>
+    <tr><td><code>delivery-pedidos</code><span class="funcao">gRPC: pedidos e tempo real</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><mark class="pendente">https://delivery-pedidos-…run.app</mark></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><b>Implantação.</b> Tudo é implantado pelo Cloud Shell com um comando, <code>bash scripts/gcp/cloud-run/implantar.sh</code>, que pode ser repetido a cada versão: habilita as APIs, cria o repositório de imagens, liga o Cloud SQL, cria os segredos (senhas sorteadas; só a da cozinha é digitada) e as contas de serviço com papéis mínimos, constrói as imagens no Cloud Build, executa o job de migração e implanta os microsserviços e, por fim, Gateway e frontend, com o CORS apontando para a URL do frontend. Entre os testes, <code>desligar.sh</code> desliga o Cloud SQL, o maior custo, e para ou exclui as VMs do Trabalho 2; <code>ligar.sh</code> religa o banco antes da apresentação; o Cloud Run, com mínimo de zero instâncias, não cobra parado.</p>
+
+<div class="bloco">
+<div class="legenda-tabela"><b>Tabela 7.</b> Variáveis de ambiente de cada serviço, visíveis e editáveis no painel do Cloud Run (<i>Editar e implantar nova revisão › Variáveis e secrets</i>). Os segredos aparecem como referência ao Secret Manager, sem o valor.</div>
+<table>
+  <thead><tr><th style="width:21%">Serviço</th><th>Variáveis de ambiente</th><th style="width:19%">Segredos</th></tr></thead>
+  <tbody>
+    <tr><td><code>delivery-gateway</code></td><td><code>USUARIOS_HOST</code>, <code>CATALOGO_HOST</code> e <code>PEDIDOS_HOST</code> (endereços <code>run.app</code>) com <code>*_PORTA=443</code>, que liga TLS e ID token; <code>CORS_ORIGENS</code> (URL do frontend); <code>GRPC_TIMEOUT</code> e <code>GRPC_PRAZO_TOTAL</code>; <code>LOG_JSON=1</code>; <code>RASTREAMENTO=gcp</code></td><td><code>JWT_SEGREDO</code></td></tr>
+    <tr><td><code>delivery-usuarios</code>, <code>delivery-catalogo</code></td><td><code>DB_HOST=/cloudsql/&lt;conexão&gt;</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>DB_POOL_MAX=3</code>, <code>MAX_WORKERS=20</code>, tempos do gRPC, <code>LOG_JSON=1</code>, <code>RASTREAMENTO=gcp</code>; na demonstração, <code>FALHA_PERCENTUAL</code> e <code>FALHA_ATRASO_MS</code></td><td><code>DB_PASSWORD</code></td></tr>
+    <tr><td><code>delivery-pedidos</code></td><td>as mesmas, mais <code>CATALOGO_HOST</code> e <code>CATALOGO_PORTA=443</code></td><td><code>DB_PASSWORD</code></td></tr>
+    <tr><td><code>delivery-frontend</code></td><td><code>API_URL</code> (URL do Gateway, servida em <code>/config.js</code>)</td><td>nenhum</td></tr>
+    <tr><td><code>delivery-migrador</code> (job)</td><td><code>DB_*</code> como acima e <code>DEMO_LOGIN=professor</code></td><td><code>DB_PASSWORD</code>, <code>DEMO_SENHA</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+</body>
+</html>
