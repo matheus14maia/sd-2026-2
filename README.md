@@ -158,7 +158,7 @@ Detalhes em [docs/03-execucao-local.md](docs/03-execucao-local.md).
 | [docs/07-resiliencia.md](docs/07-resiliencia.md) | tolerancia a falhas: retry, circuit breaker, fallback, idempotencia e como demonstrar |
 | [docs/08-rastreamento.md](docs/08-rastreamento.md) | rastreamento distribuido: spans de cada requisicao no Jaeger (local) e no Cloud Trace |
 | [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md) | implantacao do Trabalho 3 no Google Cloud pelo Cloud Shell (`scripts/gcp/cloud-run/`): Cloud Run, Cloud SQL, Artifact Registry, Secret Manager, Cloud Trace; ligar, desligar e custo |
-| [apresentacao/](apresentacao/) | slides do Trabalho 2 (`.pptx` e `.pdf`) e relatorio tecnico do Trabalho 3 (`Trabalho3-relatorio.html`: abrir no Chrome e salvar como PDF, A4) |
+| [apresentacao/](apresentacao/) | slides do Trabalho 2 (`.pptx` e `.pdf`) e relatorio tecnico do Trabalho 3 (`Trabalho3-relatorio.pdf`, gerado do `Trabalho3-relatorio.html`) |
 
 O manual do projeto, o prontuario de problemas e o changelog ficam em
 [markdown/](markdown/).

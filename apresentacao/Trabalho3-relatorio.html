@@ -108,7 +108,7 @@
   <h1>Hell's Kitchen Delivery no Google Cloud</h1>
   <div class="subtitulo">Microsserviços em contêineres no Cloud Run, banco no Cloud SQL e tolerância a falhas</div>
   <div class="meta">
-    <div><span>Integrantes</span>Matheus Maia, Kelvin Bruno e <mark class="pendente">nome do 3º integrante</mark></div>
+    <div><span>Integrantes</span>Matheus Maia, Kelvin Bruno e Victor Hugo Ferreira</div>
     <div><span>Código-fonte</span>github.com/matheus14maia/sd-2026-2</div>
     <div><span>Entrega</span>02/12/2026</div>
   </div>
@@ -410,7 +410,7 @@
 </table>
 </div>
 
-<p><b>Demonstração no Cloud Run.</b> A falha é provocada pelo painel do GCP, sem mudar código: em <i>Cloud Run › delivery-catalogo › Editar e implantar nova revisão › Variáveis e secrets</i>, define-se <code>FALHA_PERCENTUAL=100</code>, e o interceptador passa a responder <code>UNAVAILABLE</code> como um serviço fora do ar. Ao vivo se observa o cardápio servido do cache, o pedido recusado com 503, o circuito aberto na aba Saúde e, no Cloud Logging, cada tentativa do retry (<code>repetindo em ... ms</code>) com o id da requisição. Com <code>FALHA_PERCENTUAL=50</code> o retry absorve as falhas sem o usuário perceber; com <code>FALHA_ATRASO_MS=12000</code> é o timeout que corta a espera. Voltando para 0, tudo se recupera em cerca de 15 s. O mesmo roteiro da Tabela 5 roda contra a nuvem (<code>testar_resiliencia.py --url</code> com os comandos <code>gcloud run services update</code> de derrubar e religar), assim como os 84 cenários de <code>scripts/testar_gateway.py</code> (status HTTP, autenticação e regras de negócio).</p>
+<p><b>Demonstração no Cloud Run.</b> A falha é provocada pelo painel do GCP, sem mudar código: em <i>Cloud Run › delivery-catalogo › Editar e implantar nova revisão › Variáveis e secrets</i>, define-se <code>FALHA_PERCENTUAL=100</code>, e o interceptador passa a responder <code>UNAVAILABLE</code> como um serviço fora do ar. Ao vivo se observa o cardápio servido do cache, o pedido recusado com 503, o circuito aberto na aba Saúde e, no Cloud Logging, cada tentativa do retry (<code>repetindo em ... ms</code>) com o id da requisição. Com <code>FALHA_PERCENTUAL=50</code> o retry absorve as falhas sem o usuário perceber; com <code>FALHA_ATRASO_MS=12000</code> é o timeout que corta a espera. Voltando para 0, tudo se recupera em cerca de 15 s. Os 84 cenários de <code>scripts/testar_gateway.py</code> (status HTTP, autenticação e regras de negócio) passaram contra a URL pública do Gateway em 11/11/2026, e o roteiro da Tabela 5 também roda contra a nuvem (<code>testar_resiliencia.py --url</code>, com os comandos <code>gcloud run services update</code> de derrubar e religar).</p>
 
 <h2><span class="num">5</span>Links públicos HTTPS e configuração no Cloud Run</h2>
 

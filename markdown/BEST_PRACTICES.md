@@ -388,8 +388,10 @@ nada que nao esteja no contrato.
 - **Diagrama e relatorio:** a fonte do diagrama e `docs/arquitetura-cloud-run.svg`
   (sem acento, como a documentacao); o PNG 2x sai dele para o README e os slides.
   O relatorio (`apresentacao/Trabalho3-relatorio.html`, ate 5 paginas A4) leva
-  acento e traz o mesmo diagrama embutido: mudou o SVG, atualize os dois. PDF so
-  com fontes TrueType (Carlito, Caladea, JetBrains Mono); conferir com `pdffonts`.
+  acento e traz o mesmo diagrama embutido: mudou o SVG, atualize os dois. O PDF
+  entregue fica ao lado (`Trabalho3-relatorio.pdf`): mudou o HTML, gere o PDF de
+  novo. PDF so com fontes TrueType (Carlito, Caladea, JetBrains Mono); conferir com
+  `pdffonts`.
 
 ## Deploy em varias VMs
 
