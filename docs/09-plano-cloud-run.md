@@ -103,7 +103,7 @@ atual.
 | Vai testar ou apresentar | `bash scripts/gcp/cloud-run/ligar.sh` (liga o Cloud SQL, 2 a 5 min) | Cloud SQL ligado (o maior custo) e o Cloud Run so enquanto atende |
 | Terminou | `bash scripts/gcp/cloud-run/desligar.sh` | centavos: disco do Cloud SQL, imagens e segredos |
 | Ver links e provar que nao ha VM ligada | `bash scripts/gcp/cloud-run/status.sh` | - |
-| Retirar as VMs do Trabalho 2 de vez | `bash scripts/gcp/cloud-run/desligar.sh --excluir-vms` (exclui as VMs e libera os IPs fixos; nao da para desfazer) | - |
+| Retirar as VMs do Trabalho 2 de vez | `bash scripts/gcp/cloud-run/desligar.sh --excluir-vms` (exclui as tres VMs, libera os tres IPs fixos e tira o IP antigo da VM das redes autorizadas do Cloud SQL; nao da para desfazer) | nada das VMs (paradas, elas ainda cobram disco e IP fixo) |
 
 - O Cloud Run nao cobra parado: `--min-instances 0` e `--max-instances 2` em
   cada servico (teto de custo).

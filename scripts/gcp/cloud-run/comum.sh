@@ -30,7 +30,7 @@ SA_FRONTEND="delivery-frontend@$PROJETO.iam.gserviceaccount.com"
 SERVICOS=(delivery-frontend delivery-gateway delivery-usuarios delivery-catalogo delivery-pedidos)
 # Restos do Trabalho 2 (Compute Engine), que a Etapa 3 manda desligar.
 VMS_TRABALHO2=(servidor-delivery delivery-gateway delivery-frontend)
-IPS_TRABALHO2=(ip-delivery-gateway ip-delivery-frontend)
+IPS_TRABALHO2=(ip-delivery-gateway ip-delivery-frontend ip-servidor-delivery)
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SIMULAR="${SIMULAR:-0}"
