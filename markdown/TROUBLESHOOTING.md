@@ -22,6 +22,36 @@
 
 ## 2026-11-11
 
+### 10 dos 84 cenarios falham contra o Cloud Run com 409
+
+**Sintoma:** `python3 scripts/testar_gateway.py --url https://delivery-gateway-...run.app`
+terminou com `10 de 84 cenario(s) nao sairam como esperado.` Os erros:
+`Agua sem gas continua valendo (esperado 201, recebido 409)`, `Refrigerante sem
+escolher o sabor (esperado 400, recebido 409)`, `Sabor que nao existe no
+cardapio (esperado 400, recebido 409)`, `Agua com gas e dois sabores de
+refrigerante (esperado 201, recebido 409)`, `Cliente faz o proprio pedido
+(esperado 201, recebido 409)` e, em cascata (o pedido do cliente nao foi
+criado), os cenarios de posse dos pedidos e o do tempo real. No computador, os
+84 passavam.
+
+**Causa:** o Cloud SQL e o mesmo banco do Trabalho 2, onde o Refrigerante
+(BE01) e a Agua (BE03) tinham sido tirados do dia pela tela da cozinha. A carga
+inicial (`db/seed.sql`) de proposito nunca mexe em `disponivel`, entao o banco
+novo herdou isso. O Pedidos confere a disponibilidade do item antes da opcao:
+todo pedido com BE01 ou BE03 voltava 409, inclusive os que deveriam dar 400. O
+sistema estava certo; o teste supunha o cardapio da carga inicial. Reproduzido
+no computador tirando BE01 e BE03 do dia: os mesmos 10 erros.
+
+**Solucao:** antes dos cenarios, o teste le o cardapio e acerta os itens que
+usa (`CARDAPIO_DO_TESTE`: PR01, BE01, BE02 e BE03 no dia, PR05 fora, sem opcao
+fora do dia); ao terminar (`atexit`), devolve o que a cozinha tinha deixado e
+avisa no fim da saida. Conferido no computador nos tres casos: cardapio da carga
+inicial, BE01 e BE03 fora do dia e so a agua com gas fora (84 de 84, estado
+devolvido). Para a apresentacao, ligue de novo o Refrigerante e a Agua na aba
+Cozinha.
+
+**Arquivos:** `scripts/testar_gateway.py`.
+
 ### PDF do relatorio com fontes Type 3 e diagrama cortado nas laterais
 
 **Sintoma:** o PDF gerado do `apresentacao/Trabalho3-relatorio.html` pelo

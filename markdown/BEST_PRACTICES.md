@@ -380,6 +380,11 @@ nada que nao esteja no contrato.
   no Cloud Run (10/25 s) por causa da partida a frio; 5/12 s no compose.
 - **Imagens base por argumento** (`IMAGEM_PYTHON`, `IMAGEM_NODE`,
   `IMAGEM_NGINX`): Docker Hub por padrao, `mirror.gcr.io` no Cloud Build.
+- **Teste ponta a ponta nao supoe o estado do banco.** O banco da nuvem guarda o
+  que a cozinha mudou pela tela, e a carga inicial nunca mexe em disponibilidade:
+  o `testar_gateway.py` acerta antes o que usa e devolve no fim (`atexit`, vale
+  mesmo se parar no meio). Cenario novo que dependa de outro item: ponha o item
+  em `CARDAPIO_DO_TESTE`.
 - **Diagrama e relatorio:** a fonte do diagrama e `docs/arquitetura-cloud-run.svg`
   (sem acento, como a documentacao); o PNG 2x sai dele para o README e os slides.
   O relatorio (`apresentacao/Trabalho3-relatorio.html`, ate 5 paginas A4) leva

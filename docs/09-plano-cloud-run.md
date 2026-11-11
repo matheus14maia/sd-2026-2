@@ -69,6 +69,11 @@ sua conta: nao precisa instalar nada no computador.
    python3 scripts/testar_gateway.py --url <link do delivery-gateway> --resumido --senha <senha da cozinha>
    ```
 
+   O banco do Cloud SQL guarda o que a cozinha mudou pela tela (a carga inicial
+   nunca mexe em disponibilidade). Por isso o teste acerta antes os itens que
+   usa (PR01, PR05, BE01, BE02 e BE03) e, no fim, devolve o que a cozinha tinha
+   deixado. As contas e os pedidos de teste ficam no banco.
+
 5. **Ao terminar, desligue** (para o Cloud SQL nao ficar cobrando):
 
    ```bash

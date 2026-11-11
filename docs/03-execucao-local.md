@@ -107,7 +107,8 @@ DEMO_SENHA=a-senha-do-.env python scripts/testar_gateway.py --url http://127.0.0
 
 O script so usa a biblioteca padrao do Python, entao roda sem instalar nada. Ele
 faz login com o usuario da cozinha, cria um cliente novo e confere status e
-conteudo de cada resposta:
+conteudo de cada resposta. Se a cozinha tiver mudado a disponibilidade de um
+item que ele usa (num banco ja usado), ele acerta antes e devolve no fim:
 
 ```text
 OK  Gateway no ar (rota publica)  (esperado 200, recebido 200)

@@ -17,12 +17,18 @@ e tirar foto e excluir um prato (cada execucao cadastra e exclui um prato de
 teste; o codigo dele nunca e reaproveitado). E a conta do cliente: dados,
 token novo depois de mudar o nome, telefone no pedido e troca de senha.
 
+Os cenarios supoem o cardapio da carga inicial (PR01, BE01, BE02 e BE03 no
+dia, PR05 fora). Num banco ja usado, como o do Cloud SQL, a cozinha pode ter
+mudado isso pela tela: antes dos cenarios o teste acerta esses itens e, ao
+terminar, devolve o que a cozinha tinha deixado.
+
 Cada cenario imprime o metodo, a rota, o status esperado, o status recebido e o
 corpo da resposta. Alguns cenarios tambem conferem o conteudo da resposta. Sai
 com codigo 1 se algum cenario nao sair como esperado.
 """
 
 import argparse
+import atexit
 import base64
 import json
 import os
@@ -75,6 +81,49 @@ def chamar(base: str, metodo: str, rota: str, corpo=None, bruto: bytes | None = 
             return erro.code, json.loads(conteudo)
         except ValueError:
             return erro.code, conteudo.decode(errors="replace")
+
+
+# Disponibilidade que os cenarios supoem: a da carga inicial (db/seed.sql).
+CARDAPIO_DO_TESTE = {"PR01": True, "PR05": False, "BE01": True, "BE02": True, "BE03": True}
+
+
+def preparar_cardapio(base: str, autorizacao: str):
+    """Deixa os itens usados pelo teste como na carga inicial; devolve a funcao que desfaz.
+
+    A carga inicial nunca mexe em disponibilidade, entao um banco ja usado guarda
+    o que a cozinha mudou pela tela (no Cloud SQL, por exemplo, bebidas tiradas
+    do dia no Trabalho 2). Sem esta preparacao, um pedido com esse item sai 409
+    e o teste acusa um erro que nao e do sistema.
+    """
+    atual = {}
+    for categoria in ("Pratos", "Bebidas"):
+        _, resposta = chamar(base, "GET", "/cardapio?categoria=" + categoria, autorizacao=autorizacao)
+        for item in (resposta or {}).get("itens", []) if isinstance(resposta, dict) else []:
+            atual[item.get("codigo")] = item
+    antes = {}
+    for codigo, disponivel in CARDAPIO_DO_TESTE.items():
+        item = atual.get(codigo)
+        if item is None:
+            continue
+        mudanca = {}
+        if item.get("disponivel") != disponivel:
+            mudanca["disponivel"] = disponivel
+        if item.get("opcoes_indisponiveis"):
+            mudanca["opcoes_indisponiveis"] = []
+        if mudanca:
+            chamar(base, "PATCH", "/cardapio/" + codigo, mudanca, autorizacao=autorizacao)
+            antes[codigo] = {campo: item.get(campo) for campo in mudanca}
+    if antes:
+        print("\nPreparacao: %s diferente(s) da carga inicial; o teste acerta agora e devolve ao terminar."
+              % ", ".join(sorted(antes)))
+
+    def devolver() -> None:
+        for codigo, valores in antes.items():
+            chamar(base, "PATCH", "/cardapio/" + codigo, valores, autorizacao=autorizacao)
+        if antes:
+            print("Cardapio devolvido como a cozinha tinha deixado: %s." % ", ".join(sorted(antes)))
+
+    return devolver
 
 
 def ouvir_eventos(base: str, autorizacao: str, destino: list, pronto: threading.Event) -> None:
@@ -173,6 +222,10 @@ def main() -> int:
     bearer_cliente = "Bearer " + token_cliente
     cenario("Cliente tentando alterar o cardapio", 403, "PATCH", "/cardapio/PR01",
             {"disponivel": True, "preco": 1.0}, autorizacao=bearer_cliente)
+
+    # Fora da contagem: itens do cardapio como os cenarios supoem (atexit devolve
+    # o estado da cozinha mesmo se o teste parar no meio).
+    atexit.register(preparar_cardapio(base, bearer))
 
     # Rotas de negocio (com token) -----------------------------------------
     cenario("Cardapio de bebidas", 200, "GET", "/cardapio?categoria=Bebidas")
