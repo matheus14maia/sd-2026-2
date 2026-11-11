@@ -44,14 +44,17 @@ sua conta: nao precisa instalar nada no computador.
 
 1. Abra o console no projeto `sistemas-distribuidos-505422` e clique no icone
    **Ativar o Cloud Shell** (`>_`, no alto a direita).
-2. Baixe o codigo (troque a branch se o trabalho ja estiver na `main`):
+2. Baixe o codigo:
 
    ```bash
-   git clone -b claude/gracious-cerf-8zxxvq https://github.com/matheus14maia/sd-2026-2.git
+   git clone https://github.com/matheus14maia/sd-2026-2.git
    ```
    ```bash
    cd sd-2026-2
    ```
+
+   Se a pasta `sd-2026-2` ja existe no Cloud Shell (de uma implantacao
+   anterior), entre nela e atualize com `git checkout main` e `git pull`.
 
 3. Rode a implantacao:
 
