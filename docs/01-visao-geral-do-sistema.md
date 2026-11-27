@@ -34,9 +34,9 @@ Trabalho 3 cada um e um servico gerenciado ([09-plano-cloud-run.md](09-plano-clo
 |---|---|---|---|---|
 | **Frontend** (`frontend/`) | telas para o usuario; so conversa com o Gateway | HTTP na porta 80 (publica) | - | Cloud Run `delivery-frontend`, publico |
 | **Gateway** (`src/gateway/`) | ponto unico de entrada; autentica o JWT, confere o papel, valida o JSON, traduz para Protobuf e despacha | HTTP/JSON na porta 8000 (publica) | nenhuma tabela | Cloud Run `delivery-gateway`, publico |
-| **Usuarios** (`src/usuarios/`) | cadastro, conferencia de login e senha (bcrypt) e dados da conta | gRPC na porta 9092 (so o Gateway) | `usuarios` | Cloud Run `delivery-usuarios`, privado |
-| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, cadastrar, editar e excluir pratos, disponibilidade e fotos | gRPC na porta 9091 (o Gateway e o Pedidos) | `itens_cardapio`, `fotos_itens` | Cloud Run `delivery-catalogo`, privado |
-| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido`, `etapas_pedido` | Cloud Run `delivery-pedidos`, privado |
+| **Usuarios** (`src/usuarios/`) | cadastro, conferencia de login e senha (bcrypt) e dados da conta | gRPC na porta 9092 (so o Gateway) | `usuarios` | Cloud Run `delivery-usuarios`, HTTPS publico (negocio so com a chave interna) |
+| **Catalogo** (`src/catalogo/`) | cardapio: listar, consultar por codigo, cadastrar, editar e excluir pratos, disponibilidade e fotos | gRPC na porta 9091 (o Gateway e o Pedidos) | `itens_cardapio`, `fotos_itens` | Cloud Run `delivery-catalogo`, HTTPS publico (negocio so com a chave interna) |
+| **Pedidos** (`src/pedidos/`) | cria, consulta, lista e avanca pedidos; consulta o Catalogo para precificar | gRPC na porta 9090 (so o Gateway) | `pedidos`, `itens_pedido`, `etapas_pedido` | Cloud Run `delivery-pedidos`, HTTPS publico (negocio so com a chave interna) |
 | **PostgreSQL** | persistencia | SQL na porta 5432 | - | Cloud SQL `delivery-postgres`, pelo conector do Cloud Run |
 | **Migrador** | cria as tabelas e carrega a carga inicial a cada deploy e depois termina | - | - | Cloud Run job `delivery-migrador` |
 
@@ -168,4 +168,4 @@ depender de quem o chama (defesa em profundidade).
 | Codigo do prato gerado pelo Catalogo, com trava e chave de idempotencia | `pg_advisory_xact_lock` evita dois cadastros com o mesmo codigo; a chave do Gateway evita prato duplicado num retry |
 | Cardapio do cliente consultado a cada 30 s, pedido conferido no servidor | o cardapio muda pouco: a consulta periodica basta para a sacola marcar o que mudou, e a garantia de verdade e o Pedidos conferir tudo com o Catalogo ao finalizar |
 | Historico de etapas em tabela propria | `etapas_pedido` guarda o horario de cada etapa (para a linha do tempo do pedido) sem mudar a tabela `pedidos` |
-| Um servico do Cloud Run por componente (no Trabalho 2, uma VM por camada) | frontend, Gateway e cada microsservico sobem, escalam e caem de forma independente; os microsservicos so aceitam chamada com o ID token de quem tem `roles/run.invoker` (o Gateway; o Pedidos, no Catalogo), como no Trabalho 2 as portas gRPC so aceitavam a VM do Gateway |
+| Um servico do Cloud Run por componente (no Trabalho 2, uma VM por camada) | frontend, Gateway e cada microsservico sobem, escalam e caem de forma independente; todos tem endpoint HTTPS publico, mas o negocio dos microsservicos so atende quem traz a chave interna do Secret Manager (o Gateway; o Pedidos, no Catalogo), como no Trabalho 2 as portas gRPC so aceitavam a VM do Gateway |

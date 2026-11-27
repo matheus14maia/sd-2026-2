@@ -7,6 +7,9 @@ desligar uma instancia). So muda o servico registrado, entao a rotina fica aqui
 e cada `servidor.py` so passa o que e seu.
 
 O InterceptadorServidor envolve toda chamada de negocio:
+  - com CHAVE_INTERNA definida (Cloud Run), recusa com UNAUTHENTICATED quem nao
+    traz a chave interna (ver chave_interna.py): o endpoint e publico, mas so o
+    Gateway e o Pedidos usam o negocio;
   - abre um span SERVER filho do span de quem chamou (o contexto vem nos
     metadados gRPC), entao o Cloud Trace mostra o caminho inteiro e os logs
     saem com o mesmo trace id;
@@ -27,6 +30,7 @@ import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
 
+from . import chave_interna
 from .rastreamento import SpanKind, Status, StatusCode, configurar, extrair, tracer
 from .rastreamento import encerrar as encerrar_rastreamento
 from .registro import SERVICO, log
@@ -78,14 +82,37 @@ def _anotar_status(span, contexto) -> None:
         span.set_status(Status(StatusCode.ERROR, codigo.name))
 
 
+def _recusar(handler, metodo: str):
+    """Handler do mesmo tipo do original que so responde UNAUTHENTICATED."""
+    mensagem = "Chamada direta recusada: este servico so atende o Gateway (falta a chave interna)."
+
+    def recusar(_requisicao, contexto):
+        log("Chamada sem chave interna recusada em %s" % metodo, "WARNING", operacao=metodo)
+        contexto.abort(grpc.StatusCode.UNAUTHENTICATED, mensagem)
+
+    if handler.unary_stream is not None:
+        fabrica = grpc.unary_stream_rpc_method_handler
+    else:
+        fabrica = grpc.unary_unary_rpc_method_handler
+    return fabrica(recusar, request_deserializer=handler.request_deserializer,
+                   response_serializer=handler.response_serializer)
+
+
 class InterceptadorServidor(grpc.ServerInterceptor):
     def intercept_service(self, continuation, detalhes):
         handler = continuation(detalhes)
         metodo = detalhes.method or ""
-        if handler is None or handler.unary_unary is None or metodo.startswith(PREFIXOS_INFRA):
+        if handler is None or metodo.startswith(PREFIXOS_INFRA):
             return handler
 
         metadados = dict(detalhes.invocation_metadata or ())
+        # Endpoint publico no Cloud Run: o negocio (unario ou stream) so atende
+        # quem traz a chave interna. Health check e reflection ficam abertos.
+        if not chave_interna.confere(metadados):
+            return _recusar(handler, metodo)
+        if handler.unary_unary is None:
+            return handler
+
         comportamento = handler.unary_unary
         operacao = metodo.rsplit("/", 1)[-1]
 

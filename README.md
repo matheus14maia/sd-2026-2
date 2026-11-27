@@ -28,10 +28,13 @@ No seu computador (`docker compose`):
 ```
 
 No Trabalho 3, a mesma arquitetura vai para servicos gerenciados do GCP: os
-componentes no Cloud Run (frontend e Gateway publicos; microsservicos privados,
-chamados pelo Gateway com ID token), o banco no Cloud SQL pelo conector do Cloud
-Run, as imagens no Artifact Registry, as senhas no Secret Manager e os logs no
-Cloud Logging. Passo a passo em [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md).
+componentes no Cloud Run, todos com endpoint HTTPS publico (o frontend e o
+Gateway atendem o navegador; os microsservicos respondem o health check a
+qualquer um, mas o negocio so atende quem traz a chave interna, ou seja, o
+Gateway e o Pedidos), o banco no Cloud SQL pelo conector do Cloud Run, as
+imagens no Artifact Registry, as senhas no Secret Manager e os logs no Cloud
+Logging. Nenhuma VM do Compute Engine: as do Trabalho 2 e a das primeiras aulas
+foram excluidas em 2026-11-27. Passo a passo em [docs/09-plano-cloud-run.md](docs/09-plano-cloud-run.md).
 
 ![Arquitetura no Cloud Run](docs/arquitetura-cloud-run.png)
 
@@ -61,12 +64,9 @@ No Trabalho 2, a mesma arquitetura rodou em 3 VMs no GCP:
                               [Cloud SQL delivery-postgres]  usuarios, itens_cardapio, pedidos, itens_pedido
 ```
 
-Deploy do Trabalho 2 no GCP (VMs; ligado so para demonstracao, com `scripts/gcp/ligar.ps1`):
-
-| O que | Endereco |
-|---|---|
-| Frontend | `http://34.72.228.145` |
-| API Gateway (Swagger) | `http://34.132.172.125:8000/docs` |
+As VMs do Trabalho 2 (`delivery-frontend`, `delivery-gateway`, `servidor-delivery`)
+e os IPs fixos delas foram excluidos em 2026-11-27, na migracao para o Cloud Run;
+os scripts de `scripts/gcp/*.ps1` ficam como registro de como era o deploy.
 
 ## Stack
 

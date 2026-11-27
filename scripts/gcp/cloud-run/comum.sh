@@ -28,8 +28,9 @@ SA_FRONTEND="delivery-frontend@$PROJETO.iam.gserviceaccount.com"
 
 # Servicos do Cloud Run, na ordem da tabela de links do relatorio.
 SERVICOS=(delivery-frontend delivery-gateway delivery-usuarios delivery-catalogo delivery-pedidos)
-# Restos do Trabalho 2 (Compute Engine), que a Etapa 3 manda desligar.
-VMS_TRABALHO2=(servidor-delivery delivery-gateway delivery-frontend)
+# VMs classicas (Compute Engine) que a Etapa 3 manda desligar ou excluir: as tres
+# do Trabalho 2 e a aula-sd-1, criada nas primeiras aulas.
+VMS_TRABALHO2=(servidor-delivery delivery-gateway delivery-frontend aula-sd-1)
 IPS_TRABALHO2=(ip-delivery-gateway ip-delivery-frontend ip-servidor-delivery)
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -93,16 +94,32 @@ estado_do_banco() {
     || echo "INEXISTENTE"
 }
 
+# Operacoes do Cloud SQL ainda em andamento (o patch --async e uma delas).
+operacoes_pendentes() {
+  simulando && { echo 0; return; }
+  gcloud sql operations list --instance "$BANCO" --project "$PROJETO" --quiet \
+    --filter 'status!=DONE' --format 'value(name)' 2>/dev/null | grep -c . || true
+}
+
+# Pronto = RUNNABLE e sem operacao pendente. So o estado nao basta: logo depois
+# do patch --async o banco ainda responde RUNNABLE e em seguida passa minutos em
+# MAINTENANCE aplicando a mudanca (ver TROUBLESHOOTING 2026-11-27).
 esperar_banco() {
   local espera
-  for espera in $(seq 1 60); do
-    if [[ "$(estado_do_banco)" == "RUNNABLE" ]]; then
+  for espera in $(seq 1 90); do
+    if [[ "$(estado_do_banco)" == "RUNNABLE" && "$(operacoes_pendentes)" == "0" ]]; then
       info "Cloud SQL $BANCO: RUNNABLE"
       return 0
     fi
     info "aguardando o Cloud SQL ligar ($((espera * 10)) s)..."
     sleep 10
   done
-  echo "O Cloud SQL $BANCO nao ligou em 10 minutos." >&2
+  # A operacao as vezes fica RUNNING muito depois de o banco atender: com
+  # RUNNABLE, segue com um aviso em vez de parar o script.
+  if [[ "$(estado_do_banco)" == "RUNNABLE" ]]; then
+    info "Cloud SQL $BANCO: RUNNABLE (operacao do patch ainda aberta; seguindo)"
+    return 0
+  fi
+  echo "O Cloud SQL $BANCO nao ligou em 15 minutos." >&2
   return 1
 }

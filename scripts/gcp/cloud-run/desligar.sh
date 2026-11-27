@@ -3,7 +3,8 @@
 #
 #   Cloud SQL  desligado (activation-policy NEVER): para de cobrar CPU e
 #              memoria; o disco continua guardando os dados.
-#   Cloud Run  ja nao cobra parado (0 instancias sem requisicao); nada a fazer.
+#   Cloud Run  o Gateway volta para 0 instancias (o ligar.sh deixa 1 ligada);
+#              os outros ja nao cobram parados.
 #   VMs        as do Trabalho 2 ficam paradas. A Etapa 3 exige "VM desligada ou
 #              excluida": com --excluir-vms elas sao excluidas, os IPs fixos
 #              liberados e o IP antigo da VM sai das redes autorizadas do Cloud
@@ -35,6 +36,13 @@ else
   fi
   g sql instances patch "$BANCO" --activation-policy NEVER
   info "$BANCO desligado (estava $estado); os dados ficam guardados"
+fi
+
+etapa "Gateway sem instancia ligada"
+if simulando || existe g run services describe delivery-gateway --region "$REGIAO"; then
+  g run services update delivery-gateway --region "$REGIAO" --min-instances 0 \
+    --max-instances "$MAX_INSTANCIAS" >/dev/null
+  info "delivery-gateway: min 0, max $MAX_INSTANCIAS (nao cobra parado)"
 fi
 
 etapa "VMs do Trabalho 2 (Compute Engine)"
