@@ -1,0 +1,40 @@
+$ gcloud run services list
+NAME               URL                                                LATEST_READY_REVISION_NAME   IMAGE
+delivery-catalogo  https://delivery-catalogo-j76gmjruwa-uc.a.run.app  delivery-catalogo-00008-rgh  catalogo:7d380f9-alterado
+delivery-frontend  https://delivery-frontend-j76gmjruwa-uc.a.run.app  delivery-frontend-00004-rgz  frontend:7d380f9-alterado-3
+delivery-gateway   https://delivery-gateway-j76gmjruwa-uc.a.run.app   delivery-gateway-00007-bvq   gateway:7d380f9-alterado
+delivery-pedidos   https://delivery-pedidos-j76gmjruwa-uc.a.run.app   delivery-pedidos-00002-kwl   pedidos:7d380f9-alterado
+delivery-usuarios  https://delivery-usuarios-j76gmjruwa-uc.a.run.app  delivery-usuarios-00002-p5h  usuarios:7d380f9-alterado
+
+$ gcloud run jobs list
+NAME               LATEST_CREATED_EXECUTION_NAME  COMPLETION_TIMESTAMP
+delivery-migrador  delivery-migrador-qq24p        2026-11-27T12:09:59.526820Z
+
+$ gcloud compute instances list
+Listed 0 items.
+(nenhuma VM)
+
+$ gcloud compute addresses list
+Listed 0 items.
+(nenhum IP reservado)
+
+$ gcloud sql instances list
+NAME               DATABASE_VERSION  TIER         REGION       STATUS    ACTIVATION_POLICY
+delivery-postgres  POSTGRES_16       db-f1-micro  us-central1  RUNNABLE  ALWAYS
+
+$ gcloud artifacts docker images list (tags em uso)
+IMAGE     TAGS                CREATE_TIME
+catalogo  7d380f9-alterado    2026-11-27 12:08
+frontend  7d380f9-alterado    2026-11-27 12:08
+frontend  7d380f9-alterado-3  2026-11-27 13:29
+gateway   7d380f9-alterado    2026-11-27 12:07
+migrador  7d380f9-alterado    2026-11-27 12:08
+pedidos   7d380f9-alterado    2026-11-27 12:08
+usuarios  7d380f9-alterado    2026-11-27 12:07
+
+$ gcloud secrets list
+NAME                    CREATED
+delivery-chave-interna  2026-11-27
+delivery-db-senha       2026-11-11
+delivery-demo-senha     2026-11-11
+delivery-jwt-segredo    2026-11-11

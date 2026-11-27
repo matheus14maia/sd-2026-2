@@ -1,0 +1,40 @@
+$ gcloud logging read 'trace="projects/sistemas-distribuidos-505422/traces/03984b937a8fb3bfa04b499b3067fc3e"' --order asc
+  (um POST /pedidos feito depois da recuperacao do Catalogo: o mesmo trace nos tres servicos)
+
+HORA (UTC)      SERVICO            SEVERIDADE MENSAGEM
+12:17:56.605816 delivery-gateway   INFO       [requisicao] POST /pedidos -> 201 (0.147396186s)
+12:17:56.614564 delivery-pedidos   INFO       [requisicao] POST /pedidos.PedidoService/CriarPedido -> 200 (0.129137s)
+12:17:56.620911 delivery-pedidos   INFO       CriarPedido: pedido=2a542718-7cef-403e-be16-b961b9d5471c usuario=25c1707d-1bf4-4ee1-8753-1a202e551a2e cliente='Professor
+12:17:56.667135 delivery-catalogo  INFO       [requisicao] POST /catalogo.CatalogoService/ConsultarItens -> 200 (0.016927s)
+12:17:56.695240 delivery-catalogo  INFO       ConsultarItens: ['PR01'] -> 1 encontrados
+12:17:56.747526 delivery-pedidos   INFO       Pedido 2a542718-7cef-403e-be16-b961b9d5471c gravado: 1 itens, 1 unidades, total R$ 62.90
+12:17:56.753738 delivery-gateway   INFO       POST /pedidos -> 201 (146 ms) [professor]
+
+$ gcloud logging read 'severity>=WARNING' (gateway e catalogo, durante o teste de falha)
+
+HORA (UTC)      SERVICO            SEVERIDADE MENSAGEM
+12:17:20.873663 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:20.878957 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 172 ms
+12:17:21.066603 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:21.074651 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 301 ms
+12:17:21.392365 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:21.396860 delivery-gateway   ERROR      catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): Falha simulada no servico catalogo (FALHA_PERCENTUAL=100%).
+12:17:21.397050 delivery-gateway   WARNING    Catalogo fora: GET /cardapio respondido com a lista salva as 12:17:00
+12:17:21.708721 delivery-gateway   ERROR      [requisicao] POST /pedidos -> 503
+12:17:21.762186 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:21.889560 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:22.137351 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:22.147642 delivery-gateway   ERROR      POST /pedidos -> 503 (435 ms) [professor]
+12:17:23.192351 delivery-gateway   ERROR      [requisicao] GET /cardapio?categoria=Sobremesas -> 503
+12:17:23.208597 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.212851 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 131 ms
+12:17:23.360562 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.365134 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 215 ms
+12:17:23.591204 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.597394 delivery-gateway   ERROR      catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): Falha simulada no servico catalogo (FALHA_PERCENTUAL=100%).
+12:17:23.598231 delivery-gateway   ERROR      GET /cardapio -> 503 (404 ms) [professor]
+12:17:24.192432 delivery-gateway   ERROR      [requisicao] GET /cardapio?categoria=Sobremesas -> 503
+12:17:24.211204 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:24.216364 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 193 ms
+12:17:24.421559 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:24.427259 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 302 ms

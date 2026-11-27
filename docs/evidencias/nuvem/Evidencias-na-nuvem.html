@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Evidências no Cloud Run</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1c1c1c; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4px; }
+  h2 { font-size: 14pt; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #b3241a; color: #8d1a12; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; break-after: avoid; }
+  p { margin: 4px 0 8px; }
+  .sub { color: #555; margin-bottom: 14px; }
+  figure { margin: 8px 0 14px; break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid #c9c9c9; border-radius: 4px; display: block; }
+  figcaption { font-size: 9pt; color: #444; margin-top: 3px; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+  pre { background: #12151a; color: #e8e8e8; padding: 8px 10px; border-radius: 4px; font-size: 7.4pt; line-height: 1.35;
+        white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+  table { border-collapse: collapse; width: 100%; font-size: 9pt; }
+  th, td { border: 1px solid #cfcfcf; padding: 3px 6px; text-align: left; vertical-align: top; }
+  th { background: #f1f1f1; }
+  td a { color: #8d1a12; }
+  .cen td { font-size: 7.6pt; padding: 1.5px 4px; }
+  .cen .n { width: 22px; color: #777; text-align: right; }
+  .cen .s { width: 28px; text-align: center; font-weight: 700; color: #1d6b3a; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .quebra { break-before: page; }
+  .ok { color: #1d6b3a; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>Hell's Kitchen Delivery no Google Cloud</h1>
+<p class="sub">Evidências do Trabalho 3 colhidas em 27/11/2026 com o sistema implantado em serviços gerenciados (Cloud Run, Cloud SQL, Artifact Registry e Secret Manager, região <code>us-central1</code>), sem nenhuma VM. Os prints do navegador foram feitos no Chrome, nas URLs públicas abaixo.</p>
+
+<h2>1. Onde o sistema está rodando</h2>
+<table>
+<tr><th>Serviço</th><th>Acesso</th><th>URL HTTPS</th></tr>
+<tr><td>delivery-frontend</td><td>público</td><td><a href="https://delivery-frontend-j76gmjruwa-uc.a.run.app">https://delivery-frontend-j76gmjruwa-uc.a.run.app</a></td></tr>
+<tr><td>delivery-gateway</td><td>público (Swagger em /docs)</td><td><a href="https://delivery-gateway-j76gmjruwa-uc.a.run.app">https://delivery-gateway-j76gmjruwa-uc.a.run.app</a></td></tr>
+<tr><td>delivery-usuarios</td><td>público (gRPC; negócio só com a chave interna)</td><td>https://delivery-usuarios-j76gmjruwa-uc.a.run.app</td></tr>
+<tr><td>delivery-catalogo</td><td>público (gRPC; negócio só com a chave interna)</td><td>https://delivery-catalogo-j76gmjruwa-uc.a.run.app</td></tr>
+<tr><td>delivery-pedidos</td><td>público (gRPC; negócio só com a chave interna)</td><td>https://delivery-pedidos-j76gmjruwa-uc.a.run.app</td></tr>
+</table>
+<p>Inventário do projeto pelo <code>gcloud</code>: cinco serviços no Cloud Run, o job de migração, nenhuma VM nem IP reservado no Compute Engine, o Cloud SQL, as imagens no Artifact Registry e os segredos.</p>
+<pre>$ gcloud run services list
+NAME               URL                                                LATEST_READY_REVISION_NAME   IMAGE
+delivery-catalogo  https://delivery-catalogo-j76gmjruwa-uc.a.run.app  delivery-catalogo-00008-rgh  catalogo:7d380f9-alterado
+delivery-frontend  https://delivery-frontend-j76gmjruwa-uc.a.run.app  delivery-frontend-00004-rgz  frontend:7d380f9-alterado-3
+delivery-gateway   https://delivery-gateway-j76gmjruwa-uc.a.run.app   delivery-gateway-00007-bvq   gateway:7d380f9-alterado
+delivery-pedidos   https://delivery-pedidos-j76gmjruwa-uc.a.run.app   delivery-pedidos-00002-kwl   pedidos:7d380f9-alterado
+delivery-usuarios  https://delivery-usuarios-j76gmjruwa-uc.a.run.app  delivery-usuarios-00002-p5h  usuarios:7d380f9-alterado
+
+$ gcloud run jobs list
+NAME               LATEST_CREATED_EXECUTION_NAME  COMPLETION_TIMESTAMP
+delivery-migrador  delivery-migrador-qq24p        2026-11-27T12:09:59.526820Z
+
+$ gcloud compute instances list
+Listed 0 items.
+(nenhuma VM)
+
+$ gcloud compute addresses list
+Listed 0 items.
+(nenhum IP reservado)
+
+$ gcloud sql instances list
+NAME               DATABASE_VERSION  TIER         REGION       STATUS    ACTIVATION_POLICY
+delivery-postgres  POSTGRES_16       db-f1-micro  us-central1  RUNNABLE  ALWAYS
+
+$ gcloud artifacts docker images list (tags em uso)
+IMAGE     TAGS                CREATE_TIME
+catalogo  7d380f9-alterado    2026-11-27 12:08
+frontend  7d380f9-alterado    2026-11-27 12:08
+frontend  7d380f9-alterado-3  2026-11-27 13:29
+gateway   7d380f9-alterado    2026-11-27 12:07
+migrador  7d380f9-alterado    2026-11-27 12:08
+pedidos   7d380f9-alterado    2026-11-27 12:08
+usuarios  7d380f9-alterado    2026-11-27 12:07
+
+$ gcloud secrets list
+NAME                    CREATED
+delivery-chave-interna  2026-11-27
+delivery-db-senha       2026-11-11
+delivery-demo-senha     2026-11-11
+delivery-jwt-segredo    2026-11-11</pre>
+
+<h2 class="quebra">2. Arquitetura</h2>
+<p>O navegador baixa o frontend (nginx) e fala só com o Gateway, por HTTPS. O Gateway confere o JWT e o papel, valida o JSON e chama os microsserviços por gRPC sobre HTTP/2, levando a chave interna. O Pedidos chama o Catálogo para conferir e precificar os itens. Os dados ficam no Cloud SQL (PostgreSQL 16), acessado pelo conector do Cloud Run; senhas e chaves vêm do Secret Manager.</p>
+<figure><img src="img/00-arquitetura.png" alt="Figura 1. Arquitetura no Google Cloud: Cloud Run (5 serviços e o job de migração), Cloud SQL, Artifact Registry, Secret Manager e Cloud Logging/Trace."><figcaption>Figura 1. Arquitetura no Google Cloud: Cloud Run (5 serviços e o job de migração), Cloud SQL, Artifact Registry, Secret Manager e Cloud Logging/Trace.</figcaption></figure>
+
+<h2 class="quebra">3. Cliente: do login ao pedido</h2>
+<figure><img src="img/01-login.png" alt="Figura 2. Tela de entrada no frontend do Cloud Run."><figcaption>Figura 2. Tela de entrada no frontend do Cloud Run.</figcaption></figure>
+<div class="par">
+<figure><img src="img/02-cardapio.png" alt="Figura 3. Cardápio lido do Catálogo pelo Gateway (GET /cardapio): busca, categorias e cartões com o + de adicionar."><figcaption>Figura 3. Cardápio lido do Catálogo pelo Gateway (GET /cardapio): busca, categorias e cartões com o + de adicionar.</figcaption></figure>
+<figure><img src="img/03-busca.png" alt="Figura 4. Busca no cardápio: “camarao” acha o risoto, sem diferença de acento."><figcaption>Figura 4. Busca no cardápio: “camarao” acha o risoto, sem diferença de acento.</figcaption></figure>
+</div>
+<div class="par">
+<figure><img src="img/04-sacola-barra-fixa.png" alt="Figura 5. Ao rolar, a barra de categorias fica fixa abaixo do topo; sacola com três pratos e a estimativa."><figcaption>Figura 5. Ao rolar, a barra de categorias fica fixa abaixo do topo; sacola com três pratos e a estimativa.</figcaption></figure>
+<figure><img src="img/05-pedido-confirmado.png" alt="Figura 6. Pedido confirmado (201): total calculado no servidor e previsão de entrega."><figcaption>Figura 6. Pedido confirmado (201): total calculado no servidor e previsão de entrega.</figcaption></figure>
+</div>
+<figure><img src="img/06-meus-pedidos-linha-do-tempo.png" alt="Figura 7. Meus pedidos: o detalhe mostra a linha do tempo das etapas (a atual pulsando), a previsão de entrega e os itens."><figcaption>Figura 7. Meus pedidos: o detalhe mostra a linha do tempo das etapas (a atual pulsando), a previsão de entrega e os itens.</figcaption></figure>
+<h3>No celular</h3>
+<p>O mesmo frontend em 390 px de largura: abas que rolam de lado e ficam fixas no alto, pratos em cartões e a linha do tempo do pedido, sem rolagem lateral da página.</p>
+<div class="par">
+<figure><img src="img/07-celular-cardapio.png" alt="Figura 8. Cardápio no celular, rolado: a barra de categorias fica fixa." style="max-width:70%;margin:0 auto"><figcaption>Figura 8. Cardápio no celular, rolado: a barra de categorias fica fixa.</figcaption></figure>
+<figure><img src="img/08-celular-linha-do-tempo.png" alt="Figura 9. Detalhe do pedido no celular." style="max-width:70%;margin:0 auto"><figcaption>Figura 9. Detalhe do pedido no celular.</figcaption></figure>
+</div>
+
+<h2 class="quebra">4. Chrome DevTools: tudo por HTTPS, só com o Gateway</h2>
+<p>Painel <em>Network</em> do Chrome DevTools ligado à aba do frontend durante o fluxo da seção 3. As chamadas de dados vão para <code>delivery-gateway-j76gmjruwa-uc.a.run.app</code> por HTTPS; o navegador nunca fala com os microsserviços. Antes de cada chamada com token o navegador faz o <em>preflight</em> de CORS, que o Gateway libera só para a origem do frontend.</p>
+<figure><img src="img/09-devtools-network.png" alt="Figura 10. Lista de requisições: login, cardápio, eventos em tempo real, conta e pedidos."><figcaption>Figura 10. Lista de requisições: login, cardápio, eventos em tempo real, conta e pedidos.</figcaption></figure>
+<figure><img src="img/10-devtools-cardapio-bearer.png" alt="Figura 11. GET /cardapio: URL HTTPS do Gateway, 200, Authorization: Bearer (JWT), CORS só para o frontend e X-Cloud-Trace-Context igual ao X-Requisicao-Id."><figcaption>Figura 11. GET /cardapio: URL HTTPS do Gateway, 200, Authorization: Bearer (JWT), CORS só para o frontend e X-Cloud-Trace-Context igual ao X-Requisicao-Id.</figcaption></figure>
+<figure><img src="img/11-devtools-pedido-201.png" alt="Figura 12. POST /pedidos: 201 Created no Gateway do Cloud Run."><figcaption>Figura 12. POST /pedidos: 201 Created no Gateway do Cloud Run.</figcaption></figure>
+
+<h2 class="quebra">5. Cozinha</h2>
+<p>A conta da cozinha é criada pelo job de migração com a senha do Secret Manager. O Gateway barra com 403 qualquer cliente nessas rotas. Os pedidos abertos aparecem num quadro de comandas, uma coluna por etapa, como nas telas de cozinha dos restaurantes; o tempo de cada comanda na etapa fica verde até 10 min, amarelo até 20 e vermelho depois disso ou se passou da previsão. A tabela continua no modo Lista.</p>
+<figure><img src="img/12-cozinha-quadro.png" alt="Figura 13. Quadro da cozinha: Recebido, Em preparo, Pronto e Saiu para entrega, com o botão da próxima etapa em cada comanda e o trilho de requisições embaixo."><figcaption>Figura 13. Quadro da cozinha: Recebido, Em preparo, Pronto e Saiu para entrega, com o botão da próxima etapa em cada comanda e o trilho de requisições embaixo.</figcaption></figure>
+<figure><img src="img/13-cozinha-comanda-detalhe.png" alt="Figura 14. Pedido aceito pela comanda (PATCH /pedidos/{{id}}/status): o detalhe abre num painel por cima do quadro, e o cliente vê a etapa mudar em tempo real."><figcaption>Figura 14. Pedido aceito pela comanda (PATCH /pedidos/{{id}}/status): o detalhe abre num painel por cima do quadro, e o cliente vê a etapa mudar em tempo real.</figcaption></figure>
+<figure><img src="img/14-cozinha-pratos.png" alt="Figura 15. Gestão do cardápio: preço, disponibilidade e edição de cada prato."><figcaption>Figura 15. Gestão do cardápio: preço, disponibilidade e edição de cada prato.</figcaption></figure>
+
+<h3>De volta ao cliente: entregue e pedir de novo</h3>
+<p>A cozinha levou o pedido até Entregue pelos botões das comandas. O cliente vê a linha do tempo completa, com o horário de cada etapa, e pode repetir o pedido: os itens voltam para a sacola, que confere cada um com o cardápio atual (preço, disponibilidade e opção) antes de continuar.</p>
+<div class="par">
+<figure><img src="img/18-entregue-pedir-de-novo.png" alt="Figura 16. Pedido entregue dentro da previsão, com o botão Pedir de novo."><figcaption>Figura 16. Pedido entregue dentro da previsão, com o botão Pedir de novo.</figcaption></figure>
+<figure><img src="img/19-sacola-pedir-de-novo.png" alt="Figura 17. Pedir de novo: os mesmos itens na sacola, com o aviso de que o servidor recalcula tudo."><figcaption>Figura 17. Pedir de novo: os mesmos itens na sacola, com o aviso de que o servidor recalcula tudo.</figcaption></figure>
+</div>
+
+<h2 class="quebra">6. Tolerância a falhas no Cloud Run</h2>
+<p>A falha é provocada pela variável de ambiente <code>FALHA_PERCENTUAL=100</code> no serviço <code>delivery-catalogo</code> (nova revisão pelo painel ou pelo <code>gcloud run services update</code>), sem mudar código. O Gateway faz o retry, abre o circuito do Catálogo, serve o cardápio salvo e recusa o pedido com 503; Usuários e Pedidos continuam no ar. Ao voltar para 0, tudo se recupera.</p>
+<div class="par">
+<figure><img src="img/15-saude.png" alt="Figura 18. Saúde dos serviços com tudo no ar: health check gRPC, latência e circuito fechado."><figcaption>Figura 18. Saúde dos serviços com tudo no ar: health check gRPC, latência e circuito fechado.</figcaption></figure>
+<figure><img src="img/16-saude-catalogo-fora.png" alt="Figura 19. Catálogo com falha: circuito ABERTO depois de 3 falhas, pedido de teste recusado com 503."><figcaption>Figura 19. Catálogo com falha: circuito ABERTO depois de 3 falhas, pedido de teste recusado com 503.</figcaption></figure>
+</div>
+<figure><img src="img/17-cardapio-do-cache.png" alt="Figura 20. Cardápio em modo de segurança: a lista salva no Gateway é exibida com o aviso."><figcaption>Figura 20. Cardápio em modo de segurança: a lista salva no Gateway é exibida com o aviso.</figcaption></figure>
+<p>O roteiro automático <code>scripts/testar_resiliencia.py</code> contra a URL pública do Gateway:</p>
+<pre>== 1. Tudo no ar
+OK   GET /cardapio vem do Catalogo  (status 200, origem catalogo)
+
+== 2. Derrubando o Catalogo
+Service [delivery-catalogo] revision [delivery-catalogo-00003-hmr] has been deployed and is serving 100 percent of traffic.
+Service URL: https://delivery-catalogo-614354578666.us-central1.run.app
+
+== 3. Fallback do cardapio
+OK   GET /cardapio responde 200 com a lista salva  (status 200, origem cache, 1512 ms)
+
+== 4. Pedido com o Catalogo fora
+OK   POST /pedidos responde 503 sem gravar  (status 503 em 0.8 s, Retry-After 5)
+
+== 5. Isolamento: Pedidos continua no ar
+OK   GET /pedidos responde 200  (status 200)
+
+== 6. Circuit breaker
+OK   Circuito do Catalogo ABERTO  ({&quot;circuito&quot;: &quot;ABERTO&quot;, &quot;falhas_seguidas&quot;: 3, &quot;reabre_em_segundos&quot;: 14})
+OK   Com o circuito aberto, categoria sem lista salva falha na hora com 503  (status 503 em 326 ms, Retry-After 14)
+
+== 7. Recuperacao
+Service [delivery-catalogo] revision [delivery-catalogo-00004-6cc] has been deployed and is serving 100 percent of traffic.
+Service URL: https://delivery-catalogo-614354578666.us-central1.run.app
+OK   GET /cardapio volta a vir do Catalogo  (status 200, origem catalogo)
+OK   Circuito do Catalogo FECHADO
+OK   POST /pedidos volta a gravar (201)  (status 201)
+
+Tolerancia a falhas OK.</pre>
+
+<h2 class="quebra">7. Endpoints públicos dos microsserviços</h2>
+<p><code>scripts/testar_acesso_direto.py</code> chama cada microsserviço direto pela URL pública (gRPC sobre TLS, porta 443), sem passar pelo Gateway. O health check responde, mas o negócio é recusado sem a chave interna, inclusive o stream de tempo real.</p>
+<pre>
+== usuarios (delivery-usuarios-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   VerificarCredenciais sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+== catalogo (delivery-catalogo-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   ListarItens sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+== pedidos (delivery-pedidos-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   ListarPedidos sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+OK   AcompanharPedidos (stream) sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+Acesso direto OK: endpoint publico, negocio so com a chave interna.</pre>
+
+<h2>8. Cloud Logging</h2>
+<p>Os serviços escrevem log em JSON com severidade e trace. Um único pedido aparece nos três serviços com o mesmo trace; durante a falha, cada tentativa do retry e o fallback ficam registrados.</p>
+<pre>$ gcloud logging read &#x27;trace=&quot;projects/sistemas-distribuidos-505422/traces/03984b937a8fb3bfa04b499b3067fc3e&quot;&#x27; --order asc
+  (um POST /pedidos feito depois da recuperacao do Catalogo: o mesmo trace nos tres servicos)
+
+HORA (UTC)      SERVICO            SEVERIDADE MENSAGEM
+12:17:56.605816 delivery-gateway   INFO       [requisicao] POST /pedidos -&gt; 201 (0.147396186s)
+12:17:56.614564 delivery-pedidos   INFO       [requisicao] POST /pedidos.PedidoService/CriarPedido -&gt; 200 (0.129137s)
+12:17:56.620911 delivery-pedidos   INFO       CriarPedido: pedido=2a542718-7cef-403e-be16-b961b9d5471c usuario=25c1707d-1bf4-4ee1-8753-1a202e551a2e cliente=&#x27;Professor
+12:17:56.667135 delivery-catalogo  INFO       [requisicao] POST /catalogo.CatalogoService/ConsultarItens -&gt; 200 (0.016927s)
+12:17:56.695240 delivery-catalogo  INFO       ConsultarItens: [&#x27;PR01&#x27;] -&gt; 1 encontrados
+12:17:56.747526 delivery-pedidos   INFO       Pedido 2a542718-7cef-403e-be16-b961b9d5471c gravado: 1 itens, 1 unidades, total R$ 62.90
+12:17:56.753738 delivery-gateway   INFO       POST /pedidos -&gt; 201 (146 ms) [professor]
+
+$ gcloud logging read &#x27;severity&gt;=WARNING&#x27; (gateway e catalogo, durante o teste de falha)
+
+HORA (UTC)      SERVICO            SEVERIDADE MENSAGEM
+12:17:20.873663 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:20.878957 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 172 ms
+12:17:21.066603 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:21.074651 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 301 ms
+12:17:21.392365 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:21.396860 delivery-gateway   ERROR      catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): Falha simulada no servico catalogo (FALHA_PERCENTUAL=100%).
+12:17:21.397050 delivery-gateway   WARNING    Catalogo fora: GET /cardapio respondido com a lista salva as 12:17:00
+12:17:21.708721 delivery-gateway   ERROR      [requisicao] POST /pedidos -&gt; 503
+12:17:21.762186 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:21.889560 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:22.137351 delivery-catalogo  WARNING    Falha simulada em ConsultarItens (FALHA_PERCENTUAL=100)
+12:17:22.147642 delivery-gateway   ERROR      POST /pedidos -&gt; 503 (435 ms) [professor]
+12:17:23.192351 delivery-gateway   ERROR      [requisicao] GET /cardapio?categoria=Sobremesas -&gt; 503
+12:17:23.208597 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.212851 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 131 ms
+12:17:23.360562 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.365134 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 215 ms
+12:17:23.591204 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:23.597394 delivery-gateway   ERROR      catalogo.ListarItens falhou com UNAVAILABLE apos 3 tentativa(s): Falha simulada no servico catalogo (FALHA_PERCENTUAL=100%).
+12:17:23.598231 delivery-gateway   ERROR      GET /cardapio -&gt; 503 (404 ms) [professor]
+12:17:24.192432 delivery-gateway   ERROR      [requisicao] GET /cardapio?categoria=Sobremesas -&gt; 503
+12:17:24.211204 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:24.216364 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 1/3); repetindo em 193 ms
+12:17:24.421559 delivery-catalogo  WARNING    Falha simulada em ListarItens (FALHA_PERCENTUAL=100)
+12:17:24.427259 delivery-gateway   WARNING    catalogo.ListarItens falhou com UNAVAILABLE (tentativa 2/3); repetindo em 302 ms</pre>
+
+<h2 class="quebra">9. Testes de ponta a ponta</h2>
+<p><code>scripts/testar_gateway.py --url https://delivery-gateway-j76gmjruwa-uc.a.run.app</code>: <span class="ok">84 cenários, todos aprovados</span> (400, 401, 403, 404, 409, 415, criação, tempo real e posse dos pedidos).</p>
+<div class="cols">
+<table class=cen><tbody><tr><td class=n>2</td><td>Gateway no ar (rota publica)</td><td class=s>200</td></tr><tr><td class=n>3</td><td>Sem token</td><td class=s>401</td></tr><tr><td class=n>4</td><td>Cabecalho sem Bearer</td><td class=s>401</td></tr><tr><td class=n>5</td><td>Token que nao e JWT</td><td class=s>401</td></tr><tr><td class=n>6</td><td>Login sem senha</td><td class=s>400</td></tr><tr><td class=n>7</td><td>Senha errada</td><td class=s>401</td></tr><tr><td class=n>8</td><td>Cadastro com dados invalidos</td><td class=s>400</td></tr><tr><td class=n>9</td><td>Cadastro com numero no nome</td><td class=s>400</td></tr><tr><td class=n>10</td><td>Cadastro de usuario novo</td><td class=s>201</td></tr><tr><td class=n>11</td><td>Cadastro com login repetido</td><td class=s>409</td></tr><tr><td class=n>12</td><td>Login valido devolve o token</td><td class=s>200</td></tr><tr><td class=n>13</td><td>Token com assinatura adulterada</td><td class=s>401</td></tr><tr><td class=n>14</td><td>Dono do token</td><td class=s>200</td></tr><tr><td class=n>15</td><td>Login do cliente recem-criado</td><td class=s>200</td></tr><tr><td class=n>16</td><td>Cliente tentando alterar o cardapio</td><td class=s>403</td></tr><tr><td class=n>17</td><td>Cardapio de bebidas</td><td class=s>200</td></tr><tr><td class=n>18</td><td>Cliente tentando cadastrar prato</td><td class=s>403</td></tr><tr><td class=n>19</td><td>Prato sem nome e sem preco</td><td class=s>400</td></tr><tr><td class=n>20</td><td>Prato em categoria que nao existe</td><td class=s>400</td></tr><tr><td class=n>21</td><td>Cozinha cadastra um prato (codigo sai da categoria)</td><td class=s>201</td></tr><tr><td class=n>22</td><td>Edicao sem nenhum campo</td><td class=s>400</td></tr><tr><td class=n>23</td><td>Cozinha edita a descricao (o resto fica igual)</td><td class=s>200</td></tr><tr><td class=n>24</td><td>Cliente tentando enviar foto</td><td class=s>403</td></tr><tr><td class=n>25</td><td>Arquivo que nao e foto</td><td class=s>415</td></tr><tr><td class=n>26</td><td>Cozinha envia a foto do prato</td><td class=s>200</td></tr><tr><td class=n>27</td><td>Foto do prato e publica (sem token)</td><td class=s>200</td></tr><tr><td class=n>28</td><td>Cozinha tira a foto do prato</td><td class=s>200</td></tr><tr><td class=n>29</td><td>Foto que nao existe mais</td><td class=s>404</td></tr><tr><td class=n>30</td><td>Cliente tentando excluir prato</td><td class=s>403</td></tr><tr><td class=n>31</td><td>Cozinha exclui o prato</td><td class=s>200</td></tr><tr><td class=n>32</td><td>Excluir de novo nao e erro (idempotente)</td><td class=s>200</td></tr><tr><td class=n>33</td><td>Pedido com prato excluido</td><td class=s>400</td></tr><tr><td class=n>34</td><td>Cozinha tira so a agua com gas do dia</td><td class=s>200</td></tr><tr><td class=n>35</td><td>Opcao fora do dia que o item nao tem</td><td class=s>400</td></tr><tr><td class=n>36</td><td>Pedido de agua com gas fora do dia</td><td class=s>409</td></tr><tr><td class=n>37</td><td>Agua sem gas continua valendo</td><td class=s>201</td></tr><tr><td class=n>38</td><td>Cozinha volta a agua com gas</td><td class=s>200</td></tr><tr><td class=n>39</td><td>Pedido valido gravado em nome do dono do token</td><td class=s>201</td></tr><tr><td class=n>40</td><td>Campo cliente no corpo e recusado (o nome vem do token)</td><td class=s>400</td></tr><tr><td class=n>41</td><td>Sem o campo endereco</td><td class=s>400</td></tr><tr><td class=n>42</td><td>Quantidade zero e endereco vazio</td><td class=s>400</td></tr><tr><td class=n>43</td><td>Lista de itens vazia</td><td class=s>400</td></tr></tbody></table>
+<table class=cen><tbody><tr><td class=n>44</td><td>JSON malformado</td><td class=s>400</td></tr><tr><td class=n>45</td><td>Item que nao existe no banco</td><td class=s>400</td></tr><tr><td class=n>46</td><td>Item indisponivel (PR05)</td><td class=s>409</td></tr><tr><td class=n>47</td><td>Refrigerante sem escolher o sabor</td><td class=s>400</td></tr><tr><td class=n>48</td><td>Sabor que nao existe no cardapio</td><td class=s>400</td></tr><tr><td class=n>49</td><td>Opcao em prato sem opcoes</td><td class=s>400</td></tr><tr><td class=n>50</td><td>Agua com gas e dois sabores de refrigerante</td><td class=s>201</td></tr><tr><td class=n>51</td><td>Consulta do pedido criado</td><td class=s>200</td></tr><tr><td class=n>52</td><td>Pedido inexistente</td><td class=s>404</td></tr><tr><td class=n>53</td><td>Avanca status RECEBIDO -&gt; EM_PREPARO</td><td class=s>200</td></tr><tr><td class=n>54</td><td>Repetir o mesmo status e idempotente</td><td class=s>200</td></tr><tr><td class=n>55</td><td>Pula etapa EM_PREPARO -&gt; ENTREGUE</td><td class=s>409</td></tr><tr><td class=n>56</td><td>Status fora da lista</td><td class=s>400</td></tr><tr><td class=n>57</td><td>Cliente tentando avancar o status</td><td class=s>403</td></tr><tr><td class=n>58</td><td>Cliente faz o proprio pedido</td><td class=s>201</td></tr><tr><td class=n>59</td><td>Cliente lista so os proprios pedidos</td><td class=s>200</td></tr><tr><td class=n>60</td><td>Cliente consulta o proprio pedido</td><td class=s>200</td></tr><tr><td class=n>61</td><td>Cliente nao ve o pedido de outro usuario</td><td class=s>404</td></tr><tr><td class=n>62</td><td>Cozinha lista os pedidos de todos</td><td class=s>200</td></tr><tr><td class=n>63</td><td>Cozinha consulta o pedido do cliente</td><td class=s>200</td></tr><tr><td class=n>64</td><td>Filtro por etapa</td><td class=s>200</td></tr><tr><td class=n>65</td><td>Filtro por prato</td><td class=s>200</td></tr><tr><td class=n>66</td><td>Filtro por periodo (hoje)</td><td class=s>200</td></tr><tr><td class=n>67</td><td>Filtro por cliente (cozinha)</td><td class=s>200</td></tr><tr><td class=n>68</td><td>Filtro com etapa invalida</td><td class=s>400</td></tr><tr><td class=n>69</td><td>Historico com o horario de cada etapa</td><td class=s>200</td></tr><tr><td class=n>70</td><td>Tempo real: cliente recebe a nova etapa sem recarregar</td><td class=s>200</td></tr><tr><td class=n>71</td><td>Tempo real: cliente nao recebe pedido de outro usuario</td><td class=s>200</td></tr><tr><td class=n>72</td><td>Health check dos microsservicos</td><td class=s>200</td></tr><tr><td class=n>73</td><td>Cliente tentando ver a saude dos servicos</td><td class=s>403</td></tr><tr><td class=n>74</td><td>Conta sem token</td><td class=s>401</td></tr><tr><td class=n>75</td><td>Cliente ve os proprios dados</td><td class=s>200</td></tr><tr><td class=n>76</td><td>Telefone invalido</td><td class=s>400</td></tr><tr><td class=n>77</td><td>Nome com numero em Meus dados</td><td class=s>400</td></tr><tr><td class=n>78</td><td>Conta sem nenhum campo</td><td class=s>400</td></tr><tr><td class=n>79</td><td>Cliente muda nome, telefone e endereco (volta um token novo)</td><td class=s>200</td></tr><tr><td class=n>80</td><td>Pedido com o token novo sai com o nome novo e o telefone</td><td class=s>201</td></tr><tr><td class=n>81</td><td>Trocar a senha com a atual errada</td><td class=s>400</td></tr><tr><td class=n>82</td><td>Confirmacao diferente da nova senha</td><td class=s>400</td></tr><tr><td class=n>83</td><td>Cliente troca a senha</td><td class=s>200</td></tr><tr><td class=n>84</td><td>Senha antiga nao entra mais</td><td class=s>401</td></tr><tr><td class=n>85</td><td>Senha nova entra</td><td class=s>200</td></tr></tbody></table>
+</div>
+
+</body>
+</html>

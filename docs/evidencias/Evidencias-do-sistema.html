@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Evidências do sistema em execução</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1c1c1c; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4px; }
+  h2 { font-size: 14pt; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #b3241a; color: #8d1a12; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; break-after: avoid; }
+  p { margin: 4px 0 8px; }
+  .sub { color: #555; margin-bottom: 14px; }
+  figure { margin: 8px 0 14px; break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid #c9c9c9; border-radius: 4px; display: block; }
+  figcaption { font-size: 9pt; color: #444; margin-top: 3px; }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  pre { background: #12151a; color: #e8e8e8; padding: 8px 10px; border-radius: 4px; font-size: 7.6pt; line-height: 1.35;
+        white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+  table { border-collapse: collapse; width: 100%; font-size: 9pt; }
+  th, td { border: 1px solid #cfcfcf; padding: 3px 6px; text-align: left; vertical-align: top; }
+  th { background: #f1f1f1; }
+  .cen td { font-size: 7.6pt; padding: 1.5px 4px; }
+  .cen .n { width: 22px; color: #777; text-align: right; }
+  .cen .s { width: 28px; text-align: center; font-weight: 700; color: #1d6b3a; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .quebra { break-before: page; }
+  .ok { color: #1d6b3a; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>Hell's Kitchen Delivery: sistema em execução</h1>
+<p class="sub">Evidências do funcionamento do Trabalho 2 (Frontend → API Gateway → microsserviços gRPC → PostgreSQL), colhidas com o sistema rodando em Docker neste computador, em 27/11/2026.</p>
+
+<h2>1. Como o sistema foi colocado no ar</h2>
+<p>Um único comando sobe todas as peças (cada uma é um container com imagem própria, construída por um Dockerfile multi-stage):</p>
+<pre>docker compose up -d --build
+# COMPOSE_PROFILES=banco-local,servicos,gateway,frontend,rastreamento</pre>
+<p>Ao final, os sete containers ficam saudáveis (<em>healthy</em>):</p>
+<pre>delivery-usuarios	Up 5 minutes (healthy)	127.0.0.1:9092-&gt;9092/tcp
+delivery-catalogo	Up 20 seconds (healthy)	127.0.0.1:9091-&gt;9091/tcp
+delivery-pedidos	Up 5 minutes (healthy)	127.0.0.1:9090-&gt;9090/tcp
+delivery-postgres	Up 6 minutes (healthy)	5432/tcp
+delivery-frontend	Up 6 minutes (healthy)	0.0.0.0:80-&gt;8080/tcp
+delivery-gateway	Up 6 minutes (healthy)	0.0.0.0:8000-&gt;8000/tcp
+delivery-jaeger	Up 6 minutes	127.0.0.1:16686-&gt;16686/tcp</pre>
+<table>
+<tr><th>Peça</th><th>Tecnologia</th><th>Endereço local</th></tr>
+<tr><td>Frontend</td><td>React + Vite, servido pelo nginx</td><td>http://127.0.0.1/</td></tr>
+<tr><td>API Gateway</td><td>FastAPI, JWT, validação, JSON → Protobuf</td><td>http://127.0.0.1:8000 (Swagger em /docs)</td></tr>
+<tr><td>Usuários</td><td>gRPC, bcrypt</td><td>127.0.0.1:9092</td></tr>
+<tr><td>Catálogo</td><td>gRPC</td><td>127.0.0.1:9091</td></tr>
+<tr><td>Pedidos</td><td>gRPC; chama o Catálogo por gRPC</td><td>127.0.0.1:9090</td></tr>
+<tr><td>Banco</td><td>PostgreSQL 16 (container, perfil <em>banco-local</em>)</td><td>interno (5432)</td></tr>
+<tr><td>Rastreamento</td><td>OpenTelemetry → Jaeger</td><td>http://127.0.0.1:16686</td></tr>
+</table>
+
+<h2>2. Arquitetura</h2>
+<p>O navegador fala só com o Gateway. O Gateway autentica o token, confere o papel, valida o JSON e traduz para Protobuf. Os três microsserviços gRPC têm o seu próprio contrato <code>.proto</code>; o Pedidos consulta o Catálogo (<code>ConsultarItens</code>) para validar e precificar. Todos os dados ficam no PostgreSQL. No Google Cloud as mesmas imagens rodam no Cloud Run, com o Cloud SQL (ver <code>nuvem/Evidencias-na-nuvem.pdf</code>); aqui, no computador, rodam no Docker Compose.</p>
+<figure><img src="img/00-arquitetura.png" alt="Figura 1. Arquitetura implantada no Google Cloud (frontend, gateway, microsserviços e Cloud SQL). Localmente o Compose sobe as mesmas imagens em uma só máquina."><figcaption>Figura 1. Arquitetura implantada no Google Cloud (frontend, gateway, microsserviços e Cloud SQL). Localmente o Compose sobe as mesmas imagens em uma só máquina.</figcaption></figure>
+
+<h2 class="quebra">3. Funcionalidades do cliente</h2>
+<h3>3.1 Entrar e criar conta</h3>
+<figure><img src="img/01-login.png" alt="Figura 2. Tela de login. A sessão usa um token JWT emitido pelo Gateway."><figcaption>Figura 2. Tela de login. A sessão usa um token JWT emitido pelo Gateway.</figcaption></figure>
+<div class="par">
+<figure><img src="img/02-cadastro-validacao-400.png" alt="Figura 3. Cadastro vazio: o Gateway responde 400 e a tela mostra o motivo em cada campo."><figcaption>Figura 3. Cadastro vazio: o Gateway responde 400 e a tela mostra o motivo em cada campo.</figcaption></figure>
+<figure><img src="img/03-cadastro-201.png" alt="Figura 4. Cadastro válido: 201, conta criada (hash bcrypt no Usuários)."><figcaption>Figura 4. Cadastro válido: 201, conta criada (hash bcrypt no Usuários).</figcaption></figure>
+</div>
+
+<h3>3.2 Cardápio, opções e sacola</h3>
+<figure><img src="img/04-cardapio-cliente.png" alt="Figura 5. Cardápio lido do Catálogo (GET /cardapio, 200). Prato indisponível aparece desabilitado."><figcaption>Figura 5. Cardápio lido do Catálogo (GET /cardapio, 200). Prato indisponível aparece desabilitado.</figcaption></figure>
+<figure><img src="img/05-sacola.png" alt="Figura 6. Sacola com estimativa; o refrigerante exige a escolha do sabor (opção do item)."><figcaption>Figura 6. Sacola com estimativa; o refrigerante exige a escolha do sabor (opção do item).</figcaption></figure>
+
+<h3>3.3 Entrega e pedido</h3>
+<div class="par">
+<figure><img src="img/07-pedido-validacao-400.png" alt="Figura 7. Pedido sem endereço: 400 do Gateway, antes de chamar qualquer microsserviço."><figcaption>Figura 7. Pedido sem endereço: 400 do Gateway, antes de chamar qualquer microsserviço.</figcaption></figure>
+<figure><img src="img/08-pedido-criado-201.png" alt="Figura 8. Pedido confirmado (201): total calculado pelo servidor e previsão de entrega."><figcaption>Figura 8. Pedido confirmado (201): total calculado pelo servidor e previsão de entrega.</figcaption></figure>
+</div>
+<figure><img src="img/09-meus-pedidos-cliente.png" alt="Figura 9. Meus pedidos: o cliente vê só os próprios pedidos, com itens, etapas e previsão."><figcaption>Figura 9. Meus pedidos: o cliente vê só os próprios pedidos, com itens, etapas e previsão.</figcaption></figure>
+<div class="par">
+<figure><img src="img/10-trilho-requisicoes-gateway.png" alt="Figura 10. Trilho de requisições ao Gateway (método, rota, status, tempo e Bearer)."><figcaption>Figura 10. Trilho de requisições ao Gateway (método, rota, status, tempo e Bearer).</figcaption></figure>
+<figure><img src="img/11-meus-dados.png" alt="Figura 11. Meus dados: nome, telefone, endereço e troca de senha."><figcaption>Figura 11. Meus dados: nome, telefone, endereço e troca de senha.</figcaption></figure>
+</div>
+
+<h2 class="quebra">4. Funcionalidades da cozinha</h2>
+<p>A conta de papel <em>cozinha</em> é criada pelo migrador a partir do <code>.env</code> (a senha nunca vai para o repositório). O Gateway barra com 403 qualquer cliente que tente usar essas rotas.</p>
+<figure><img src="img/12-cozinha-pedidos.png" alt="Figura 12. Todos os pedidos: novos aguardando aceite em destaque, filtros por etapa, período, prato e cliente."><figcaption>Figura 12. Todos os pedidos: novos aguardando aceite em destaque, filtros por etapa, período, prato e cliente.</figcaption></figure>
+<figure><img src="img/13-cozinha-pedido-aceito.png" alt="Figura 13. Pedido aceito: avança RECEBIDO → EM_PREPARO (PATCH /pedidos/{{id}}/status). O cliente vê a mudança em tempo real."><figcaption>Figura 13. Pedido aceito: avança RECEBIDO → EM_PREPARO (PATCH /pedidos/{{id}}/status). O cliente vê a mudança em tempo real.</figcaption></figure>
+<div class="par">
+<figure><img src="img/14-cozinha-cardapio.png" alt="Figura 14. Cardápio visto pela cozinha."><figcaption>Figura 14. Cardápio visto pela cozinha.</figcaption></figure>
+<figure><img src="img/15-cozinha-gestao-cardapio.png" alt="Figura 15. Gestão do cardápio: cadastrar, editar, trocar foto e tirar prato do dia."><figcaption>Figura 15. Gestão do cardápio: cadastrar, editar, trocar foto e tirar prato do dia.</figcaption></figure>
+</div>
+
+<h2 class="quebra">5. Saúde dos serviços, segurança e Swagger</h2>
+<figure><img src="img/16-saude-servicos.png" alt="Figura 16. Saúde dos serviços: health check gRPC, latência e circuit breaker de cada microsserviço, com o stream em tempo real conectado."><figcaption>Figura 16. Saúde dos serviços: health check gRPC, latência e circuit breaker de cada microsserviço, com o stream em tempo real conectado.</figcaption></figure>
+<figure><img src="img/17-testes-seguranca.png" alt="Figura 17. Testes de segurança: 401 (token ausente ou falso), 403 (cliente tentando operação da cozinha), 400 (payload), 409 (item indisponível) e 404 (pedido de outro usuário)." style="max-width:64%;margin:0 auto"><figcaption>Figura 17. Testes de segurança: 401 (token ausente ou falso), 403 (cliente tentando operação da cozinha), 400 (payload), 409 (item indisponível) e 404 (pedido de outro usuário).</figcaption></figure>
+<figure><img src="img/18-swagger-gateway.png" alt="Figura 18. Documentação OpenAPI do Gateway (Swagger UI): autenticação, conta, cardápio, pedidos e infra." style="max-width:64%;margin:0 auto"><figcaption>Figura 18. Documentação OpenAPI do Gateway (Swagger UI): autenticação, conta, cardápio, pedidos e infra.</figcaption></figure>
+
+<h2 class="quebra">6. Chrome DevTools: o frontend só fala com o Gateway</h2>
+<p>Painel <em>Network</em> do Chrome DevTools durante o login e a navegação do cliente. Todas as chamadas de dados vão para <code>127.0.0.1:8000</code> (Gateway); nenhuma chega aos microsserviços. O cabeçalho <code>X-Requisicao-Id</code> liga a chamada aos logs dos serviços.</p>
+<figure><img src="img/22-devtools-network.png" alt="Figura 19. POST /auth/login: 200 OK, resposta com X-Requisicao-Id e CORS."><figcaption>Figura 19. POST /auth/login: 200 OK, resposta com X-Requisicao-Id e CORS.</figcaption></figure>
+<figure><img src="img/23-devtools-cardapio-bearer.png" alt="Figura 20. GET /cardapio com o cabeçalho Authorization: Bearer (JWT) enviado pelo frontend."><figcaption>Figura 20. GET /cardapio com o cabeçalho Authorization: Bearer (JWT) enviado pelo frontend.</figcaption></figure>
+<figure><img src="img/24-devtools-cardapio-resposta.png" alt="Figura 21. Resposta do GET /cardapio: origem &quot;catalogo&quot; (leitura direta do Catálogo, sem cache)."><figcaption>Figura 21. Resposta do GET /cardapio: origem "catalogo" (leitura direta do Catálogo, sem cache).</figcaption></figure>
+
+<h2 class="quebra">7. Rastreamento distribuído (Jaeger)</h2>
+<p>Cada requisição gera spans no Gateway, no Pedidos, no Catálogo e no banco, ligados pelo mesmo trace.</p>
+<figure><img src="img/19-jaeger-busca.png" alt="Figura 22. Jaeger: traces do serviço gateway."><figcaption>Figura 22. Jaeger: traces do serviço gateway.</figcaption></figure>
+<figure><img src="img/20-jaeger-trace-pedido.png" alt="Figura 23. Trace de um POST /pedidos: gateway → pedidos.CriarPedido → catalogo.ConsultarItens → consultas ao banco (7,36 ms no total, 3 serviços, 9 spans)."><figcaption>Figura 23. Trace de um POST /pedidos: gateway → pedidos.CriarPedido → catalogo.ConsultarItens → consultas ao banco (7,36 ms no total, 3 serviços, 9 spans).</figcaption></figure>
+
+<h2 class="quebra">8. Tolerância a falhas</h2>
+<p>O roteiro <code>scripts/testar_resiliencia.py</code> derruba o Catálogo de verdade (<code>docker compose stop catalogo</code>), confere a reação do sistema e o religa:</p>
+<figure><img src="img/21-saude-catalogo-fora-circuito-aberto.png" alt="Figura 24. Catálogo fora do ar: health check UNAVAILABLE e pedidos recusados com 503 (nada gravado); Usuários e Pedidos seguem no ar."><figcaption>Figura 24. Catálogo fora do ar: health check UNAVAILABLE e pedidos recusados com 503 (nada gravado); Usuários e Pedidos seguem no ar.</figcaption></figure>
+<pre>== 1. Tudo no ar
+OK   GET /cardapio vem do Catalogo  (status 200, origem catalogo)
+
+== 2. Derrubando o Catalogo
+    $ docker compose stop catalogo
+ Container delivery-catalogo Stopping 
+ Container delivery-catalogo Stopped 
+
+== 3. Fallback do cardapio
+OK   GET /cardapio responde 200 com a lista salva  (status 200, origem cache, 2398 ms)
+    aviso: Catalogo nao respondeu (UNAVAILABLE). Exibindo o cardapio salvo as 08:28:19; precos e disponibilidade podem estar desatualizados.
+
+== 4. Pedido com o Catalogo fora
+OK   POST /pedidos responde 503 sem gravar  (status 503 em 2.5 s, Retry-After 5)
+    mensagem: Catalogo indisponivel no momento (UNAVAILABLE): nao foi possivel confirmar os itens. Tente novamente em instantes.
+
+== 5. Isolamento: Pedidos continua no ar
+OK   GET /pedidos responde 200  (status 200)
+
+== 6. Circuit breaker
+OK   Circuito do Catalogo ABERTO  ({&quot;circuito&quot;: &quot;ABERTO&quot;, &quot;falhas_seguidas&quot;: 3, &quot;reabre_em_segundos&quot;: 15})
+OK   Com o circuito aberto, categoria sem lista salva falha na hora com 503  (status 503 em 16 ms, Retry-After 15)
+
+== 7. Recuperacao
+    $ docker compose start catalogo
+ Container delivery-migrador Starting 
+ Container delivery-migrador Started 
+ Container delivery-migrador Waiting 
+ Container delivery-migrador Exited 
+ Container delivery-catalogo Starting 
+ Container delivery-catalogo Started 
+    aguardando 16 s (circuito aberto) ...
+OK   GET /cardapio volta a vir do Catalogo  (status 200, origem catalogo)
+OK   Circuito do Catalogo FECHADO
+OK   POST /pedidos volta a gravar (201)  (status 201)
+
+Tolerancia a falhas OK.</pre>
+
+<h2 class="quebra">9. Dados no PostgreSQL e logs dos serviços</h2>
+<p>Nada fica em memória: usuários (senha só como hash bcrypt), cardápio e pedidos estão no banco. O pedido da Maria Silva (Figura 8) aparece com seus três itens, e o log mostra a mesma requisição (<code>cf2dd906</code>) atravessando Gateway, Pedidos e Catálogo.</p>
+<pre>$ SELECT login, nome, papel, senha_hash FROM usuarios;  (senha so como hash bcrypt)
+      login      |       nome        |  papel  | senha_hash 
+-----------------+-------------------+---------+------------
+ cliente8846664  | Cliente de teste  | cliente | $2b$12$...
+ cliente8842803  | Cliente de teste  | cliente | $2b$12$...
+ maria.silva     | Maria Silva       | cliente | $2b$12$...
+ teste1795778657 | Cliente Renomeado | cliente | $2b$12$...
+ professor       | Professor         | cozinha | $2b$12$...
+(5 rows)
+
+
+$ SELECT codigo, nome, preco, disponivel FROM itens_cardapio;
+ codigo |          nome           | preco | disponivel 
+--------+-------------------------+-------+------------
+ BE01   | Refrigerante lata       |  7.00 | t
+ BE02   | Suco natural de laranja | 12.00 | t
+ BE03   | Água mineral            |  5.50 | t
+ EN01   | Bruschetta              | 18.90 | t
+ EN02   | Bolinho de bacalhau     | 32.00 | t
+ EN03   | Batata rústica          | 24.50 | t
+ PR01   | Filé à parmegiana       | 62.90 | t
+ PR02   | Risoto de camarão       | 74.00 | t
+ PR03   | Feijoada individual     | 54.00 | t
+ PR04   | Lasanha à bolonhesa     | 48.50 | t
+ PR05   | Moqueca de peixe        | 79.90 | f
+ SO01   | Pudim de leite          | 16.00 | t
+ SO02   | Petit gâteau            | 27.90 | t
+(13 rows)
+
+
+$ SELECT id, cliente, status, total, criado_em FROM pedidos ORDER BY criado_em DESC LIMIT 5;
+  pedido  |      cliente      |   status   | total |           criado_em           
+----------+-------------------+------------+-------+-------------------------------
+ 7b4aa381 | Professor         | RECEBIDO   | 62.90 | 2026-11-27 08:28:48.964146-03
+ 213251e7 | Maria Silva       | EM_PREPARO | 88.80 | 2026-11-27 08:25:51.538831-03
+ 1eca5793 | Cliente Renomeado | RECEBIDO   | 62.90 | 2026-11-27 08:24:23.200716-03
+ 905e3e68 | Usuario de Teste  | EM_PREPARO |  7.00 | 2026-11-27 08:24:19.608445-03
+ d1343f91 | Professor         | RECEBIDO   | 26.50 | 2026-11-27 08:24:19.467235-03
+(5 rows)
+
+
+$ SELECT * FROM itens_pedido (pedido da Maria Silva);
+ codigo |       nome        |     opcao      | quantidade | preco_unitario 
+--------+-------------------+----------------+------------+----------------
+ EN01   | Bruschetta        |                |          1 |          18.90
+ PR01   | Filé à parmegiana |                |          1 |          62.90
+ BE01   | Refrigerante lata | Coca-Cola Zero |          1 |           7.00
+(3 rows)</pre>
+<pre># Requisicao do pedido da Maria Silva (id de requisicao cf2dd906) atravessando os quatro servicos
+--- gateway
+[08:25:51] [cf2dd906] POST /pedidos -&gt; 201 (21 ms) [maria.silva]
+--- usuarios
+[08:24:58] [e7be0514] CadastrarUsuario: login=&#x27;maria.silva&#x27; nome=&#x27;Maria Silva&#x27;
+[08:24:58] [e7be0514] Usuario maria.silva gravado (id abe3413a-3b92-4aa7-8717-00e69083e405)
+[08:25:05] [bb471681] VerificarCredenciais: login=&#x27;maria.silva&#x27; -&gt; ok
+--- pedidos
+[08:25:51] [cf2dd906] CriarPedido: pedido=213251e7-39ed-4e6b-a490-5e15023ce15b usuario=abe3413a-3b92-4aa7-8717-00e69083e405 cliente=&#x27;Maria Silva&#x27; itens=[(&#x27;EN01&#x27;, 1, &#x27;&#x27;), (&#x27;PR01&#x27;, 1, &#x27;&#x27;), (&#x27;BE01&#x27;, 1, &#x27;Coca-Cola Zero&#x27;)]
+[08:25:51] [cf2dd906] Pedido 213251e7-39ed-4e6b-a490-5e15023ce15b gravado: 3 itens, 3 unidades, total R$ 88.80
+--- catalogo
+[08:25:51] [cf2dd906] ConsultarItens: [&#x27;BE01&#x27;, &#x27;EN01&#x27;, &#x27;PR01&#x27;] -&gt; 3 encontrados</pre>
+
+<h2 class="quebra">10. Testes automatizados</h2>
+<p><code>python scripts/testar_gateway.py --url http://127.0.0.1:8000</code> exercita o Gateway de ponta a ponta contra o sistema no ar: <span class="ok">84 cenários, todos aprovados</span>. Cobre 400, 401, 403, 404, 409, 415, criação (201), tempo real e posse dos pedidos.</p>
+<div class="cols">
+<table class=cen><tbody><tr><td class=n>2</td><td>Gateway no ar (rota publica)</td><td class=s>200</td></tr><tr><td class=n>3</td><td>Sem token</td><td class=s>401</td></tr><tr><td class=n>4</td><td>Cabecalho sem Bearer</td><td class=s>401</td></tr><tr><td class=n>5</td><td>Token que nao e JWT</td><td class=s>401</td></tr><tr><td class=n>6</td><td>Login sem senha</td><td class=s>400</td></tr><tr><td class=n>7</td><td>Senha errada</td><td class=s>401</td></tr><tr><td class=n>8</td><td>Cadastro com dados invalidos</td><td class=s>400</td></tr><tr><td class=n>9</td><td>Cadastro com numero no nome</td><td class=s>400</td></tr><tr><td class=n>10</td><td>Cadastro de usuario novo</td><td class=s>201</td></tr><tr><td class=n>11</td><td>Cadastro com login repetido</td><td class=s>409</td></tr><tr><td class=n>12</td><td>Login valido devolve o token</td><td class=s>200</td></tr><tr><td class=n>13</td><td>Token com assinatura adulterada</td><td class=s>401</td></tr><tr><td class=n>14</td><td>Dono do token</td><td class=s>200</td></tr><tr><td class=n>15</td><td>Login do cliente recem-criado</td><td class=s>200</td></tr><tr><td class=n>16</td><td>Cliente tentando alterar o cardapio</td><td class=s>403</td></tr><tr><td class=n>17</td><td>Cardapio de bebidas</td><td class=s>200</td></tr><tr><td class=n>18</td><td>Cliente tentando cadastrar prato</td><td class=s>403</td></tr><tr><td class=n>19</td><td>Prato sem nome e sem preco</td><td class=s>400</td></tr><tr><td class=n>20</td><td>Prato em categoria que nao existe</td><td class=s>400</td></tr><tr><td class=n>21</td><td>Cozinha cadastra um prato (codigo sai da categoria)</td><td class=s>201</td></tr><tr><td class=n>22</td><td>Edicao sem nenhum campo</td><td class=s>400</td></tr><tr><td class=n>23</td><td>Cozinha edita a descricao (o resto fica igual)</td><td class=s>200</td></tr><tr><td class=n>24</td><td>Cliente tentando enviar foto</td><td class=s>403</td></tr><tr><td class=n>25</td><td>Arquivo que nao e foto</td><td class=s>415</td></tr><tr><td class=n>26</td><td>Cozinha envia a foto do prato</td><td class=s>200</td></tr><tr><td class=n>27</td><td>Foto do prato e publica (sem token)</td><td class=s>200</td></tr><tr><td class=n>28</td><td>Cozinha tira a foto do prato</td><td class=s>200</td></tr><tr><td class=n>29</td><td>Foto que nao existe mais</td><td class=s>404</td></tr><tr><td class=n>30</td><td>Cliente tentando excluir prato</td><td class=s>403</td></tr><tr><td class=n>31</td><td>Cozinha exclui o prato</td><td class=s>200</td></tr><tr><td class=n>32</td><td>Excluir de novo nao e erro (idempotente)</td><td class=s>200</td></tr><tr><td class=n>33</td><td>Pedido com prato excluido</td><td class=s>400</td></tr><tr><td class=n>34</td><td>Cozinha tira so a agua com gas do dia</td><td class=s>200</td></tr><tr><td class=n>35</td><td>Opcao fora do dia que o item nao tem</td><td class=s>400</td></tr><tr><td class=n>36</td><td>Pedido de agua com gas fora do dia</td><td class=s>409</td></tr><tr><td class=n>37</td><td>Agua sem gas continua valendo</td><td class=s>201</td></tr><tr><td class=n>38</td><td>Cozinha volta a agua com gas</td><td class=s>200</td></tr><tr><td class=n>39</td><td>Pedido valido gravado em nome do dono do token</td><td class=s>201</td></tr><tr><td class=n>40</td><td>Campo cliente no corpo e recusado (o nome vem do token)</td><td class=s>400</td></tr><tr><td class=n>41</td><td>Sem o campo endereco</td><td class=s>400</td></tr><tr><td class=n>42</td><td>Quantidade zero e endereco vazio</td><td class=s>400</td></tr><tr><td class=n>43</td><td>Lista de itens vazia</td><td class=s>400</td></tr></tbody></table>
+<table class=cen><tbody><tr><td class=n>44</td><td>JSON malformado</td><td class=s>400</td></tr><tr><td class=n>45</td><td>Item que nao existe no banco</td><td class=s>400</td></tr><tr><td class=n>46</td><td>Item indisponivel (PR05)</td><td class=s>409</td></tr><tr><td class=n>47</td><td>Refrigerante sem escolher o sabor</td><td class=s>400</td></tr><tr><td class=n>48</td><td>Sabor que nao existe no cardapio</td><td class=s>400</td></tr><tr><td class=n>49</td><td>Opcao em prato sem opcoes</td><td class=s>400</td></tr><tr><td class=n>50</td><td>Agua com gas e dois sabores de refrigerante</td><td class=s>201</td></tr><tr><td class=n>51</td><td>Consulta do pedido criado</td><td class=s>200</td></tr><tr><td class=n>52</td><td>Pedido inexistente</td><td class=s>404</td></tr><tr><td class=n>53</td><td>Avanca status RECEBIDO -&gt; EM_PREPARO</td><td class=s>200</td></tr><tr><td class=n>54</td><td>Repetir o mesmo status e idempotente</td><td class=s>200</td></tr><tr><td class=n>55</td><td>Pula etapa EM_PREPARO -&gt; ENTREGUE</td><td class=s>409</td></tr><tr><td class=n>56</td><td>Status fora da lista</td><td class=s>400</td></tr><tr><td class=n>57</td><td>Cliente tentando avancar o status</td><td class=s>403</td></tr><tr><td class=n>58</td><td>Cliente faz o proprio pedido</td><td class=s>201</td></tr><tr><td class=n>59</td><td>Cliente lista so os proprios pedidos</td><td class=s>200</td></tr><tr><td class=n>60</td><td>Cliente consulta o proprio pedido</td><td class=s>200</td></tr><tr><td class=n>61</td><td>Cliente nao ve o pedido de outro usuario</td><td class=s>404</td></tr><tr><td class=n>62</td><td>Cozinha lista os pedidos de todos</td><td class=s>200</td></tr><tr><td class=n>63</td><td>Cozinha consulta o pedido do cliente</td><td class=s>200</td></tr><tr><td class=n>64</td><td>Filtro por etapa</td><td class=s>200</td></tr><tr><td class=n>65</td><td>Filtro por prato</td><td class=s>200</td></tr><tr><td class=n>66</td><td>Filtro por periodo (hoje)</td><td class=s>200</td></tr><tr><td class=n>67</td><td>Filtro por cliente (cozinha)</td><td class=s>200</td></tr><tr><td class=n>68</td><td>Filtro com etapa invalida</td><td class=s>400</td></tr><tr><td class=n>69</td><td>Historico com o horario de cada etapa</td><td class=s>200</td></tr><tr><td class=n>70</td><td>Tempo real: cliente recebe a nova etapa sem recarregar</td><td class=s>200</td></tr><tr><td class=n>71</td><td>Tempo real: cliente nao recebe pedido de outro usuario</td><td class=s>200</td></tr><tr><td class=n>72</td><td>Health check dos microsservicos</td><td class=s>200</td></tr><tr><td class=n>73</td><td>Cliente tentando ver a saude dos servicos</td><td class=s>403</td></tr><tr><td class=n>74</td><td>Conta sem token</td><td class=s>401</td></tr><tr><td class=n>75</td><td>Cliente ve os proprios dados</td><td class=s>200</td></tr><tr><td class=n>76</td><td>Telefone invalido</td><td class=s>400</td></tr><tr><td class=n>77</td><td>Nome com numero em Meus dados</td><td class=s>400</td></tr><tr><td class=n>78</td><td>Conta sem nenhum campo</td><td class=s>400</td></tr><tr><td class=n>79</td><td>Cliente muda nome, telefone e endereco (volta um token novo)</td><td class=s>200</td></tr><tr><td class=n>80</td><td>Pedido com o token novo sai com o nome novo e o telefone</td><td class=s>201</td></tr><tr><td class=n>81</td><td>Trocar a senha com a atual errada</td><td class=s>400</td></tr><tr><td class=n>82</td><td>Confirmacao diferente da nova senha</td><td class=s>400</td></tr><tr><td class=n>83</td><td>Cliente troca a senha</td><td class=s>200</td></tr><tr><td class=n>84</td><td>Senha antiga nao entra mais</td><td class=s>401</td></tr><tr><td class=n>85</td><td>Senha nova entra</td><td class=s>200</td></tr></tbody></table>
+</div>
+
+</body>
+</html>

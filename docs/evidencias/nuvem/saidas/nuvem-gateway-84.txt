@@ -1,0 +1,312 @@
+Gateway: https://delivery-gateway-j76gmjruwa-uc.a.run.app
+
+OK  Gateway no ar (rota publica)  (esperado 200, recebido 200)  
+    GET /saude
+
+OK  Sem token  (esperado 401, recebido 401)  
+    GET /cardapio
+
+OK  Cabecalho sem Bearer  (esperado 401, recebido 401)  
+    GET /pedidos
+
+OK  Token que nao e JWT  (esperado 401, recebido 401)  
+    GET /pedidos
+
+OK  Login sem senha  (esperado 400, recebido 400)  
+    POST /auth/login
+    corpo enviado: {"login": "professor"}
+
+OK  Senha errada  (esperado 401, recebido 401)  
+    POST /auth/login
+    corpo enviado: {"login": "professor", "senha": "chute-errado"}
+
+OK  Cadastro com dados invalidos  (esperado 400, recebido 400)  
+    POST /auth/cadastro
+    corpo enviado: {"login": "a b", "nome": "", "senha": "123"}
+
+OK  Cadastro com numero no nome  (esperado 400, recebido 400)  
+    POST /auth/cadastro
+    corpo enviado: {"login": "nome1795781757", "nome": "Joao 2", "senha": "senha-teste"}
+
+OK  Cadastro de usuario novo  (esperado 201, recebido 201)  
+    POST /auth/cadastro
+    corpo enviado: {"login": "teste1795781757", "nome": "Usuario de Teste", "senha": "senha-teste"}
+
+OK  Cadastro com login repetido  (esperado 409, recebido 409)  
+    POST /auth/cadastro
+    corpo enviado: {"login": "teste1795781757", "nome": "Outro", "senha": "senha-teste"}
+
+OK  Login valido devolve o token  (esperado 200, recebido 200)  
+    POST /auth/login
+    corpo enviado: {"login": "professor", "senha": "***"}
+
+OK  Token com assinatura adulterada  (esperado 401, recebido 401)  
+    GET /pedidos
+
+OK  Dono do token  (esperado 200, recebido 200)  
+    GET /auth/eu
+
+OK  Login do cliente recem-criado  (esperado 200, recebido 200)  
+    POST /auth/login
+    corpo enviado: {"login": "teste1795781757", "senha": "senha-teste"}
+
+OK  Cliente tentando alterar o cardapio  (esperado 403, recebido 403)  
+    PATCH /cardapio/PR01
+    corpo enviado: {"disponivel": true, "preco": 1.0}
+
+Preparacao: BE01, BE03 diferente(s) da carga inicial; o teste acerta agora e devolve ao terminar.
+
+OK  Cardapio de bebidas  (esperado 200, recebido 200)  
+    GET /cardapio?categoria=Bebidas
+
+OK  Cliente tentando cadastrar prato  (esperado 403, recebido 403)  
+    POST /cardapio
+    corpo enviado: {"nome": "Prato do cliente", "categoria": "Pratos", "preco": 10}
+
+OK  Prato sem nome e sem preco  (esperado 400, recebido 400)  
+    POST /cardapio
+    corpo enviado: {"categoria": "Pratos"}
+
+OK  Prato em categoria que nao existe  (esperado 400, recebido 400)  
+    POST /cardapio
+    corpo enviado: {"nome": "Hamburguer", "categoria": "Lanches", "preco": 30}
+
+OK  Cozinha cadastra um prato (codigo sai da categoria)  (esperado 201, recebido 201)  
+    POST /cardapio
+    corpo enviado: {"nome": "Prato de teste", "categoria": "Sobremesas", "preco": 19.9, "descricao": "Criado pelo teste", "opcoes": ["Com calda", "Sem calda"]}
+
+OK  Edicao sem nenhum campo  (esperado 400, recebido 400)  
+    PATCH /cardapio/SO06
+    corpo enviado: {}
+
+OK  Cozinha edita a descricao (o resto fica igual)  (esperado 200, recebido 200)  
+    PATCH /cardapio/SO06
+    corpo enviado: {"descricao": "Descricao editada"}
+
+OK  Cliente tentando enviar foto  (esperado 403, recebido 403)  
+    PUT /cardapio/SO06/foto
+    corpo enviado: <774 bytes, image/jpeg>
+
+OK  Arquivo que nao e foto  (esperado 415, recebido 415)  
+    PUT /cardapio/SO06/foto
+    corpo enviado: <19 bytes, image/jpeg>
+
+OK  Cozinha envia a foto do prato  (esperado 200, recebido 200)  
+    PUT /cardapio/SO06/foto
+    corpo enviado: <774 bytes, image/jpeg>
+
+OK  Foto do prato e publica (sem token)  (esperado 200, recebido 200)  
+    GET /cardapio/SO06/foto?v=1e384d1b94f0
+
+OK  Cozinha tira a foto do prato  (esperado 200, recebido 200)  
+    DELETE /cardapio/SO06/foto
+
+OK  Foto que nao existe mais  (esperado 404, recebido 404)  
+    GET /cardapio/SO06/foto
+
+OK  Cliente tentando excluir prato  (esperado 403, recebido 403)  
+    DELETE /cardapio/SO06
+
+OK  Cozinha exclui o prato  (esperado 200, recebido 200)  
+    DELETE /cardapio/SO06
+
+OK  Excluir de novo nao e erro (idempotente)  (esperado 200, recebido 200)  
+    DELETE /cardapio/SO06
+
+OK  Pedido com prato excluido  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "SO06", "quantidade": 1}]}
+
+OK  Cozinha tira so a agua com gas do dia  (esperado 200, recebido 200)  
+    PATCH /cardapio/BE03
+    corpo enviado: {"opcoes_indisponiveis": ["com gás"]}
+
+OK  Opcao fora do dia que o item nao tem  (esperado 400, recebido 400)  
+    PATCH /cardapio/BE03
+    corpo enviado: {"opcoes_indisponiveis": ["Morango"]}
+
+OK  Pedido de agua com gas fora do dia  (esperado 409, recebido 409)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "Com gás"}]}
+
+OK  Agua sem gas continua valendo  (esperado 201, recebido 201)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "Sem gás"}]}
+
+OK  Cozinha volta a agua com gas  (esperado 200, recebido 200)  
+    PATCH /cardapio/BE03
+    corpo enviado: {"opcoes_indisponiveis": []}
+
+OK  Pedido valido gravado em nome do dono do token  (esperado 201, recebido 201)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10, 123", "itens": [{"codigo": "PR01", "quantidade": 2}, {"codigo": "be02", "quantidade": 1}]}
+
+OK  Campo cliente no corpo e recusado (o nome vem do token)  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"cliente": "Outra Pessoa", "endereco": "Rua 10, 123", "itens": [{"codigo": "PR01", "quantidade": 1}]}
+
+OK  Sem o campo endereco  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"itens": [{"codigo": "PR01", "quantidade": 1}]}
+
+OK  Quantidade zero e endereco vazio  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "  ", "itens": [{"codigo": "PR01", "quantidade": 0}]}
+
+OK  Lista de itens vazia  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": []}
+
+OK  JSON malformado  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", 
+
+OK  Item que nao existe no banco  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "XX99", "quantidade": 1}]}
+
+OK  Item indisponivel (PR05)  (esperado 409, recebido 409)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "PR05", "quantidade": 1}]}
+
+OK  Refrigerante sem escolher o sabor  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "BE01", "quantidade": 1}]}
+
+OK  Sabor que nao existe no cardapio  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "BE01", "quantidade": 1, "opcao": "Fanta Morango"}]}
+
+OK  Opcao em prato sem opcoes  (esperado 400, recebido 400)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "PR01", "quantidade": 1, "opcao": "Grande"}]}
+
+OK  Agua com gas e dois sabores de refrigerante  (esperado 201, recebido 201)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 10", "itens": [{"codigo": "BE03", "quantidade": 1, "opcao": "com gás"}, {"codigo": "BE01", "quantidade": 2, "opcao": "Coca-Cola Zero"}, {"codigo": "BE01", "quantidade": 1, "opcao": "Fanta Uva"}]}
+
+OK  Consulta do pedido criado  (esperado 200, recebido 200)  
+    GET /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21
+
+OK  Pedido inexistente  (esperado 404, recebido 404)  
+    GET /pedidos/00000000-0000-0000-0000-000000000000
+
+OK  Avanca status RECEBIDO -> EM_PREPARO  (esperado 200, recebido 200)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "EM_PREPARO"}
+
+OK  Repetir o mesmo status e idempotente  (esperado 200, recebido 200)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "EM_PREPARO"}
+
+OK  Pula etapa EM_PREPARO -> ENTREGUE  (esperado 409, recebido 409)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "ENTREGUE"}
+
+OK  Status fora da lista  (esperado 400, recebido 400)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "CANCELADO"}
+
+OK  Cliente tentando avancar o status  (esperado 403, recebido 403)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "PRONTO"}
+
+OK  Cliente faz o proprio pedido  (esperado 201, recebido 201)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Av. Universitaria, 1", "itens": [{"codigo": "BE01", "quantidade": 1, "opcao": "Guaraná"}]}
+
+OK  Cliente lista so os proprios pedidos  (esperado 200, recebido 200)  
+    GET /pedidos?limite=50
+
+OK  Cliente consulta o proprio pedido  (esperado 200, recebido 200)  
+    GET /pedidos/8fac8e30-b428-4a7e-aae2-702e32003734
+
+OK  Cliente nao ve o pedido de outro usuario  (esperado 404, recebido 404)  
+    GET /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21
+
+OK  Cozinha lista os pedidos de todos  (esperado 200, recebido 200)  
+    GET /pedidos?limite=50
+
+OK  Cozinha consulta o pedido do cliente  (esperado 200, recebido 200)  
+    GET /pedidos/8fac8e30-b428-4a7e-aae2-702e32003734
+
+OK  Filtro por etapa  (esperado 200, recebido 200)  
+    GET /pedidos?etapa=EM_PREPARO
+
+OK  Filtro por prato  (esperado 200, recebido 200)  
+    GET /pedidos?item=BE01
+
+OK  Filtro por periodo (hoje)  (esperado 200, recebido 200)  
+    GET /pedidos?periodo=hoje
+
+OK  Filtro por cliente (cozinha)  (esperado 200, recebido 200)  
+    GET /pedidos?cliente=teste
+
+OK  Filtro com etapa invalida  (esperado 400, recebido 400)  
+    GET /pedidos?etapa=CANCELADO
+
+OK  Historico com o horario de cada etapa  (esperado 200, recebido 200)  
+    GET /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21
+
+OK  Tempo real: cliente recebe a nova etapa sem recarregar  (esperado 200, recebido 200)  
+    PATCH /pedidos/8fac8e30-b428-4a7e-aae2-702e32003734/status
+    corpo enviado: {"status": "EM_PREPARO"}
+
+OK  Tempo real: cliente nao recebe pedido de outro usuario  (esperado 200, recebido 200)  
+    PATCH /pedidos/f126277b-6a9e-416f-a8b6-b88abd6e0b21/status
+    corpo enviado: {"status": "PRONTO"}
+
+OK  Health check dos microsservicos  (esperado 200, recebido 200)  
+    GET /saude/servicos
+
+OK  Cliente tentando ver a saude dos servicos  (esperado 403, recebido 403)  
+    GET /saude/servicos
+
+OK  Conta sem token  (esperado 401, recebido 401)  
+    GET /conta
+
+OK  Cliente ve os proprios dados  (esperado 200, recebido 200)  
+    GET /conta
+
+OK  Telefone invalido  (esperado 400, recebido 400)  
+    PATCH /conta
+    corpo enviado: {"telefone": "123"}
+
+OK  Nome com numero em Meus dados  (esperado 400, recebido 400)  
+    PATCH /conta
+    corpo enviado: {"nome": "Cliente 123"}
+
+OK  Conta sem nenhum campo  (esperado 400, recebido 400)  
+    PATCH /conta
+    corpo enviado: {}
+
+OK  Cliente muda nome, telefone e endereco (volta um token novo)  (esperado 200, recebido 200)  
+    PATCH /conta
+    corpo enviado: {"nome": "Cliente Renomeado", "telefone": "(62) 99999-0000", "endereco": "Rua 20, 45"}
+
+OK  Pedido com o token novo sai com o nome novo e o telefone  (esperado 201, recebido 201)  
+    POST /pedidos
+    corpo enviado: {"endereco": "Rua 20, 45", "telefone": "(62) 99999-0000", "itens": [{"codigo": "PR01", "quantidade": 1}]}
+
+OK  Trocar a senha com a atual errada  (esperado 400, recebido 400)  
+    PUT /conta/senha
+    corpo enviado: {"senha_atual": "errada", "nova_senha": "senha-nova-1", "confirmar_senha": "senha-nova-1"}
+
+OK  Confirmacao diferente da nova senha  (esperado 400, recebido 400)  
+    PUT /conta/senha
+    corpo enviado: {"senha_atual": "senha-teste", "nova_senha": "senha-nova-1", "confirmar_senha": "outra-senha"}
+
+OK  Cliente troca a senha  (esperado 200, recebido 200)  
+    PUT /conta/senha
+    corpo enviado: {"senha_atual": "senha-teste", "nova_senha": "senha-nova-1", "confirmar_senha": "senha-nova-1"}
+
+OK  Senha antiga nao entra mais  (esperado 401, recebido 401)  
+    POST /auth/login
+    corpo enviado: {"login": "teste1795781757", "senha": "senha-teste"}
+
+OK  Senha nova entra  (esperado 200, recebido 200)  
+    POST /auth/login
+    corpo enviado: {"login": "teste1795781757", "senha": "senha-nova-1"}
+
+Todos os 84 cenarios passaram.
+Cardapio devolvido como a cozinha tinha deixado: BE01, BE03.

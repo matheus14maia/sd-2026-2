@@ -1,0 +1,41 @@
+== 1. Tudo no ar
+OK   GET /cardapio vem do Catalogo  (status 200, origem catalogo)
+
+== 2. Derrubando o Catalogo
+    $ bash -c "gcloud run services update delivery-catalogo --region us-central1 --update-env-vars FALHA_PERCENTUAL=100 --quiet --project sistemas-distribuidos-505422"
+Deploying...
+Creating Revision....................................................................................................done
+Routing traffic.....done
+Done.
+Service [delivery-catalogo] revision [delivery-catalogo-00003-hmr] has been deployed and is serving 100 percent of traffic.
+Service URL: https://delivery-catalogo-614354578666.us-central1.run.app
+
+== 3. Fallback do cardapio
+OK   GET /cardapio responde 200 com a lista salva  (status 200, origem cache, 1512 ms)
+    aviso: Catalogo nao respondeu (UNAVAILABLE). Exibindo o cardapio salvo as 12:17:00; precos e disponibilidade podem estar desatualizados.
+
+== 4. Pedido com o Catalogo fora
+OK   POST /pedidos responde 503 sem gravar  (status 503 em 0.8 s, Retry-After 5)
+    mensagem: Catalogo indisponivel no momento (UNAVAILABLE): nao foi possivel confirmar os itens. Tente novamente em instantes.
+
+== 5. Isolamento: Pedidos continua no ar
+OK   GET /pedidos responde 200  (status 200)
+
+== 6. Circuit breaker
+OK   Circuito do Catalogo ABERTO  ({"circuito": "ABERTO", "falhas_seguidas": 3, "reabre_em_segundos": 14})
+OK   Com o circuito aberto, categoria sem lista salva falha na hora com 503  (status 503 em 326 ms, Retry-After 14)
+
+== 7. Recuperacao
+    $ bash -c "gcloud run services update delivery-catalogo --region us-central1 --update-env-vars FALHA_PERCENTUAL=0 --quiet --project sistemas-distribuidos-505422"
+Deploying...
+Creating Revision........................................................................................done
+Routing traffic.....done
+Done.
+Service [delivery-catalogo] revision [delivery-catalogo-00004-6cc] has been deployed and is serving 100 percent of traffic.
+Service URL: https://delivery-catalogo-614354578666.us-central1.run.app
+    aguardando 16 s (circuito aberto) ...
+OK   GET /cardapio volta a vir do Catalogo  (status 200, origem catalogo)
+OK   Circuito do Catalogo FECHADO
+OK   POST /pedidos volta a gravar (201)  (status 201)
+
+Tolerancia a falhas OK.
