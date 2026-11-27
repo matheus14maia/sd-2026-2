@@ -21,6 +21,13 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
+    # Video de fundo do login (3 MB): cache no navegador para nao baixar de novo
+    # a cada visita. O nginx ja atende Range, que o <video> usa para tocar.
+    location /video/ {
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
     location / {
         add_header Cache-Control "no-store";
         try_files $uri /index.html;

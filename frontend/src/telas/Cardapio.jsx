@@ -436,7 +436,6 @@ export default function Cardapio({ sessao, aoCriarPedido, repetir, aoRepetir }) 
       <aside className="painel sacola" id="sacola" ref={sacolaRef} aria-label="Sua sacola">
         {etapa === "confirmado" && pedidoCriado ? (
           <div className="confirmacao-pedido" role="status">
-            <IconeChama className="icone-chama icone-confirmacao" />
             <h2>Pedido confirmado: as chamas estão acesas!</h2>
             <p>
               Pedido <strong>{pedidoCriado.pedido_id.slice(0, 8)}</strong> · total calculado pelo servidor:{" "}
