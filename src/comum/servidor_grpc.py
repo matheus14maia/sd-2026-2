@@ -44,8 +44,12 @@ ENCERRAMENTO_SEGUNDOS = 5
 FALHA_PERCENTUAL = float(os.getenv("FALHA_PERCENTUAL", "0") or 0)
 FALHA_ATRASO_MS = int(os.getenv("FALHA_ATRASO_MS", "0") or 0)
 
-# Metodos de infraestrutura nao passam pelo interceptador.
-PREFIXOS_INFRA = ("/grpc.health.", "/grpc.reflection.")
+# So o health check fica aberto a qualquer um (o Cloud Run e quem monitora
+# precisam dele). A reflection lista os metodos do servico: com o endpoint
+# publico, ela exige a chave interna como o negocio, mas nao ganha span nem
+# metrica de negocio.
+PREFIXO_SAUDE = "/grpc.health."
+PREFIXO_REFLEXAO = "/grpc.reflection."
 
 __all__ = ["executar", "log"]
 
@@ -90,7 +94,9 @@ def _recusar(handler, metodo: str):
         log("Chamada sem chave interna recusada em %s" % metodo, "WARNING", operacao=metodo)
         contexto.abort(grpc.StatusCode.UNAUTHENTICATED, mensagem)
 
-    if handler.unary_stream is not None:
+    if handler.stream_stream is not None:  # a reflection e bidirecional
+        fabrica = grpc.stream_stream_rpc_method_handler
+    elif handler.unary_stream is not None:
         fabrica = grpc.unary_stream_rpc_method_handler
     else:
         fabrica = grpc.unary_unary_rpc_method_handler
@@ -102,15 +108,15 @@ class InterceptadorServidor(grpc.ServerInterceptor):
     def intercept_service(self, continuation, detalhes):
         handler = continuation(detalhes)
         metodo = detalhes.method or ""
-        if handler is None or metodo.startswith(PREFIXOS_INFRA):
+        if handler is None or metodo.startswith(PREFIXO_SAUDE):
             return handler
 
         metadados = dict(detalhes.invocation_metadata or ())
-        # Endpoint publico no Cloud Run: o negocio (unario ou stream) so atende
-        # quem traz a chave interna. Health check e reflection ficam abertos.
+        # Endpoint publico no Cloud Run: negocio (unario ou stream) e reflection
+        # so atendem quem traz a chave interna. O health check fica aberto.
         if not chave_interna.confere(metadados):
             return _recusar(handler, metodo)
-        if handler.unary_unary is None:
+        if metodo.startswith(PREFIXO_REFLEXAO) or handler.unary_unary is None:
             return handler
 
         comportamento = handler.unary_unary

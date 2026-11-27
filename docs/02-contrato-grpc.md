@@ -184,9 +184,9 @@ python scripts/gerar_stubs.py
 
 ## Inspecionar os servicos com grpcurl
 
-Os tres servidores tem *reflection* habilitado. As portas sao publicadas so em
-`127.0.0.1` da maquina onde rodam (na VM `servidor-delivery`, em `0.0.0.0`, mas o
-firewall so aceita a VM do Gateway). Na maquina local ou dentro da VM:
+Os tres servidores tem *reflection* habilitado. No `docker compose` as portas
+sao publicadas so em `127.0.0.1` e, sem `CHAVE_INTERNA`, tudo responde a
+qualquer chamada local:
 
 ```bash
 grpcurl -plaintext localhost:9092 list
@@ -197,5 +197,12 @@ grpcurl -plaintext -d '{"limite":3}' localhost:9090 pedidos.PedidoService/Listar
 grpcurl -plaintext localhost:9091 grpc.health.v1.Health/Check
 ```
 
-De fora (internet) as portas 9090-9092 nao respondem: so o Gateway e o frontend
-sao publicos.
+No Cloud Run cada microsservico tem URL HTTPS publica (porta 443, TLS). O health
+check responde a qualquer um; reflection e metodos de negocio exigem o metadado
+`x-chave-interna` (segredo `delivery-chave-interna`) e, sem ele, respondem
+`UNAUTHENTICATED`. Com o grpcurl:
+
+```bash
+grpcurl delivery-catalogo-j76gmjruwa-uc.a.run.app:443 grpc.health.v1.Health/Check
+grpcurl -H "x-chave-interna: $CHAVE" delivery-catalogo-j76gmjruwa-uc.a.run.app:443 list
+```

@@ -413,7 +413,8 @@ nada que nao esteja no contrato.
   Gateway (o Pedidos confia no `usuario_id` que recebe). Por isso o
   `InterceptadorServidor` exige `x-chave-interna` (`src/comum/chave_interna.py`,
   segredo `delivery-chave-interna`) em **todo** metodo de negocio, unario e
-  stream; so health check e reflection ficam abertos. Quem chama nao faz nada:
+  stream, e tambem na reflection (que listaria os metodos a quem quisesse);
+  so o health check fica aberto. Quem chama nao faz nada:
   a chave vai em `rastreamento.metadados()`, que toda chamada entre servicos ja
   usa. Sem `CHAVE_INTERNA` (compose local) nada muda. Conferir com
   `scripts/testar_acesso_direto.py`.

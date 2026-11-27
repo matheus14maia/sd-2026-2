@@ -6,7 +6,8 @@ prova as duas metades disso:
 
   1. o endpoint esta no ar para qualquer um: o health check gRPC responde SERVING;
   2. o negocio nao: uma chamada sem a chave interna (ex.: ListarItens no
-     Catalogo, ListarPedidos no Pedidos) responde UNAUTHENTICATED.
+     Catalogo, ListarPedidos no Pedidos) responde UNAUTHENTICATED, e a
+     reflection (que listaria os metodos do servico) tambem.
 
 No Cloud Run (TLS na porta 443, endereco sem https://):
 
@@ -29,6 +30,7 @@ sys.path.insert(0, RAIZ)
 
 import grpc  # noqa: E402
 from grpc_health.v1 import health_pb2, health_pb2_grpc  # noqa: E402
+from grpc_reflection.v1alpha import reflection_pb2, reflection_pb2_grpc  # noqa: E402
 
 from src.gerado import (  # noqa: E402
     catalogo_pb2,
@@ -108,11 +110,16 @@ def main() -> int:
             stub = pedidos_pb2_grpc.PedidoServiceStub(ch)
             chamadas.append((lambda: next(stub.AcompanharPedidos(
                 pedidos_pb2.AcompanharPedidosRequest(), timeout=TIMEOUT)), "AcompanharPedidos (stream)"))
+        # A reflection listaria os servicos e metodos para quem quisesse.
+        reflexao = reflection_pb2_grpc.ServerReflectionStub(ch)
+        chamadas.append((lambda: next(reflexao.ServerReflectionInfo(
+            iter([reflection_pb2.ServerReflectionRequest(list_services="")]), timeout=TIMEOUT)),
+            "Reflection (listar servicos)"))
         for chamar, metodo in chamadas:
             erros += conferir_recusa(chamar, metodo)
         ch.close()
 
-    print("\nAcesso direto OK: endpoint publico, negocio so com a chave interna." if not erros
+    print("\nAcesso direto OK: endpoint publico, negocio e reflection so com a chave interna." if not erros
           else f"\n{erros} verificacao(oes) falharam.")
     return 1 if erros else 0
 
