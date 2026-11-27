@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { chamar, salvarSessao, tirarAvisoDeLogin } from "../api.js";
 import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
-import IconeChama from "../componentes/IconeChama.jsx";
+import FundoBrasas from "../componentes/FundoBrasas.jsx";
+import FundoCozinha from "../componentes/FundoCozinha.jsx";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
@@ -41,8 +42,9 @@ export default function Login() {
 
   return (
     <div className="login">
+      <FundoCozinha />
       <div className="login-texto">
-        <IconeChama className="icone-chama login-chama" />
+        <FundoBrasas />
         <h1>Peça do Hell's Kitchen sem sair da aula.</h1>
         <p>
           Entre com sua conta para ver o cardápio, fazer pedidos e acompanhar cada etapa até a entrega. A

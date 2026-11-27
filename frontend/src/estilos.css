@@ -1939,12 +1939,6 @@ p {
   margin: 0 0 8px;
 }
 
-.icone-confirmacao {
-  width: 44px;
-  height: 60px;
-  filter: drop-shadow(0 0 8px rgba(255, 196, 60, 0.7));
-}
-
 .confirmacao-acoes {
   display: flex;
   flex-wrap: wrap;
@@ -2404,10 +2398,39 @@ p {
 
 /* ------------------------------------------------------------------ login */
 .login {
+  position: relative;
+  z-index: 1;
   align-items: stretch;
   gap: 40px;
   min-height: auto;
   padding-top: 8px;
+}
+
+/* Video da cozinha na tela inteira (FundoCozinha.jsx). Fica atras de tudo do
+   login (z-index -1 dentro do contexto do .login) e acima do fundo inox do
+   body. O veu escurece e esquenta a imagem para o texto continuar legivel. */
+.fundo-cozinha {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: #14110f url("/video/cozinha.jpg") center / cover no-repeat;
+}
+
+.fundo-cozinha video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+.fundo-cozinha::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 110%, rgba(110, 26, 18, 0.35), transparent 60%),
+    linear-gradient(180deg, rgba(14, 12, 12, 0.72) 0%, rgba(20, 14, 13, 0.58) 45%, rgba(14, 12, 12, 0.8) 100%);
 }
 
 .login-texto {
@@ -2418,30 +2441,107 @@ p {
   justify-content: center;
   padding: 44px 44px 40px;
   border-radius: 22px;
-  background: linear-gradient(155deg, #1d2329 0%, #2b1a1b 55%, #6e1a12 120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Vidro escuro: deixa o video aparecer de leve por tras do texto. */
+  background: linear-gradient(155deg, rgba(29, 35, 41, 0.78) 0%, rgba(43, 26, 27, 0.74) 55%, rgba(110, 26, 18, 0.7) 120%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   color: var(--branco);
   box-shadow: var(--sombra-2);
   isolation: isolate;
 }
 
-/* Brasa no canto: um brilho laranja que nao atrapalha a leitura. */
-.login-texto::after {
-  content: "";
+/* Fundo vivo (FundoBrasas.jsx): dois brilhos que respiram e brasas que sobem.
+   Fica atras do texto (z-index -1 dentro do isolation do painel) e so mexe
+   transform/opacity, que o navegador anima sem recalcular o layout. */
+.fundo-brasas {
   position: absolute;
-  right: -120px;
-  bottom: -160px;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 146, 43, 0.45), rgba(240, 62, 62, 0.15) 45%, transparent 70%);
+  inset: 0;
   z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.login-chama {
-  width: 46px;
-  height: 62px;
-  margin-bottom: 14px;
-  filter: drop-shadow(0 0 12px rgba(255, 166, 60, 0.75));
+.fundo-brasas .brilho {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
+
+/* Brasa grande no canto de baixo: o mesmo brilho de antes, agora pulsando. */
+.brilho-a {
+  right: -140px;
+  bottom: -180px;
+  width: 460px;
+  height: 460px;
+  background: radial-gradient(circle, rgba(255, 146, 43, 0.5), rgba(240, 62, 62, 0.18) 45%, transparent 70%);
+  animation: respirar-a 7s ease-in-out infinite;
+}
+
+/* Reflexo frio no alto, que deriva devagar para dar profundidade. */
+.brilho-b {
+  left: -120px;
+  top: -140px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(240, 62, 62, 0.22), rgba(110, 26, 18, 0.12) 50%, transparent 70%);
+  animation: derivar-b 16s ease-in-out infinite alternate;
+}
+
+.brasa {
+  position: absolute;
+  left: var(--x);
+  bottom: -12px;
+  width: calc(var(--tamanho) + 2px);
+  height: calc(var(--tamanho) + 2px);
+  border-radius: 50%;
+  background: #ffe08a;
+  box-shadow: 0 0 8px 2px rgba(255, 146, 43, 0.95), 0 0 18px 5px rgba(240, 62, 62, 0.45);
+  opacity: 0;
+  animation: subir-brasa var(--duracao) linear infinite;
+  animation-delay: var(--atraso);
+  will-change: transform, opacity;
+}
+
+@keyframes respirar-a {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.12) translate(-14px, -10px);
+    opacity: 1;
+  }
+}
+
+@keyframes derivar-b {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(90px, 60px) scale(1.15);
+  }
+}
+
+@keyframes subir-brasa {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  50% {
+    transform: translate(var(--desvio), -260px) scale(0.85);
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(calc(var(--desvio) * -0.5), -520px) scale(0.4);
+    opacity: 0;
+  }
 }
 
 .login-texto h1 {
@@ -2981,12 +3081,6 @@ p {
 
   .login-destaques {
     margin-top: 16px;
-  }
-
-  .login-chama {
-    width: 34px;
-    height: 46px;
-    margin-bottom: 10px;
   }
 
   .login-form {
@@ -3643,8 +3737,13 @@ p {
     animation: none;
   }
 
-  .fogo {
+  .fogo,
+  .brasa {
     display: none;
+  }
+
+  .fundo-brasas .brilho {
+    animation: none;
   }
 
   .dialogo-prato[open] {

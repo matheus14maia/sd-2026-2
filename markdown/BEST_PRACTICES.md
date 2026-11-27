@@ -320,6 +320,16 @@ nada que nao esteja no contrato.
   que o nginx gera a partir de `API_URL` (template em `frontend/nginx/`). Mudar o
   Gateway de lugar nao exige rebuild da imagem. A porta do nginx tambem vem do
   ambiente (`PORT`, padrao 8080).
+- **Midia de terceiros so com licenca livre, registrada.** O repositorio e
+  publico: video ou imagem baixado de banco gratuito precisa de licenca que
+  permita uso e redistribuicao (no Mixkit, "Stock Video Free License"; a
+  "Restricted License" e so para uso pessoal). Nome do clipe, origem e licenca
+  vao no comentario do componente e em `docs/06-frontend.md`.
+- **Arquivo grande em `frontend/public/` precisa de `location` com cache no
+  nginx.** O `location /` responde `no-store` (o `index.html` nao pode ficar
+  velho), entao sem uma regra propria o video do login (`/video/`, 3 MB) seria
+  baixado de novo a cada visita. Video de fundo: `muted`, `loop`, `playsInline`,
+  `poster`, `aria-hidden` e pausado com `prefers-reduced-motion`.
 - **O formulario de pedido nao tem campo de nome.** O pedido sai em nome de quem
   esta logado; a tela so mostra o nome da sessao.
 - **Consulta periodica usa `silencioso: true`** em `chamar()` (tela Saude): senao

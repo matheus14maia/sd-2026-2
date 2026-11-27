@@ -32,6 +32,15 @@ ou copo) num fundo da cor dela. Fotos iniciais tambem podem
 vir no repositorio, em `db/fotos/<CODIGO>.jpg` (ver o `LEIA-ME.txt` da pasta):
 o migrador carrega no banco quando o sistema sobe.
 
+**Tela de entrada.** Atras do login roda, na tela inteira, um video curto de
+alguem fritando na frigideira com a chama do fogao (`public/video/cozinha.mp4`,
+720p, 3 MB, mudo e em loop; "Frying diced bacon in a skillet", do Mixkit, sob a
+Mixkit Stock Video Free License). Um veu escuro deixa o texto legivel e a capa
+`cozinha.jpg` aparece enquanto o video carrega. O painel da esquerda e um vidro
+escuro com brasas subindo (`componentes/FundoBrasas.jsx`). Com "reduzir
+movimento" ligado no sistema, o video fica parado na capa e as brasas somem. O
+nginx guarda `/video/` em cache por 7 dias.
+
 **Fogo ao confirmar o pedido.** O botao "Finalizar pedido e acender as chamas"
 tem uma chama de duas camadas que tremula sob o mouse. Com o pedido confirmado,
 o `componentes/Fogo.jsx` desenha num `<canvas>` sete linguas de fogo que sobem
@@ -144,6 +153,6 @@ frontend/
   src/mensagens.js                 mensagens da API -> texto da tela (com acento)
   src/App.jsx                      cabecalho, abas e escolha da tela
   src/telas/                       Login, Cardapio, Pedidos, Cozinha, Saude, Testes
-  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama, Fogo, FotoPrato
+  src/componentes/                 Campo (obrigatorio, erro por campo, Aviso, Resultado), Trilho (comandas), IconeChama, Fogo, FotoPrato, FundoCozinha (video do login), FundoBrasas
   src/estilos.css                  identidade visual
 ```
