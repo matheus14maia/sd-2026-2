@@ -32,7 +32,7 @@ marcado, e grave por cima do PDF. Os links da tabela da secao 5 saem do fim do
 |---|---|---|
 | Frontend | container nginx | Cloud Run `delivery-frontend`, publico (HTTPS) |
 | Gateway | container | Cloud Run `delivery-gateway`, publico (HTTPS) |
-| Usuarios, Catalogo, Pedidos | containers | Cloud Run `delivery-usuarios`, `delivery-catalogo`, `delivery-pedidos`, gRPC com HTTP/2 (`--use-http2`), **endpoint HTTPS publico**: o health check responde a qualquer um; o negocio (unario e stream) so atende quem manda a **chave interna** (`x-chave-interna`, do Secret Manager): o Gateway e, no Catalogo, o Pedidos. Sem ela, `UNAUTHENTICATED` |
+| Usuarios, Catalogo, Pedidos | containers | Cloud Run `delivery-usuarios`, `delivery-catalogo`, `delivery-pedidos`, gRPC com HTTP/2 (`--use-http2`), **endpoint HTTPS publico**: o health check responde a qualquer um; o negocio (unario e stream) e a reflection so atendem quem manda a **chave interna** (`x-chave-interna`, do Secret Manager): o Gateway e, no Catalogo, o Pedidos. Sem ela, `UNAUTHENTICATED` |
 | Migrador | container que roda e termina | Cloud Run **job** `delivery-migrador`, executado a cada implantacao |
 | PostgreSQL | container | Cloud SQL `delivery-postgres` (o do Trabalho 2), pelo conector do Cloud Run (`DB_HOST=/cloudsql/<conexao>`) |
 | Imagens | build local | Cloud Build (`scripts/gcp/cloud-run/cloudbuild.yaml`) publica no Artifact Registry `us-central1-docker.pkg.dev/<projeto>/delivery/<componente>` |
