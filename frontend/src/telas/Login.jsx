@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { chamar, salvarSessao, tirarAvisoDeLogin } from "../api.js";
 import Campo, { LegendaObrigatorio, Resultado } from "../componentes/Campo.jsx";
+import IconeChama from "../componentes/IconeChama.jsx";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
@@ -41,11 +42,17 @@ export default function Login() {
   return (
     <div className="login">
       <div className="login-texto">
+        <IconeChama className="icone-chama login-chama" />
         <h1>Peça do Hell's Kitchen sem sair da aula.</h1>
         <p>
           Entre com sua conta para ver o cardápio, fazer pedidos e acompanhar cada etapa até a entrega. A
           sessão usa um token JWT emitido pelo Gateway.
         </p>
+        <ul className="login-destaques">
+          <li>Cardápio do dia</li>
+          <li>Pedido em tempo real</li>
+          <li>Previsão de entrega</li>
+        </ul>
         <p className="login-dica">
           Ainda não tem conta? Use <strong>Criar conta</strong>: leva menos de um minuto.
         </p>

@@ -99,7 +99,7 @@ export default function Saude() {
       )}
 
       {servicos && (
-        <table className="tabela saude-tabela">
+        <table className="tabela saude-tabela tabela-cartoes">
           <thead>
             <tr>
               <th>Microsserviço</th>
@@ -116,17 +116,17 @@ export default function Saude() {
               const noAr = info.health_check === "SERVING";
               return (
                 <tr key={nome}>
-                  <td>
+                  <td className="celula-titulo">
                     <strong>{NOMES[nome] || nome}</strong>
                   </td>
-                  <td>
+                  <td data-rotulo="Health check gRPC">
                     <span className={`estado ${noAr ? "estado-ok" : "estado-falha"}`}>
                       {noAr ? "No ar" : "Fora do ar"}
                     </span>
                     {info.detalhe && <span className="saude-detalhe">{info.detalhe}</span>}
                   </td>
-                  <td className="num">{info.latencia_ms} ms</td>
-                  <td>
+                  <td data-rotulo="Latência" className="num">{info.latencia_ms} ms</td>
+                  <td data-rotulo="Circuito no Gateway">
                     <span className={`estado ${circuito.classe}`}>{circuito.nome}</span>
                     <span className="saude-detalhe">
                       {circuito.texto}
@@ -135,8 +135,8 @@ export default function Saude() {
                         : ""}
                     </span>
                   </td>
-                  <td className="num">{info.falhas_seguidas}</td>
-                  <td>
+                  <td data-rotulo="Falhas seguidas" className="num">{info.falhas_seguidas}</td>
+                  <td data-rotulo="Destino">
                     <code>{info.destino}</code>
                   </td>
                 </tr>
