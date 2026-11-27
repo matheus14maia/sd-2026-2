@@ -4,6 +4,7 @@ import Campo, { Aviso, LegendaObrigatorio, Resultado } from "../componentes/Camp
 import Fogo from "../componentes/Fogo.jsx";
 import FotoPrato from "../componentes/FotoPrato.jsx";
 import IconeChama from "../componentes/IconeChama.jsx";
+import { IconeBusca } from "../componentes/Icones.jsx";
 import { traduzirErroCampo } from "../mensagens.js";
 
 // A cozinha pode mudar o cardapio a qualquer momento (preco, disponibilidade,
@@ -18,7 +19,20 @@ function avisoDoCache(dados) {
   return `O cardápio está temporariamente fora do ar. Mostrando a versão salva${hora}; preços e disponibilidade podem ter mudado.`;
 }
 
-export default function Cardapio({ sessao, aoCriarPedido }) {
+// Busca sem diferenca de maiuscula e acento ("feijao" acha "Feijoada").
+const normalizar = (texto) =>
+  (texto || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+function casaComBusca(item, termo) {
+  if (!termo) return true;
+  const alvo = normalizar([item.nome, item.descricao, item.codigo, ...(item.opcoes || [])].join(" "));
+  return termo.split(/\s+/).every((parte) => alvo.includes(parte));
+}
+
+export default function Cardapio({ sessao, aoCriarPedido, repetir, aoRepetir }) {
   const [itens, setItens] = useState([]); // cardapio completo: contagens das abas e sacola
   const [exibidos, setExibidos] = useState([]); // itens da aba aberta (filtro feito no servidor)
   const [aba, setAba] = useState(""); // "" = todos
@@ -50,6 +64,11 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   // enquanto ela esta fora da tela.
   const sacolaRef = useRef(null);
   const [sacolaNaTela, setSacolaNaTela] = useState(false);
+  // Busca na lista ja carregada (as abas continuam filtrando no servidor).
+  const [busca, setBusca] = useState("");
+  const termo = normalizar(busca.trim());
+  // "Pedir de novo": de qual pedido vieram os itens da sacola.
+  const [repetido, setRepetido] = useState("");
 
   async function carregar(silencioso = false) {
     const r = await chamar("GET", "/cardapio", { silencioso });
@@ -97,9 +116,38 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
   const contagem = (valor) => itens.filter((i) => !valor || i.categoria === valor).length;
 
   // Na aba "Todos" os pratos aparecem agrupados por categoria, na ordem do cardapio.
+  // A busca filtra dentro do que a aba mostra; grupo sem resultado some.
+  const encontrados = exibidos.filter((i) => casaComBusca(i, termo));
   const grupos = aba
-    ? [{ valor: aba, nome: nomeCategoria(aba), itens: exibidos }]
-    : abas.map((c) => ({ ...c, itens: exibidos.filter((i) => i.categoria === c.valor) })).filter((g) => g.itens.length);
+    ? [{ valor: aba, nome: nomeCategoria(aba), itens: encontrados }].filter((g) => !termo || g.itens.length)
+    : abas.map((c) => ({ ...c, itens: encontrados.filter((i) => i.categoria === c.valor) })).filter((g) => g.itens.length);
+
+  // Pedir de novo: quando o cardapio ja carregou, os itens do pedido antigo
+  // entram na sacola. O preco visto e o da compra antiga: se a cozinha mudou o
+  // preco, a sacola mostra "Preco atualizado pela cozinha"; prato ou opcao fora
+  // do dia aparece marcado, como em qualquer mudanca do cardapio.
+  useEffect(() => {
+    if (!repetir || itens.length === 0) return;
+    const novoCarrinho = {};
+    const vistos = {};
+    repetir.itens.forEach((i) => {
+      const chave = i.opcao ? `${i.codigo}|${i.opcao}` : i.codigo;
+      novoCarrinho[chave] = (novoCarrinho[chave] || 0) + i.quantidade;
+      vistos[chave] = i.preco_unitario;
+      if (!itens.some((atual) => atual.codigo === i.codigo)) {
+        conhecidos.current.set(i.codigo, { codigo: i.codigo, nome: i.nome, preco: i.preco_unitario });
+      }
+    });
+    setCarrinho(novoCarrinho);
+    setPrecosVistos(vistos);
+    setEtapa("sacola");
+    setResposta(null);
+    setRepetido(repetir.pedidoId.slice(0, 8));
+    aoRepetir?.();
+    if (window.matchMedia("(max-width: 960px)").matches) {
+      sacolaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [repetir, itens, aoRepetir]);
 
   // Cada linha da sacola confrontada com o cardapio atual.
   const linhas = Object.entries(carrinho)
@@ -222,6 +270,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
     setChamas(false);
     setCarrinho({});
     setPrecosVistos({});
+    setRepetido("");
     setEtapa("confirmado");
   }
 
@@ -237,25 +286,50 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
       <section className="cardapio-lista">
         <div className="titulo-secao">
           <h1>Cardápio</h1>
+          <label className="busca-cardapio">
+            <IconeBusca className="icone busca-icone" />
+            <span className="so-leitor">Buscar no cardápio</span>
+            <input
+              type="search"
+              placeholder="Buscar prato, ingrediente ou código"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
         </div>
 
-        <div className="abas-cardapio" role="tablist" aria-label="Categorias do cardápio">
-          {[{ valor: "", nome: "Todos" }, ...abas].map((c) => (
-            <button
-              key={c.valor || "todos"}
-              role="tab"
-              aria-selected={c.valor === aba}
-              className={c.valor === aba ? "aba-cardapio ativa" : "aba-cardapio"}
-              onClick={() => abrirAba(c.valor)}
-            >
-              {c.nome}
-              <span className="aba-contagem">{contagem(c.valor)}</span>
-            </button>
-          ))}
+        {/* Barra de categorias fixa logo abaixo do topo enquanto se rola o cardapio. */}
+        <div className="barra-categorias">
+          <div className="abas-cardapio" role="tablist" aria-label="Categorias do cardápio">
+            {[{ valor: "", nome: "Todos" }, ...abas].map((c) => (
+              <button
+                key={c.valor || "todos"}
+                role="tab"
+                aria-selected={c.valor === aba}
+                className={c.valor === aba ? "aba-cardapio ativa" : "aba-cardapio"}
+                onClick={() => abrirAba(c.valor)}
+              >
+                {c.nome}
+                <span className="aba-contagem">{contagem(c.valor)}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {carregamento && !carregamento.ok && <Resultado resposta={carregamento} />}
         {aviso && <Aviso titulo="Cardápio em modo de segurança">{aviso}</Aviso>}
+
+        {termo && (
+          <p className="busca-resumo" role="status">
+            {encontrados.length === 0
+              ? `Nenhum prato com “${busca.trim()}”${aba ? ` em ${nomeCategoria(aba)}` : ""}.`
+              : `${encontrados.length} ${encontrados.length === 1 ? "prato encontrado" : "pratos encontrados"}`}
+            <button className="botao-texto" onClick={() => setBusca("")}>
+              Limpar busca
+            </button>
+          </p>
+        )}
 
         {/* key: trocar de aba remonta o painel e dispara a animacao de entrada */}
         <div key={aba || "todos"} className="painel-aba" role="tabpanel">
@@ -301,6 +375,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
                                 </>
                               )}
                               <button
+                                className="botao-mais"
                                 aria-label={`Adicionar ${item.nome}`}
                                 onClick={() => mudarQuantidade(item.codigo, 1)}
                                 disabled={!item.disponivel}
@@ -334,6 +409,7 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
                                       </>
                                     )}
                                     <button
+                                      className="botao-mais"
                                       aria-label={`Adicionar ${item.nome} ${opcao}`}
                                       onClick={() => mudarQuantidade(chave, 1)}
                                       disabled={fora}
@@ -446,6 +522,11 @@ export default function Cardapio({ sessao, aoCriarPedido }) {
         ) : (
           <>
             <h2>Sua sacola</h2>
+            {repetido && linhas.length > 0 && (
+              <p className="sacola-repetida" role="status">
+                Itens do pedido <strong>{repetido}</strong>. Confira antes de continuar: o servidor recalcula tudo.
+              </p>
+            )}
             {linhas.length === 0 ? (
               <p className="vazio sacola-vazia">
                 Sua sacola está vazia. Escolha os pratos no cardápio com o <strong>+</strong>.

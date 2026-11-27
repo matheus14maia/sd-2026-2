@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ETAPAS, NOME_ETAPA, chamar, formatarData, formatarHora, formatarPreco } from "../api.js";
 import { Resultado } from "../componentes/Campo.jsx";
+import { IconeEtapa } from "../componentes/Icones.jsx";
+import QuadroCozinha from "../componentes/QuadroCozinha.jsx";
+import { UM_MINUTO, minutosDeAtraso, porPrevisao, textoAtraso } from "../tempo.js";
 
 // Filtros da lista: todos sao aplicados no banco (GET /pedidos?etapa=...),
 // alem do filtro pelo dono que o Gateway sempre aplica para o papel cliente.
@@ -16,30 +19,21 @@ const OPCOES_PERIODO = [
   { valor: "30d", nome: "Últimos 30 dias" },
 ];
 const FILTROS_VAZIOS = { etapa: "", periodo: "", item: "", cliente: "" };
-const UM_MINUTO = 60000;
 // Sem filtro de etapa a lista vem em duas consultas: os pedidos abertos (todos,
 // para nenhum ficar de fora) e so os ultimos entregues.
 const LIMITE_ABERTOS = "200";
 const LIMITE_FINALIZADOS = "20";
 
-// Minutos de atraso de um pedido aberto (0 se ainda esta no prazo).
-function minutosDeAtraso(pedido, agora) {
-  if (pedido.status === "ENTREGUE" || !pedido.previsao_entrega) return 0;
-  return Math.max(0, Math.floor((agora - new Date(pedido.previsao_entrega).getTime()) / UM_MINUTO));
-}
+// Cozinha: quadro de comandas (padrao das telas de cozinha) ou a lista em
+// tabela. A escolha fica no navegador de quem usa.
+const CHAVE_MODO = "hk-modo-pedidos";
 
-const porPrevisao = (a, b) => new Date(a.previsao_entrega) - new Date(b.previsao_entrega);
-
-// "25 min", "3 h 10 min", "2 dias": atraso legivel mesmo quando e grande.
-export function textoAtraso(minutos) {
-  if (minutos < 60) return `${minutos} min`;
-  if (minutos < 24 * 60) {
-    const horas = Math.floor(minutos / 60);
-    const resto = minutos % 60;
-    return resto ? `${horas} h ${resto} min` : `${horas} h`;
+function lerModo() {
+  try {
+    return localStorage.getItem(CHAVE_MODO) === "lista" ? "lista" : "quadro";
+  } catch {
+    return "quadro";
   }
-  const dias = Math.floor(minutos / (24 * 60));
-  return dias === 1 ? "1 dia" : `${dias} dias`;
 }
 
 // Uma secao da lista (novos, em andamento, finalizados).
@@ -53,7 +47,9 @@ function SecaoPedidos({ id, titulo, descricao, pedidos, classe, emFoco, aoFocar,
         <span className="secao-contagem">{pedidos.length}</span>
       </h2>
       {descricao && <p className="secao-pedidos-descricao">{descricao}</p>}
-      <table className="tabela">
+      {/* tabela-cartoes: em tela estreita cada linha vira um cartao e o
+          data-rotulo de cada celula aparece como legenda (ver estilos.css). */}
+      <table className="tabela tabela-cartoes">
         <thead>
           <tr>
             <th>Pedido</th>
@@ -71,28 +67,65 @@ function SecaoPedidos({ id, titulo, descricao, pedidos, classe, emFoco, aoFocar,
             const classes = [p.pedido_id === emFoco && "linha-ativa", atraso > 0 && "linha-atrasada"].filter(Boolean).join(" ");
             return (
               <tr key={p.pedido_id} className={classes || undefined} onClick={() => aoFocar(p.pedido_id)}>
-                <td>
+                <td data-rotulo="Pedido" className="celula-titulo">
                   <button className="botao-texto" onClick={() => aoFocar(p.pedido_id)}>
                     {p.pedido_id.slice(0, 8)}
                   </button>
                 </td>
-                {mostrarCliente && <td>{p.cliente}</td>}
-                <td>
+                {mostrarCliente && <td data-rotulo="Cliente">{p.cliente}</td>}
+                <td data-rotulo="Etapa">
                   <span className={`etapa etapa-${p.status.toLowerCase()}`}>{NOME_ETAPA[p.status]}</span>
                 </td>
-                <td className="num">{formatarPreco(p.total)}</td>
-                <td>{formatarData(p.criado_em)}</td>
-                <td>
+                <td data-rotulo="Total" className="num">{formatarPreco(p.total)}</td>
+                <td data-rotulo="Feito em">{formatarData(p.criado_em)}</td>
+                <td data-rotulo="Previsão">
                   {p.status === "ENTREGUE" ? "Entregue" : formatarHora(p.previsao_entrega)}
                   {atraso > 0 && <span className="selo-atraso">Atrasado {textoAtraso(atraso)}</span>}
                 </td>
-                {acao && <td onClick={(e) => e.stopPropagation()}>{acao(p)}</td>}
+                {acao && (
+                  <td className="celula-acao" onClick={(e) => e.stopPropagation()}>
+                    {acao(p)}
+                  </td>
+                )}
               </tr>
             );
           })}
         </tbody>
       </table>
     </section>
+  );
+}
+
+// Linha do tempo das etapas: um icone por etapa ligados por uma trilha que se
+// enche ate a atual (que pulsa enquanto o pedido esta aberto), com o horario
+// em que cada etapa ja alcancada aconteceu.
+function LinhaDoTempo({ pedido }) {
+  const indice = ETAPAS.indexOf(pedido.status);
+  const momento = Object.fromEntries((pedido.historico || []).map((e) => [e.status, e.registrado_em]));
+  const progresso = indice <= 0 ? 0 : indice / (ETAPAS.length - 1);
+  return (
+    <ol className="linha-tempo" aria-label="Etapas do pedido" style={{ "--progresso": progresso }}>
+      {ETAPAS.map((etapa, i) => {
+        const estado = i < indice ? "feita" : i === indice ? (etapa === "ENTREGUE" ? "feita" : "atual") : "futura";
+        return (
+          <li key={etapa} className={`passo passo-${estado}`} aria-current={i === indice ? "step" : undefined}>
+            <span className="passo-icone">
+              <IconeEtapa etapa={etapa} />
+            </span>
+            <span className="passo-nome">{NOME_ETAPA[etapa]}</span>
+            {momento[etapa] ? (
+              <time className="passo-hora" dateTime={momento[etapa]} title={formatarData(momento[etapa])}>
+                {formatarHora(momento[etapa])}
+              </time>
+            ) : (
+              <span className="passo-hora" aria-hidden="true">
+                &nbsp;
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -133,7 +166,7 @@ function Previsao({ pedido, agora }) {
   );
 }
 
-export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
+export default function Pedidos({ emFoco, aoFocar, podeAvancar, aoPedirDeNovo }) {
   const [pedidos, setPedidos] = useState([]);
   const [escopo, setEscopo] = useState(podeAvancar ? "todos" : "meus");
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
@@ -143,6 +176,28 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
   const [resposta, setResposta] = useState(null);
   const [erroLista, setErroLista] = useState(null);
   const [agora, setAgora] = useState(Date.now());
+  const detalheRef = useRef(null);
+  const [modo, setModo] = useState(lerModo);
+  const emQuadro = podeAvancar && modo === "quadro";
+
+  function trocarModo(novo) {
+    setModo(novo);
+    try {
+      localStorage.setItem(CHAVE_MODO, novo);
+    } catch {
+      // sem armazenamento (janela anonima): vale so nesta visita
+    }
+  }
+
+  // Em tela de uma coluna (ate 960px) o detalhe fica embaixo da lista: ao abrir
+  // outro pedido, a pagina desce ate ele. Atualizacao do mesmo pedido nao rola.
+  // No modo quadro o detalhe e um painel por cima, entao nao precisa rolar.
+  const idDetalhe = detalhe?.pedido_id;
+  useEffect(() => {
+    if (idDetalhe && !emQuadro && window.matchMedia("(max-width: 960px)").matches) {
+      detalheRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [idDetalhe, emQuadro]);
 
   // Pratos para o filtro "Prato" (sem virar comanda no trilho).
   useEffect(() => {
@@ -248,16 +303,27 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
   const indice = detalhe ? ETAPAS.indexOf(detalhe.status) : -1;
   const proxima = indice >= 0 && indice < ETAPAS.length - 1 ? ETAPAS[indice + 1] : null;
   const pulo = indice >= 0 && indice < ETAPAS.length - 2 ? ETAPAS[ETAPAS.length - 1] : null;
-  const momento = Object.fromEntries((detalhe?.historico || []).map((e) => [e.status, e.registrado_em]));
 
   return (
-    <div className="pedidos">
+    <div className={emQuadro ? "pedidos modo-quadro" : "pedidos"}>
       <section>
         <div className="titulo-secao">
           <h1>{escopo === "todos" ? "Todos os pedidos" : "Meus pedidos"}</h1>
-          <button className="botao-secundario" onClick={() => carregarLista()}>
-            Atualizar lista
-          </button>
+          <div className="titulo-acoes">
+            {podeAvancar && (
+              <div className="alternar-modo" role="group" aria-label="Forma de ver os pedidos">
+                <button aria-pressed={modo === "quadro"} onClick={() => trocarModo("quadro")}>
+                  Quadro
+                </button>
+                <button aria-pressed={modo === "lista"} onClick={() => trocarModo("lista")}>
+                  Lista
+                </button>
+              </div>
+            )}
+            <button className="botao-secundario" onClick={() => carregarLista()}>
+              Atualizar lista
+            </button>
+          </div>
           <p className="subtitulo">
             {escopo === "todos"
               ? "A cozinha vê os pedidos de todos os clientes. A lista se atualiza sozinha a cada pedido novo ou etapa avançada."
@@ -326,6 +392,19 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
           <p className="vazio">
             {filtrosAtivos ? "Nenhum pedido com esses filtros." : "Nenhum pedido ainda. Monte um no cardápio."}
           </p>
+        ) : emQuadro ? (
+          <>
+            {/* Recusa ao avancar pela comanda (ex.: 409) aparece aqui, sem detalhe aberto. */}
+            {!detalhe && resposta && !resposta.ok && <Resultado resposta={resposta} />}
+            <QuadroCozinha
+            pedidos={abertos}
+            entregues={finalizados.length}
+            agora={agora}
+            emFoco={emFoco}
+            aoFocar={aoFocar}
+            aoAvancar={(status, id) => mudarStatus(status, id)}
+            />
+          </>
         ) : (
           <>
             <SecaoPedidos
@@ -367,7 +446,13 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
         )}
       </section>
 
-      <aside className="painel detalhe">
+      {/* No modo quadro o detalhe e um painel por cima do quadro, so com pedido aberto. */}
+      <aside className={detalhe ? "painel detalhe" : "painel detalhe detalhe-vazio"} ref={detalheRef}>
+        {emQuadro && detalhe && (
+          <button className="detalhe-fechar" aria-label="Fechar o detalhe do pedido" onClick={() => aoFocar(null)}>
+            ×
+          </button>
+        )}
         {!detalhe ? (
           <>
             <p className="vazio">Escolha um pedido na lista para ver os itens, os horários e a previsão de entrega.</p>
@@ -391,23 +476,7 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
 
             <Previsao pedido={detalhe} agora={agora} />
 
-            <ol className="etapas" aria-label="Etapas do pedido">
-              {ETAPAS.map((etapa, i) => (
-                <li
-                  key={etapa}
-                  className={i < indice ? "feita" : i === indice ? "atual" : undefined}
-                  aria-current={i === indice ? "step" : undefined}
-                >
-                  <span className="etapa-numero">{i + 1}</span>
-                  <span className="etapa-nome">{NOME_ETAPA[etapa]}</span>
-                  {momento[etapa] && (
-                    <time className="etapa-hora" dateTime={momento[etapa]} title={formatarData(momento[etapa])}>
-                      {formatarHora(momento[etapa])}
-                    </time>
-                  )}
-                </li>
-              ))}
-            </ol>
+            <LinhaDoTempo pedido={detalhe} />
 
             <ul className="sacola-itens">
               {detalhe.itens.map((item, linha) => (
@@ -444,7 +513,26 @@ export default function Pedidos({ emFoco, aoFocar, podeAvancar }) {
                   Tentar pular para entregue
                 </button>
               )}
-              {!proxima && <p className="vazio">Pedido entregue. Bom apetite!</p>}
+              {!proxima && podeAvancar && <p className="vazio">Pedido entregue. Bom apetite!</p>}
+              {!proxima && !podeAvancar && (
+                <div className="entregue-festa" role="status">
+                  <span className="entregue-icone">
+                    <IconeEtapa etapa="ENTREGUE" />
+                  </span>
+                  <div>
+                    <strong>Entregue. Bom apetite!</strong>
+                    <span>Gostou? Peça de novo com um toque.</span>
+                  </div>
+                  <button className="botao" onClick={() => aoPedirDeNovo?.(detalhe)}>
+                    Pedir de novo
+                  </button>
+                </div>
+              )}
+              {proxima && !podeAvancar && (
+                <button className="botao-secundario" onClick={() => aoPedirDeNovo?.(detalhe)}>
+                  Pedir de novo
+                </button>
+              )}
             </div>
             <Resultado resposta={resposta} sucesso="Etapa atualizada no banco." />
           </div>

@@ -1,0 +1,37 @@
+== 1. Tudo no ar
+OK   GET /cardapio vem do Catalogo  (status 200, origem catalogo)
+
+== 2. Derrubando o Catalogo
+    $ docker compose stop catalogo
+ Container delivery-catalogo Stopping 
+ Container delivery-catalogo Stopped 
+
+== 3. Fallback do cardapio
+OK   GET /cardapio responde 200 com a lista salva  (status 200, origem cache, 2398 ms)
+    aviso: Catalogo nao respondeu (UNAVAILABLE). Exibindo o cardapio salvo as 08:28:19; precos e disponibilidade podem estar desatualizados.
+
+== 4. Pedido com o Catalogo fora
+OK   POST /pedidos responde 503 sem gravar  (status 503 em 2.5 s, Retry-After 5)
+    mensagem: Catalogo indisponivel no momento (UNAVAILABLE): nao foi possivel confirmar os itens. Tente novamente em instantes.
+
+== 5. Isolamento: Pedidos continua no ar
+OK   GET /pedidos responde 200  (status 200)
+
+== 6. Circuit breaker
+OK   Circuito do Catalogo ABERTO  ({"circuito": "ABERTO", "falhas_seguidas": 3, "reabre_em_segundos": 15})
+OK   Com o circuito aberto, categoria sem lista salva falha na hora com 503  (status 503 em 16 ms, Retry-After 15)
+
+== 7. Recuperacao
+    $ docker compose start catalogo
+ Container delivery-migrador Starting 
+ Container delivery-migrador Started 
+ Container delivery-migrador Waiting 
+ Container delivery-migrador Exited 
+ Container delivery-catalogo Starting 
+ Container delivery-catalogo Started 
+    aguardando 16 s (circuito aberto) ...
+OK   GET /cardapio volta a vir do Catalogo  (status 200, origem catalogo)
+OK   Circuito do Catalogo FECHADO
+OK   POST /pedidos volta a gravar (201)  (status 201)
+
+Tolerancia a falhas OK.

@@ -9,9 +9,12 @@
 |---|---|---|
 | `delivery-frontend` | publico | https://delivery-frontend-j76gmjruwa-uc.a.run.app |
 | `delivery-gateway` | publico (Swagger em `/docs`) | https://delivery-gateway-j76gmjruwa-uc.a.run.app |
-| `delivery-usuarios` | privado (gRPC, IAM) | https://delivery-usuarios-j76gmjruwa-uc.a.run.app |
-| `delivery-catalogo` | privado (gRPC, IAM) | https://delivery-catalogo-j76gmjruwa-uc.a.run.app |
-| `delivery-pedidos` | privado (gRPC, IAM) | https://delivery-pedidos-j76gmjruwa-uc.a.run.app |
+| `delivery-usuarios` | publico (gRPC; negocio so com a chave interna) | https://delivery-usuarios-j76gmjruwa-uc.a.run.app |
+| `delivery-catalogo` | publico (gRPC; negocio so com a chave interna) | https://delivery-catalogo-j76gmjruwa-uc.a.run.app |
+| `delivery-pedidos` | publico (gRPC; negocio so com a chave interna) | https://delivery-pedidos-j76gmjruwa-uc.a.run.app |
+
+Nenhuma VM do Compute Engine: as tres do Trabalho 2 e a `aula-sd-1` (primeiras
+aulas) foram excluidas em 27/11/2026, junto com os tres IPs fixos.
 
 ## Cada componente num servico gerenciado
 
@@ -29,7 +32,7 @@ marcado, e grave por cima do PDF. Os links da tabela da secao 5 saem do fim do
 |---|---|---|
 | Frontend | container nginx | Cloud Run `delivery-frontend`, publico (HTTPS) |
 | Gateway | container | Cloud Run `delivery-gateway`, publico (HTTPS) |
-| Usuarios, Catalogo, Pedidos | containers | Cloud Run `delivery-usuarios`, `delivery-catalogo`, `delivery-pedidos`, gRPC com HTTP/2 (`--use-http2`), **privados**: so quem tem o papel `roles/run.invoker` chama (o Gateway; o Pedidos no Catalogo) |
+| Usuarios, Catalogo, Pedidos | containers | Cloud Run `delivery-usuarios`, `delivery-catalogo`, `delivery-pedidos`, gRPC com HTTP/2 (`--use-http2`), **endpoint HTTPS publico**: o health check responde a qualquer um; o negocio (unario e stream) e a reflection so atendem quem manda a **chave interna** (`x-chave-interna`, do Secret Manager): o Gateway e, no Catalogo, o Pedidos. Sem ela, `UNAUTHENTICATED` |
 | Migrador | container que roda e termina | Cloud Run **job** `delivery-migrador`, executado a cada implantacao |
 | PostgreSQL | container | Cloud SQL `delivery-postgres` (o do Trabalho 2), pelo conector do Cloud Run (`DB_HOST=/cloudsql/<conexao>`) |
 | Imagens | build local | Cloud Build (`scripts/gcp/cloud-run/cloudbuild.yaml`) publica no Artifact Registry `us-central1-docker.pkg.dev/<projeto>/delivery/<componente>` |
@@ -37,7 +40,7 @@ marcado, e grave por cima do PDF. Os links da tabela da secao 5 saem do fim do
 | Fotos dos pratos | tabela `fotos_itens` do PostgreSQL | a mesma tabela no Cloud SQL (o container do Cloud Run nao guarda arquivo) |
 | Logs | `docker compose logs` | Cloud Logging (`LOG_JSON=1`) |
 | Traces | Jaeger | **Cloud Trace** (`RASTREAMENTO=gcp`, ver [08-rastreamento.md](08-rastreamento.md)) |
-| VMs do Trabalho 2 | - | paradas ou excluidas (`desligar.sh`) |
+| VMs (Trabalho 2 e `aula-sd-1`) | - | **excluidas** em 27/11/2026 (`desligar.sh --excluir-vms`) |
 
 ## Implantar (Cloud Shell, uns 20 minutos)
 
@@ -94,24 +97,28 @@ atual.
 | 1. APIs | liga Cloud Run, Artifact Registry, Cloud Build, Cloud SQL Admin, Secret Manager, Cloud Trace, IAM e Logging |
 | 2. Artifact Registry | cria o repositorio Docker `delivery` |
 | 3. Cloud SQL | liga a instancia `delivery-postgres` (ou cria, se nao existir) e o banco `delivery` |
-| 4. Secret Manager | `delivery-db-senha` (sorteia uma senha nova para o usuario `postgres`; para manter a atual, rode com `SENHA_BANCO=<senha>`), `delivery-demo-senha` (a que voce digitou) e `delivery-jwt-segredo` (sorteado) |
+| 4. Secret Manager | `delivery-db-senha` (sorteia uma senha nova para o usuario `postgres`; para manter a atual, rode com `SENHA_BANCO=<senha>`), `delivery-demo-senha` (a que voce digitou), `delivery-jwt-segredo` e `delivery-chave-interna` (sorteados) |
 | 5. Contas de servico | `delivery-gateway`, `delivery-servicos` e `delivery-frontend`, cada uma so com os papeis que precisa; a conta do Cloud Build ganha permissao para publicar as imagens |
-| 6. Imagens | `gcloud builds submit` com o `cloudbuild.yaml`: as seis imagens em paralelo, bases do espelho `mirror.gcr.io` (o Docker Hub limita downloads), etiqueta = commit atual |
+| 6. Imagens | `gcloud builds submit` com o `cloudbuild.yaml`: as seis imagens em paralelo, bases do espelho `mirror.gcr.io` (o Docker Hub limita downloads), etiqueta = commit atual (`<commit>-alterado` se houver mudanca ainda nao commitada) |
 | 7. Migrador | job `delivery-migrador`: tabelas, cardapio e usuario da cozinha |
-| 8. Microsservicos | Catalogo, Usuarios e Pedidos privados; o Gateway pode chamar os tres e o Pedidos pode chamar o Catalogo |
+| 8. Microsservicos | Catalogo, Usuarios e Pedidos com endpoint HTTPS publico e `CHAVE_INTERNA`; o `roles/run.invoker` do Gateway e do Pedidos continua dado (vale se um servico voltar a ser privado) |
 | 9. Gateway e frontend | publicos; o `API_URL` do frontend aponta para o Gateway e o `CORS_ORIGENS` do Gateway para o frontend |
 
 ## Antes e depois de usar (custo)
 
 | Situacao | Comando | O que fica cobrando |
 |---|---|---|
-| Vai testar ou apresentar | `bash scripts/gcp/cloud-run/ligar.sh` (liga o Cloud SQL, 2 a 5 min) | Cloud SQL ligado (o maior custo) e o Cloud Run so enquanto atende |
-| Terminou | `bash scripts/gcp/cloud-run/desligar.sh` | centavos: disco do Cloud SQL, imagens e segredos |
+| Vai testar ou apresentar | `bash scripts/gcp/cloud-run/ligar.sh` (liga o Cloud SQL, 2 a 5 min, e deixa o Gateway com 1 instancia fixa) | Cloud SQL ligado (o maior custo), 1 instancia do Gateway e o resto do Cloud Run so enquanto atende |
+| Terminou | `bash scripts/gcp/cloud-run/desligar.sh` (Gateway volta para 0 instancias) | centavos: disco do Cloud SQL, imagens e segredos |
 | Ver links e provar que nao ha VM ligada | `bash scripts/gcp/cloud-run/status.sh` | - |
-| Retirar as VMs do Trabalho 2 de vez | `bash scripts/gcp/cloud-run/desligar.sh --excluir-vms` (exclui as tres VMs, libera os tres IPs fixos e tira o IP antigo da VM das redes autorizadas do Cloud SQL; nao da para desfazer) | nada das VMs (paradas, elas ainda cobram disco e IP fixo) |
+| Retirar as VMs de vez (ja feito em 27/11/2026) | `bash scripts/gcp/cloud-run/desligar.sh --excluir-vms` (exclui as VMs, libera os tres IPs fixos e tira o IP antigo da VM das redes autorizadas do Cloud SQL; nao da para desfazer) | - |
 
 - O Cloud Run nao cobra parado: `--min-instances 0` e `--max-instances 2` em
-  cada servico (teto de custo).
+  cada servico (teto de custo). A excecao e o Gateway entre o `ligar.sh` e o
+  `desligar.sh`: **1 instancia fixa** (min 1, max 1), porque o circuit breaker
+  e o cardapio salvo ficam na memoria da instancia. Com duas instancias, a
+  demonstracao de falha poderia cair numa sem cache ou com o circuito em outro
+  estado.
 - Com o Cloud SQL desligado os servicos respondem 503 ("banco indisponivel"):
   rode `ligar.sh` uns 5 minutos antes de usar.
 
@@ -122,6 +129,7 @@ atual.
 | `delivery-db-senha` | `DB_PASSWORD` | Usuarios, Catalogo, Pedidos e o migrador |
 | `delivery-jwt-segredo` | `JWT_SEGREDO` | Gateway |
 | `delivery-demo-senha` | `DEMO_SENHA` | migrador (cria o usuario `professor`) |
+| `delivery-chave-interna` | `CHAVE_INTERNA` | Gateway e os tres microsservicos (quem chama manda, quem recebe confere) |
 
 - **O codigo nao muda.** Ele ja le tudo de variavel de ambiente; o Cloud Run
   preenche a variavel com o segredo quando a instancia sobe (`--set-secrets
@@ -141,14 +149,20 @@ onde tambem podem ser mudadas na mao (e o caso da demonstracao de falha abaixo).
 
 | Servico | Variaveis | Segredos |
 |---|---|---|
-| Gateway | `USUARIOS_HOST`, `CATALOGO_HOST`, `PEDIDOS_HOST` (endereco `.run.app`, sem `https://`), `*_PORTA=443`, `CORS_ORIGENS=<URL do frontend>`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `JWT_SEGREDO` |
-| Usuarios, Catalogo | `DB_HOST=/cloudsql/<projeto>:us-central1:delivery-postgres`, `DB_NAME=delivery`, `DB_USER=postgres`, `DB_SSLMODE=disable`, `DB_POOL_MAX=3`, `MAX_WORKERS=20`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `DB_PASSWORD` |
-| Pedidos | as do Catalogo + `CATALOGO_HOST=<catalogo .run.app>`, `CATALOGO_PORTA=443` | `DB_PASSWORD` |
+| Gateway | `USUARIOS_HOST`, `CATALOGO_HOST`, `PEDIDOS_HOST` (endereco `.run.app`, sem `https://`), `*_PORTA=443`, `CORS_ORIGENS=<URL do frontend>`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `JWT_SEGREDO`, `CHAVE_INTERNA` |
+| Usuarios, Catalogo | `DB_HOST=/cloudsql/<projeto>:us-central1:delivery-postgres`, `DB_NAME=delivery`, `DB_USER=postgres`, `DB_SSLMODE=disable`, `DB_POOL_MAX=3`, `MAX_WORKERS=20`, `GRPC_TIMEOUT=10`, `GRPC_PRAZO_TOTAL=25`, `LOG_JSON=1`, `GOOGLE_CLOUD_PROJECT`, `RASTREAMENTO=gcp` | `DB_PASSWORD`, `CHAVE_INTERNA` |
+| Pedidos | as do Catalogo + `CATALOGO_HOST=<catalogo .run.app>`, `CATALOGO_PORTA=443` | `DB_PASSWORD`, `CHAVE_INTERNA` |
 | Frontend | `API_URL=<URL do Gateway>` | - |
 | Migrador (job) | `DB_*` como acima, `DEMO_LOGIN=professor` | `DB_PASSWORD`, `DEMO_SENHA` |
 
 - **Porta 443 liga o TLS.** Com `*_PORTA=443`, o `src/comum/canal.py` usa TLS e
   manda o token de identidade da conta de servico em cada chamada gRPC.
+- **Chave interna.** `rastreamento.metadados()` poe `x-chave-interna` em toda
+  chamada para outro servico; o `InterceptadorServidor` confere (comparacao em
+  tempo constante) e recusa sem ela, inclusive o stream `AcompanharPedidos`.
+  Conferir de fora: `python scripts/testar_acesso_direto.py --usuarios <host>:443
+  --catalogo <host>:443 --pedidos <host>:443` (health check `SERVING`, negocio
+  `UNAUTHENTICATED`).
 - `DB_POOL_MAX=3` porque o Cloud SQL `db-f1-micro` aceita cerca de 25 conexoes.
 - **Partida a frio.** Servico parado leva alguns segundos para subir na
   primeira chamada. Por isso, no Cloud Run, cada tentativa gRPC espera ate 10 s
@@ -161,8 +175,8 @@ onde tambem podem ser mudadas na mao (e o caso da demonstracao de falha abaixo).
 
 | Conta | Papeis |
 |---|---|
-| `delivery-gateway` | `roles/run.invoker` nos tres microsservicos; `secretAccessor` em `delivery-jwt-segredo`; `roles/cloudtrace.agent` |
-| `delivery-servicos` (Usuarios, Catalogo, Pedidos, migrador) | `roles/cloudsql.client`; `secretAccessor` em `delivery-db-senha` e `delivery-demo-senha`; `roles/cloudtrace.agent`; `roles/run.invoker` no Catalogo (para o Pedidos) |
+| `delivery-gateway` | `roles/run.invoker` nos tres microsservicos; `secretAccessor` em `delivery-jwt-segredo` e `delivery-chave-interna`; `roles/cloudtrace.agent` |
+| `delivery-servicos` (Usuarios, Catalogo, Pedidos, migrador) | `roles/cloudsql.client`; `secretAccessor` em `delivery-db-senha`, `delivery-demo-senha` e `delivery-chave-interna`; `roles/cloudtrace.agent`; `roles/run.invoker` no Catalogo (para o Pedidos) |
 | `delivery-frontend` | nenhum |
 | conta do Cloud Build | `roles/artifactregistry.writer`, `roles/logging.logWriter`, `roles/storage.objectViewer` |
 
@@ -187,8 +201,10 @@ onde tambem podem ser mudadas na mao (e o caso da demonstracao de falha abaixo).
     --religar "gcloud run services update delivery-catalogo --region us-central1 --update-env-vars FALHA_PERCENTUAL=0 --quiet"
   ```
 
-- **Nenhuma VM ligada:** `bash scripts/gcp/cloud-run/status.sh` (ou console >
-  Compute Engine > Instancias de VM).
+- **Nenhuma VM:** `bash scripts/gcp/cloud-run/status.sh` (ou console >
+  Compute Engine > Instancias de VM, que aparece vazio).
+- **Microsservicos publicos, mas so para o Gateway:** `testar_acesso_direto.py`
+  (acima) chama cada URL `.run.app` direto.
 
 ## Problemas conhecidos
 

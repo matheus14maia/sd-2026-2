@@ -353,6 +353,42 @@ nada que nao esteja no contrato.
   nao alarga a pagina) e efeito de `:hover` que mexe em tamanho so dentro de
   `@media (hover: hover)`. Conferir com Playwright no `devices['iPhone 13']`:
   `document.documentElement.scrollWidth` igual a `innerWidth`.
+- **Pontos de quebra fixos** (secao "Acabamento visual e layout fluido" no fim do
+  `estilos.css`, que refina as regras de cima): 1100px topo em duas linhas (as
+  cinco abas da cozinha nao cabem ao lado da marca e do usuario), 960px uma
+  coluna, 720px celular (trilho comeca recolhido para todos, `useTelaEstreita`
+  no `App.jsx`), 560px celular estreito (some o nome do usuario). O endereco do
+  Gateway no topo so aparece acima de 1440px. Conferir as cinco larguras (360,
+  768, 1024, 1366, 1920) com as duas contas antes de dar uma tela por pronta.
+- **Tabela que vira cartao.** Tabela nova recebe `tabela-cartoes`, `data-rotulo`
+  em cada `<td>` (a legenda do cartao), `celula-titulo` na primeira e
+  `celula-acao` na do botao. Na lista de pedidos a troca e por container query
+  (`.secao-pedidos` com `container-type: inline-size`, ate 700px), porque a
+  largura que importa e a da coluna, nao a da janela; na saude e por media
+  query. Nao por `container-type` em `.conteudo`: ele vira o bloco de contencao
+  dos filhos `position: fixed` (a barra "Ver sacola" sairia do lugar).
+- **Sombra e canto pelos tokens** (`--sombra-1`, `--sombra-2`, `--raio-cartao`
+  no `:root`), para cartoes, paineis e tabelas terem o mesmo acabamento.
+- **Texto que precisa ficar embaixo do titulo nao leva `max-width`** no item do
+  flex: com largura limitada ele cabe ao lado do `<h1>` em tela larga. O
+  `.subtitulo` ocupa a linha inteira e limita o texto com `padding-right`.
+- **O que gruda abaixo do topo usa `--altura-topo`** (medida pelo `App.jsx` com
+  `ResizeObserver`, porque o topo muda de altura com a largura e com o papel):
+  barra de categorias, sacola, detalhe do pedido e o painel do quadro. Nada de
+  `top` fixo em pixels. Barra fixa por cima de conteudo leva fundo solido: com
+  transparencia, ate a 97%, o "+" vermelho dos cards aparece atras.
+- **Filtro no servidor, busca no navegador.** As abas do cardapio continuam
+  chamando `GET /cardapio?categoria=` (aparece no trilho, e requisito da
+  demonstracao); a busca so filtra o que ja veio, sem chamada nova.
+- **Quadro da cozinha (KDS).** Modo padrao da cozinha em Pedidos; a escolha
+  Quadro/Lista fica no `localStorage` (com `try/catch`). O tempo da comanda e
+  desde a entrada na etapa atual (`entrouNaEtapa`, no `historico`): verde ate
+  10 min, amarelo ate 20, vermelho depois ou se passou da previsao. Entregues
+  ficam so na Lista. Contas de tempo ficam em `src/tempo.js`.
+- **Icones sao desenhos proprios** (`componentes/Icones.jsx`, traco 24x24 em
+  `currentColor`, `aria-hidden`): o texto ao lado sempre diz o que e. Regra de
+  CSS com seletor generico (`.bloco span`) dentro de um bloco com icone pega o
+  `<span>` do icone tambem; mire no filho certo (`.bloco > div span`).
 - **Cadastro nao abre sessao; senha nova encerra a sessao.** Criar conta e
   entrar sao passos separados; depois de `PUT /conta/senha` o frontend chama
   `encerrarSessao(aviso)` e a tela de login mostra o aviso.
@@ -370,7 +406,23 @@ nada que nao esteja no contrato.
 - **Nada de senha em variavel comum nem no repositorio:** Secret Manager com
   `--set-secrets`, acesso por segredo (nao no projeto inteiro).
 - **Uma conta de servico por papel** (gateway, servicos, frontend), so com os
-  papeis que usa; microsservicos privados (`--no-allow-unauthenticated`).
+  papeis que usa.
+- **Microsservico com endpoint publico, negocio com chave interna.** O enunciado
+  pede HTTPS publico para backend e Gateway; liberar `allUsers` sozinho deixaria
+  qualquer um chamar `ListarPedidos`/`CriarPedido` direto, pulando o JWT do
+  Gateway (o Pedidos confia no `usuario_id` que recebe). Por isso o
+  `InterceptadorServidor` exige `x-chave-interna` (`src/comum/chave_interna.py`,
+  segredo `delivery-chave-interna`) em **todo** metodo de negocio, unario e
+  stream, e tambem na reflection (que listaria os metodos a quem quisesse);
+  so o health check fica aberto. Quem chama nao faz nada:
+  a chave vai em `rastreamento.metadados()`, que toda chamada entre servicos ja
+  usa. Sem `CHAVE_INTERNA` (compose local) nada muda. Conferir com
+  `scripts/testar_acesso_direto.py`.
+- **Gateway com 1 instancia fixa so enquanto ligado** (`ligar.sh`: min 1, max
+  1; `desligar.sh`: min 0). Circuito e cardapio salvo ficam na memoria da
+  instancia: com duas, a demonstracao de falha nao e reproduzivel.
+- **Etiqueta da imagem = commit**, com `-alterado` quando ha mudanca nao
+  commitada: a imagem nunca leva o hash de um commit que nao a contem.
 - **Custo sob controle:** `--min-instances 0`, `--max-instances 2`, CPU so na
   requisicao; depois de testar, `desligar.sh` (Cloud SQL parado).
 - **`set -euo pipefail` em todo script**, e atribuicao com `$(...)` que pode

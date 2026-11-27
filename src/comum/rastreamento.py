@@ -37,6 +37,8 @@ from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
+from . import chave_interna
+
 __all__ = [
     "SpanKind",
     "Status",
@@ -105,10 +107,11 @@ def extrair(portador):
 
 
 def metadados() -> list[tuple[str, str]]:
-    """Metadados gRPC que levam o trace atual (e o span pai) para o proximo servico."""
+    """Metadados de toda chamada gRPC para outro servico: o trace atual (e o span
+    pai) e a chave interna (ver chave_interna.py)."""
     portador: dict[str, str] = {}
     propagate.inject(portador)
-    return list(portador.items())
+    return list(portador.items()) + chave_interna.metadados()
 
 
 def rastrear_banco(operacao: str):

@@ -21,6 +21,14 @@
 
   --altura-trilho: 156px;
   --raio: 6px;
+  --raio-cartao: 14px;
+
+  /* Sombras em duas alturas: repouso (cartao, painel) e destaque (hover). */
+  --sombra-1: 0 1px 2px rgba(29, 35, 41, 0.06), 0 6px 18px -10px rgba(29, 35, 41, 0.22);
+  --sombra-2: 0 2px 4px rgba(29, 35, 41, 0.08), 0 16px 32px -14px rgba(29, 35, 41, 0.35);
+
+  /* Margem lateral do conteudo e do topo (16px no celular). */
+  --margem: 28px;
 }
 
 * {
@@ -30,11 +38,18 @@
 html,
 body {
   margin: 0;
-  background: var(--inox);
+  /* Inox com um brilho quente no alto, como a luz da cozinha. */
+  background: radial-gradient(1100px 520px at 88% -120px, rgba(180, 35, 24, 0.08), transparent 70%) no-repeat,
+    var(--inox);
   color: var(--grafite);
   font-family: var(--fonte);
   font-size: 17px;
   line-height: 1.5;
+}
+
+/* O brilho fica so no body; no html seria pintado duas vezes. */
+html {
+  background: var(--inox);
 }
 
 button,
@@ -788,65 +803,6 @@ p {
   font-size: 0.85rem;
   color: var(--grafite-suave);
   word-break: break-all;
-}
-
-.etapas {
-  list-style: none;
-  padding: 0;
-  margin: 20px 0;
-  display: grid;
-  gap: 6px;
-}
-
-.etapas li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--grafite-suave);
-}
-
-.etapa-nome {
-  flex: 1;
-}
-
-.etapa-hora {
-  font-family: var(--fonte-comanda);
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--grafite);
-  font-variant-numeric: tabular-nums;
-}
-
-.etapa-numero {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid var(--inox-escuro);
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.etapas .feita {
-  color: var(--grafite);
-}
-
-.etapas .feita .etapa-numero {
-  background: var(--manjericao);
-  border-color: var(--manjericao);
-  color: var(--branco);
-}
-
-.etapas .atual {
-  color: var(--grafite);
-  font-weight: 750;
-}
-
-.etapas .atual .etapa-numero {
-  background: var(--pimenta);
-  border-color: var(--pimenta);
-  color: var(--branco);
 }
 
 .acoes {
@@ -2267,6 +2223,1412 @@ p {
 
   h1 {
     font-size: 2rem;
+  }
+}
+
+/* ==================================================================
+   Acabamento visual e layout fluido.
+   Fica depois das regras-base e do bloco de 960px de proposito: refina o
+   que vem antes sem espalhar mudancas pelo arquivo. Pontos de quebra:
+   1100px (topo em duas linhas), 960px (uma coluna), 720px (celular),
+   560px (celular estreito). Tabelas viram cartoes por container query,
+   conforme a largura da propria secao, nao da janela.
+   ================================================================== */
+
+/* ---------------------------------------------------------------- topo fixo */
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-wrap: nowrap;
+  gap: 24px;
+  padding: 12px var(--margem);
+  background: rgba(29, 35, 41, 0.97);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -12px rgba(0, 0, 0, 0.55);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .topo {
+    background: rgba(29, 35, 41, 0.9);
+    backdrop-filter: blur(8px);
+  }
+}
+
+.marca {
+  flex: none;
+}
+
+.marca-selo {
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.25), 0 4px 14px -4px rgba(240, 62, 62, 0.8);
+}
+
+/* Se as abas nao couberem, rolam de lado em vez de passar por cima do resto. */
+.abas {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.aba {
+  position: relative;
+  padding: 8px 14px;
+  border-radius: 999px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.aba.ativa {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.aba.ativa::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--pimenta);
+}
+
+.topo-direita {
+  flex: none;
+  min-width: 0;
+}
+
+.gateway {
+  white-space: nowrap;
+}
+
+.usuario-nome,
+.usuario-nome-texto {
+  max-width: 22ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.usuario-nome-texto {
+  color: var(--branco);
+}
+
+/* Barras de abas que rolam de lado: sem barra de rolagem visivel e com a
+   borda direita esmaecida, sinal de que ha mais abas. */
+.abas,
+.abas-cardapio {
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.abas::-webkit-scrollbar,
+.abas-cardapio::-webkit-scrollbar {
+  display: none;
+}
+
+.aba,
+.aba-cardapio {
+  scroll-snap-align: start;
+}
+
+/* O endereco do Gateway so cabe ao lado das cinco abas da cozinha em tela larga. */
+@media (max-width: 1440px) {
+  .gateway {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .topo {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-bottom: 0;
+  }
+
+  .abas {
+    order: 3;
+    flex: 1 0 100%;
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--margem));
+    padding: 2px var(--margem) 8px;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+  }
+}
+
+/* ------------------------------------------------------------ superficies */
+.painel {
+  border-color: rgba(207, 214, 220, 0.8);
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-1);
+}
+
+.botao {
+  border-radius: 8px;
+  box-shadow: 0 8px 18px -10px rgba(180, 35, 24, 0.9);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.botao:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px -10px rgba(180, 35, 24, 0.95);
+}
+
+.botao-secundario {
+  border-radius: 8px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.titulo-secao h1 {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+.titulo-secao h1::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 56px;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--pimenta), #ff922b);
+}
+
+/* Subtitulo sempre na linha de baixo: com max-width ele cabia ao lado do
+   titulo em tela larga. A linha e inteira; so o texto fica em 70ch. */
+.subtitulo {
+  flex: 1 0 100%;
+  max-width: none;
+  padding-right: max(0px, calc(100% - 70ch));
+}
+
+/* ------------------------------------------------------------------ login */
+.login {
+  align-items: stretch;
+  gap: 40px;
+  min-height: auto;
+  padding-top: 8px;
+}
+
+.login-texto {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 44px 44px 40px;
+  border-radius: 22px;
+  background: linear-gradient(155deg, #1d2329 0%, #2b1a1b 55%, #6e1a12 120%);
+  color: var(--branco);
+  box-shadow: var(--sombra-2);
+  isolation: isolate;
+}
+
+/* Brasa no canto: um brilho laranja que nao atrapalha a leitura. */
+.login-texto::after {
+  content: "";
+  position: absolute;
+  right: -120px;
+  bottom: -160px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 146, 43, 0.45), rgba(240, 62, 62, 0.15) 45%, transparent 70%);
+  z-index: -1;
+}
+
+.login-chama {
+  width: 46px;
+  height: 62px;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 0 12px rgba(255, 166, 60, 0.75));
+}
+
+.login-texto h1 {
+  color: var(--branco);
+}
+
+.login-texto p {
+  color: #d5dbe1;
+}
+
+.login-dica {
+  border-left-color: #ff922b;
+}
+
+.login-dica strong {
+  color: var(--branco);
+}
+
+.login-destaques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 22px 0 4px;
+  padding: 0;
+}
+
+.login-destaques li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.login-destaques li::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff922b;
+  box-shadow: 0 0 8px #ff922b;
+}
+
+.login-form {
+  align-self: center;
+  padding: 28px;
+}
+
+/* --------------------------------------------------------------- cardapio */
+.abas-cardapio {
+  gap: 8px;
+  padding: 2px 2px 4px;
+  border-bottom: 0;
+  margin-bottom: 22px;
+}
+
+.aba-cardapio {
+  padding: 8px 16px;
+  border: 1px solid var(--inox-escuro);
+  border-radius: 999px;
+  background: var(--branco);
+  box-shadow: 0 1px 2px rgba(29, 35, 41, 0.05);
+}
+
+.aba-cardapio:hover {
+  background: var(--branco);
+  border-color: var(--grafite-suave);
+}
+
+.aba-cardapio.ativa {
+  border-color: var(--grafite);
+  box-shadow: 0 6px 14px -8px rgba(29, 35, 41, 0.8);
+}
+
+.grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.grupo-titulo::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, var(--inox-escuro), transparent);
+}
+
+/* Pratos em cartoes: uma coluna no celular, duas ou tres conforme sobra espaco. */
+.pratos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  gap: 14px;
+  border-top: 0;
+}
+
+.prato {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  background: var(--branco);
+  border: 1px solid rgba(207, 214, 220, 0.8);
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-1);
+}
+
+.prato-foto {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+}
+
+.prato-corpo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.prato-cabeca {
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 4px 10px;
+}
+
+.prato-cabeca::after {
+  display: none;
+}
+
+.prato-cabeca h3 {
+  flex: 1 1 10ch;
+  font-size: 1.2rem;
+}
+
+.prato-preco {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fdecea;
+  color: var(--pimenta-escura);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.prato p {
+  font-size: 0.93rem;
+}
+
+.prato-pe {
+  margin-top: auto;
+  padding-top: 10px;
+  gap: 10px;
+}
+
+.prato-indisponivel {
+  background: #f7f8f9;
+  box-shadow: none;
+}
+
+.prato-indisponivel .prato-preco {
+  background: var(--inox);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .prato:hover {
+    background: var(--branco);
+    transform: translateY(-3px);
+    box-shadow: var(--sombra-2);
+  }
+
+  .prato-indisponivel:hover {
+    transform: none;
+    box-shadow: none;
+    background: #f7f8f9;
+  }
+}
+
+.quantidade button {
+  transition: background 150ms ease, color 150ms ease, transform 100ms ease;
+}
+
+/* ---------------------------------------------------------------- pedidos */
+.pedidos {
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 380px);
+}
+
+.detalhe {
+  position: sticky;
+}
+
+/* Tabela de verdade enquanto cabe (abaixo disso viram cartoes, ver o
+   container query). Desfaz o display:block do bloco de 960px. */
+.tabela {
+  display: table;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--sombra-1);
+}
+
+.tabela th {
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+
+.filtros-pedidos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  align-items: end;
+}
+
+.filtros-pedidos select,
+.filtros-pedidos input {
+  width: 100%;
+  min-width: 0;
+}
+
+.filtros-limpar {
+  justify-self: start;
+}
+
+.secao-pedidos {
+  container-type: inline-size;
+  overflow-x: visible;
+}
+
+.secao-novos {
+  border-radius: var(--raio-cartao);
+}
+
+/* Lista de pedidos estreita: cada linha vira um cartao com legenda por campo. */
+@container (max-width: 700px) {
+  .tabela-cartoes,
+  .tabela-cartoes tbody,
+  .tabela-cartoes tr,
+  .tabela-cartoes td {
+    display: block;
+  }
+
+  .tabela-cartoes {
+    background: none;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .tabela-cartoes thead {
+    display: none;
+  }
+
+  .tabela-cartoes tbody {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+    gap: 12px;
+  }
+
+  .tabela-cartoes tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    padding: 12px 14px;
+    background: var(--branco);
+    border: 1px solid rgba(207, 214, 220, 0.9);
+    border-radius: 12px;
+    box-shadow: var(--sombra-1);
+  }
+
+  .tabela-cartoes td {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .tabela-cartoes .num {
+    text-align: left;
+  }
+
+  .tabela-cartoes td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--grafite-suave);
+  }
+
+  .tabela-cartoes .celula-titulo {
+    grid-column: 1 / -1;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--inox-escuro);
+    font-size: 1.05rem;
+  }
+
+  .tabela-cartoes .celula-titulo::before {
+    display: none;
+  }
+
+  .tabela-cartoes .celula-acao {
+    grid-column: 1 / -1;
+  }
+
+  .tabela-cartoes .celula-acao .botao {
+    width: 100%;
+  }
+
+  .tabela-cartoes .linha-ativa {
+    background: var(--papel);
+    border-color: var(--pimenta);
+    box-shadow: 0 0 0 2px var(--pimenta);
+  }
+
+  .tabela-cartoes .linha-ativa td:first-child {
+    box-shadow: none;
+  }
+
+  .tabela-cartoes .linha-atrasada {
+    background: #fff4f2;
+    border-color: #f3b4ae;
+  }
+
+  .tabela-cartoes .linha-atrasada td {
+    background: none;
+  }
+
+  .tabela-cartoes .selo-atraso {
+    margin: 4px 0 0;
+  }
+}
+
+/* ------------------------------------------------------------------ saude */
+@media (max-width: 820px) {
+  .saude-tabela.tabela-cartoes,
+  .saude-tabela.tabela-cartoes tbody,
+  .saude-tabela.tabela-cartoes tr,
+  .saude-tabela.tabela-cartoes td {
+    display: block;
+  }
+
+  .saude-tabela.tabela-cartoes {
+    background: none;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .saude-tabela.tabela-cartoes thead {
+    display: none;
+  }
+
+  .saude-tabela.tabela-cartoes tbody {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+    gap: 12px;
+  }
+
+  .saude-tabela.tabela-cartoes tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    padding: 12px 14px;
+    background: var(--branco);
+    border: 1px solid rgba(207, 214, 220, 0.9);
+    border-radius: 12px;
+    box-shadow: var(--sombra-1);
+  }
+
+  .saude-tabela.tabela-cartoes td {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .saude-tabela.tabela-cartoes td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--grafite-suave);
+  }
+
+  .saude-tabela.tabela-cartoes .celula-titulo {
+    grid-column: 1 / -1;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--inox-escuro);
+  }
+}
+
+/* ---------------------------------------------------------------- cozinha */
+.cozinha-lista {
+  border-radius: var(--raio-cartao);
+  box-shadow: var(--sombra-1);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------ uma coluna */
+@media (max-width: 960px) {
+  :root {
+    --margem: 16px;
+  }
+
+  .pedidos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sacola,
+  .detalhe {
+    position: static;
+  }
+
+  .login-texto {
+    padding: 30px 26px 28px;
+    border-radius: 18px;
+  }
+
+  .login-form {
+    align-self: stretch;
+  }
+}
+
+/* ---------------------------------------------------------------- celular */
+@media (max-width: 720px) {
+  html,
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 1.85rem;
+  }
+
+  .conteudo {
+    padding: 20px var(--margem);
+  }
+
+  .titulo-secao {
+    margin-bottom: 18px;
+  }
+
+  .pratos {
+    gap: 12px;
+  }
+
+  .prato {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .prato-foto {
+    width: 76px;
+    height: 76px;
+  }
+
+  .cenario {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cenario-acao {
+    justify-content: space-between;
+  }
+
+  .cozinha-item {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .cozinha-info {
+    grid-column: 2 / -1;
+  }
+
+  .cozinha-preco {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+  }
+
+  .cozinha-item .interruptor {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .cozinha-item > .botao-secundario {
+    grid-column: 3;
+    grid-row: 2 / span 2;
+    align-self: center;
+  }
+
+  .confirmacao-acoes > * {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .marca-nome {
+    font-size: 1.25rem;
+  }
+
+  .marca-selo {
+    width: 34px;
+    height: 34px;
+    font-size: 0.95rem;
+  }
+
+  .topo {
+    column-gap: 12px;
+  }
+
+  .topo-direita,
+  .usuario {
+    gap: 8px;
+  }
+
+  /* Sem espaco para o nome: o papel e o Sair ficam na mesma linha da marca.
+     O cliente ve o nome em "Meus dados". */
+  .usuario-nome,
+  .usuario-nome-texto {
+    display: none;
+  }
+
+  .login-texto h1 {
+    font-size: 2rem;
+  }
+
+  /* No celular o painel de entrada fica curto: o formulario aparece sem rolar. */
+  .login-texto p {
+    display: none;
+  }
+
+  .login-destaques {
+    margin-top: 16px;
+  }
+
+  .login-chama {
+    width: 34px;
+    height: 46px;
+    margin-bottom: 10px;
+  }
+
+  .login-form {
+    padding: 20px;
+  }
+
+  .tabela-cartoes tbody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ==================================================================
+   Padroes de apps de delivery e de telas de cozinha (KDS).
+   Busca e categorias fixas no cardapio, figura por categoria no prato sem
+   foto, "+" preenchido, linha do tempo do pedido, "Pedir de novo" e o quadro
+   de comandas da cozinha. --altura-topo vem do App (ResizeObserver no topo).
+   ================================================================== */
+
+:root {
+  --altura-topo: 64px;
+}
+
+.sacola,
+.detalhe {
+  top: calc(var(--altura-topo) + 16px);
+  scroll-margin-top: calc(var(--altura-topo) + 12px);
+}
+
+/* Fixo ao lado da lista, o detalhe nao pode passar da janela (topo e trilho
+   ocupam parte dela): rola por dentro. */
+.detalhe {
+  max-height: calc(100vh - var(--altura-topo) - var(--altura-trilho-atual) - 40px);
+  overflow-y: auto;
+}
+
+@media (max-width: 960px) {
+  .detalhe {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* ------------------------------------------------ busca e categorias fixas */
+.busca-cardapio {
+  position: relative;
+  flex: 0 1 360px;
+  margin-left: auto;
+}
+
+.busca-icone {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  color: var(--grafite-suave);
+  pointer-events: none;
+}
+
+.busca-cardapio input {
+  width: 100%;
+  padding: 11px 14px 11px 42px;
+  border: 1px solid var(--inox-escuro);
+  border-radius: 999px;
+  background: var(--branco);
+  box-shadow: 0 1px 2px rgba(29, 35, 41, 0.05);
+  font-size: 0.95rem;
+}
+
+.busca-cardapio input:focus {
+  border-color: var(--grafite);
+  outline: 3px solid rgba(31, 95, 191, 0.25);
+  outline-offset: 0;
+}
+
+.barra-categorias {
+  position: sticky;
+  top: var(--altura-topo);
+  z-index: 20;
+  margin: 0 -10px 18px;
+  padding: 10px 10px 8px;
+  /* Fundo solido: translucido (mesmo a 97%), o "+" vermelho dos cards que passam
+     por baixo aparecia atras das abas. */
+  background: var(--inox);
+  border-bottom: 1px solid rgba(207, 214, 220, 0.7);
+  box-shadow: 0 10px 14px -14px rgba(29, 35, 41, 0.5);
+}
+
+.barra-categorias .abas-cardapio {
+  margin-bottom: 0;
+}
+
+.busca-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: -4px 0 16px;
+  color: var(--grafite-suave);
+  font-weight: 600;
+}
+
+/* ------------------------------------------ figura da categoria e o "+" */
+.prato-foto-vazia {
+  color: var(--pimenta-escura);
+}
+
+.prato-foto-vazia[data-categoria="Entradas"] {
+  background: linear-gradient(140deg, #fdf1dc, #f3d09c);
+  color: #8a4f00;
+}
+
+.prato-foto-vazia[data-categoria="Pratos"] {
+  background: linear-gradient(140deg, #fde7e3, #f1b3a8);
+  color: var(--pimenta-escura);
+}
+
+.prato-foto-vazia[data-categoria="Sobremesas"] {
+  background: linear-gradient(140deg, #fcebf2, #efbcd0);
+  color: #85284f;
+}
+
+.prato-foto-vazia[data-categoria="Bebidas"] {
+  background: linear-gradient(140deg, #e3f1f6, #b3d8e5);
+  color: #1d5a73;
+}
+
+.prato-figura {
+  width: 54%;
+  height: 54%;
+  filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.55));
+}
+
+.quantidade .botao-mais {
+  border-color: var(--pimenta);
+  background: var(--pimenta);
+  color: var(--branco);
+  box-shadow: 0 6px 14px -8px rgba(180, 35, 24, 0.9);
+}
+
+@media (hover: hover) {
+  .quantidade .botao-mais:hover:not(:disabled) {
+    border-color: var(--pimenta-escura);
+    background: var(--pimenta-escura);
+  }
+}
+
+.quantidade .botao-mais:disabled {
+  border-color: var(--inox-escuro);
+  background: var(--inox);
+  color: var(--grafite-suave);
+  box-shadow: none;
+}
+
+.sacola-repetida {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--acafrao);
+  border-radius: var(--raio);
+  background: #fff6e6;
+  font-size: 0.92rem;
+}
+
+/* -------------------------------------------------- linha do tempo */
+.linha-tempo {
+  --progresso: 0; /* 0 a 1, vem do componente */
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 20px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+/* Trilha cinza entre o primeiro e o ultimo icone, e a parte ja feita por cima. */
+.linha-tempo::before,
+.linha-tempo::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: 10%;
+  height: 4px;
+  border-radius: 4px;
+}
+
+.linha-tempo::before {
+  right: 10%;
+  background: var(--inox);
+}
+
+.linha-tempo::after {
+  width: calc(80% * var(--progresso));
+  background: linear-gradient(90deg, var(--manjericao), #3f9a63);
+  transition: width 600ms ease;
+}
+
+.passo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.passo-icone {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--inox-escuro);
+  border-radius: 50%;
+  background: var(--branco);
+  color: var(--grafite-suave);
+}
+
+.passo-icone .icone {
+  width: 22px;
+  height: 22px;
+}
+
+.passo-nome {
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--grafite-suave);
+}
+
+.passo-hora {
+  font-family: var(--fonte-comanda);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.passo-feita .passo-icone {
+  border-color: var(--manjericao);
+  background: var(--manjericao);
+  color: var(--branco);
+}
+
+.passo-feita .passo-nome {
+  color: var(--grafite);
+}
+
+.passo-atual .passo-icone {
+  border-color: var(--pimenta);
+  background: var(--pimenta);
+  color: var(--branco);
+  animation: pulsar-passo 1.8s ease-out infinite;
+}
+
+.passo-atual .passo-nome {
+  color: var(--grafite);
+  font-weight: 800;
+}
+
+@keyframes pulsar-passo {
+  0% {
+    box-shadow: 0 0 0 0 rgba(180, 35, 24, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(180, 35, 24, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 35, 24, 0);
+  }
+}
+
+/* Entregue: um fecho positivo com o "Pedir de novo" em destaque. */
+.entregue-festa {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 14px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #e8f5ed, #f6fbf8);
+  border: 1px solid #bfe0cb;
+}
+
+.entregue-festa > div strong,
+.entregue-festa > div span {
+  display: block;
+}
+
+.entregue-festa > div span {
+  color: var(--grafite-suave);
+  font-size: 0.92rem;
+}
+
+.entregue-icone {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--manjericao);
+  color: var(--branco);
+}
+
+.entregue-icone .icone {
+  width: 26px;
+  height: 26px;
+}
+
+.entregue-festa .botao {
+  grid-column: 1 / -1;
+}
+
+/* ------------------------------------------------- alternar quadro/lista */
+.titulo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.alternar-modo {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--inox-escuro);
+}
+
+.alternar-modo button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: none;
+  color: var(--grafite-suave);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.alternar-modo button[aria-pressed="true"] {
+  background: var(--branco);
+  color: var(--grafite);
+  box-shadow: 0 1px 3px rgba(29, 35, 41, 0.2);
+}
+
+/* ------------------------------------------------ quadro da cozinha (KDS) */
+.conteudo:has(.modo-quadro) {
+  max-width: 1640px;
+}
+
+/* O quadro usa a largura toda; o detalhe abre como painel por cima, a direita. */
+.pedidos.modo-quadro {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.modo-quadro .detalhe-vazio {
+  display: none;
+}
+
+.modo-quadro .detalhe {
+  position: fixed;
+  top: calc(var(--altura-topo) + 12px);
+  right: 16px;
+  z-index: 25;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - var(--altura-topo) - var(--altura-trilho-atual) - 28px);
+  overflow-y: auto;
+  box-shadow: 0 28px 60px -18px rgba(0, 0, 0, 0.5);
+  animation: entrar-painel 220ms ease-out;
+}
+
+@keyframes entrar-painel {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.detalhe-fechar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--inox);
+  color: var(--grafite);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modo-quadro .detalhe h2 {
+  padding-right: 44px;
+}
+
+.detalhe-fechar:hover {
+  background: var(--grafite);
+  color: var(--branco);
+}
+
+/* Uma coluna por etapa; se nao couberem as quatro, o quadro rola de lado. */
+.quadro-kds {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(232px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x proximity;
+}
+
+.coluna-kds {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  padding: 10px;
+  border-radius: var(--raio-cartao);
+  background: rgba(207, 214, 220, 0.45);
+  scroll-snap-align: start;
+}
+
+.coluna-kds-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px 10px;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.coluna-kds-titulo .icone {
+  width: 22px;
+  height: 22px;
+  color: var(--pimenta);
+}
+
+.coluna-kds-titulo .secao-contagem {
+  margin-left: auto;
+}
+
+.coluna-recebido {
+  background: #fbe3df;
+}
+
+.coluna-recebido .secao-contagem {
+  background: var(--pimenta);
+}
+
+.coluna-kds-vazia {
+  margin: 8px 4px;
+  color: var(--grafite-suave);
+  font-size: 0.9rem;
+}
+
+.coluna-kds-lista {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A comanda: papel de impressora, com a faixa de cor do tempo no alto. */
+.comanda-kds {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(207, 214, 220, 0.9);
+  border-top: 5px solid var(--manjericao);
+  border-radius: 10px;
+  background: var(--papel);
+  box-shadow: var(--sombra-1);
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.comanda-atencao {
+  border-top-color: var(--acafrao);
+}
+
+.comanda-urgente {
+  border-top-color: var(--pimenta);
+  background: #fff6f4;
+}
+
+@media (hover: hover) {
+  .comanda-kds:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sombra-2);
+  }
+}
+
+.comanda-foco {
+  outline: 3px solid var(--grafite);
+  outline-offset: 1px;
+}
+
+.comanda-kds-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comanda-kds-numero {
+  font-family: var(--fonte-comanda);
+  font-size: 1.05rem;
+}
+
+.comanda-kds-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 9px 1px 6px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.comanda-kds-tempo .icone {
+  width: 15px;
+  height: 15px;
+}
+
+.tempo-ok {
+  background: #e3f1e8;
+  color: var(--manjericao);
+}
+
+.tempo-atencao {
+  background: #fbefd9;
+  color: #8a5200;
+}
+
+.tempo-urgente {
+  background: var(--pimenta);
+  color: var(--branco);
+}
+
+.comanda-kds-cliente {
+  margin: 0;
+  font-weight: 700;
+}
+
+.comanda-kds-itens {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 6px 0;
+  border-top: 1px dashed var(--inox-escuro);
+  border-bottom: 1px dashed var(--inox-escuro);
+  list-style: none;
+  font-size: 0.92rem;
+}
+
+.comanda-kds-itens li {
+  display: flex;
+  gap: 6px;
+}
+
+.comanda-kds-itens em {
+  color: var(--grafite-suave);
+  font-style: normal;
+}
+
+.comanda-kds-qtd {
+  flex: none;
+  min-width: 2.1em;
+  font-family: var(--fonte-comanda);
+  font-weight: 700;
+}
+
+.comanda-kds-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
+}
+
+.comanda-kds-previsao {
+  font-size: 0.82rem;
+  color: var(--grafite-suave);
+}
+
+.comanda-kds-pe .selo-atraso {
+  margin-left: 6px;
+}
+
+.quadro-kds-nota {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--grafite-suave);
+}
+
+@media (max-width: 720px) {
+  .busca-cardapio {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .barra-categorias {
+    margin: 0 calc(-1 * var(--margem)) 14px;
+    padding: 8px var(--margem);
+  }
+
+  .passo-icone {
+    width: 36px;
+    height: 36px;
+  }
+
+  .linha-tempo::before,
+  .linha-tempo::after {
+    top: 16px;
+  }
+
+  .quadro-kds {
+    grid-auto-columns: minmax(78%, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .botao,
+  .botao:hover,
+  .prato:hover,
+  .comanda-kds,
+  .comanda-kds:hover {
+    transform: none;
+    transition: none;
+  }
+
+  .passo-atual .passo-icone,
+  .modo-quadro .detalhe {
+    animation: none;
   }
 }
 

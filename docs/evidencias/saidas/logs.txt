@@ -1,0 +1,12 @@
+# Requisicao do pedido da Maria Silva (id de requisicao cf2dd906) atravessando os quatro servicos
+--- gateway
+[08:25:51] [cf2dd906] POST /pedidos -> 201 (21 ms) [maria.silva]
+--- usuarios
+[08:24:58] [e7be0514] CadastrarUsuario: login='maria.silva' nome='Maria Silva'
+[08:24:58] [e7be0514] Usuario maria.silva gravado (id abe3413a-3b92-4aa7-8717-00e69083e405)
+[08:25:05] [bb471681] VerificarCredenciais: login='maria.silva' -> ok
+--- pedidos
+[08:25:51] [cf2dd906] CriarPedido: pedido=213251e7-39ed-4e6b-a490-5e15023ce15b usuario=abe3413a-3b92-4aa7-8717-00e69083e405 cliente='Maria Silva' itens=[('EN01', 1, ''), ('PR01', 1, ''), ('BE01', 1, 'Coca-Cola Zero')]
+[08:25:51] [cf2dd906] Pedido 213251e7-39ed-4e6b-a490-5e15023ce15b gravado: 3 itens, 3 unidades, total R$ 88.80
+--- catalogo
+[08:25:51] [cf2dd906] ConsultarItens: ['BE01', 'EN01', 'PR01'] -> 3 encontrados

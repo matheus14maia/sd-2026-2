@@ -1,0 +1,39 @@
+$ gcloud run services list
+NAME               URL                                                LATEST_READY_REVISION_NAME   IMAGE
+delivery-catalogo  https://delivery-catalogo-j76gmjruwa-uc.a.run.app  delivery-catalogo-00009-dsv  catalogo:b105824
+delivery-frontend  https://delivery-frontend-j76gmjruwa-uc.a.run.app  delivery-frontend-00005-tn2  frontend:b105824
+delivery-gateway   https://delivery-gateway-j76gmjruwa-uc.a.run.app   delivery-gateway-00010-xgt   gateway:b105824
+delivery-pedidos   https://delivery-pedidos-j76gmjruwa-uc.a.run.app   delivery-pedidos-00003-7nc   pedidos:b105824
+delivery-usuarios  https://delivery-usuarios-j76gmjruwa-uc.a.run.app  delivery-usuarios-00003-j78  usuarios:b105824
+
+$ gcloud run jobs list
+NAME               LATEST_CREATED_EXECUTION_NAME  COMPLETION_TIMESTAMP
+delivery-migrador  delivery-migrador-5s98t        2026-11-27T14:11:36.574382Z
+
+$ gcloud compute instances list
+Listed 0 items.
+(nenhuma VM)
+
+$ gcloud compute addresses list
+Listed 0 items.
+(nenhum IP reservado)
+
+$ gcloud sql instances list
+NAME               DATABASE_VERSION  TIER         REGION       STATUS    ACTIVATION_POLICY
+delivery-postgres  POSTGRES_16       db-f1-micro  us-central1  RUNNABLE  ALWAYS
+
+$ gcloud artifacts docker images list (tag em uso)
+IMAGE     TAGS                CREATE_TIME
+catalogo  b105824             2026-11-27 14:10
+frontend  b105824             2026-11-27 14:10
+gateway   b105824             2026-11-27 14:09
+migrador  b105824             2026-11-27 14:10
+pedidos   b105824             2026-11-27 14:10
+usuarios  b105824             2026-11-27 14:10
+
+$ gcloud secrets list
+NAME                    CREATED
+delivery-chave-interna  2026-11-27
+delivery-db-senha       2026-11-11
+delivery-demo-senha     2026-11-11
+delivery-jwt-segredo    2026-11-11

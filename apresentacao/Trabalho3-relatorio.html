@@ -128,16 +128,16 @@
 <ol>
   <li>O navegador baixa a interface do <code>delivery-frontend</code>; o arquivo <code>/config.js</code>, gerado pelo nginx a partir da variável <code>API_URL</code>, informa o endereço do Gateway.</li>
   <li>A chamada de dados vai direto ao <code>delivery-gateway</code> com <code>Authorization: Bearer</code>. O Gateway barra na borda o que é inválido (401 sem token válido, 403 sem o papel exigido, 400 para corpo fora do contrato) antes de qualquer chamada gRPC, e tira o dono do pedido do próprio token.</li>
-  <li>O Gateway monta o <code>CriarPedidoRequest</code> (Protobuf) e chama o <code>delivery-pedidos</code> por gRPC sobre HTTP/2 com TLS (porta 443), anexando um ID token da sua conta de serviço. O Cloud Run só entrega a chamada se essa conta tiver <code>roles/run.invoker</code> no serviço.</li>
+  <li>O Gateway monta o <code>CriarPedidoRequest</code> (Protobuf) e chama o <code>delivery-pedidos</code> por gRPC sobre HTTP/2 com TLS (porta 443), anexando a chave interna (<code>x-chave-interna</code>, lida do Secret Manager). Sem ela o microsserviço recusa a chamada com <code>UNAUTHENTICATED</code>.</li>
   <li>O Pedidos confere preço, disponibilidade e opção de cada item no Catálogo (<code>ConsultarItens</code>) com o prazo que resta da chamada original e grava pedido, itens e primeira etapa numa única transação no Cloud SQL; um <code>pg_notify</code> na mesma transação alimenta o tempo real.</li>
   <li>A resposta volta como JSON (201). O id da requisição (<code>X-Requisicao-Id</code>) é o trace id e aparece em todas as linhas de log do caminho.</li>
 </ol>
 
-<p><b>Endpoints públicos e privados.</b> Os cinco serviços têm endpoint HTTPS público gerenciado pelo Cloud Run (domínio <code>run.app</code>, certificado automático). Frontend e Gateway aceitam qualquer cliente; os três microsserviços exigem o ID token de uma conta de serviço autorizada e respondem 403 a quem não o apresenta. Assim continua valendo a regra do Trabalho 2: o navegador só fala com o Gateway, e ninguém chega ao gRPC sem passar pela validação do JWT.</p>
+<p><b>Endpoints públicos.</b> Os cinco serviços têm endpoint HTTPS público gerenciado pelo Cloud Run (domínio <code>run.app</code>, certificado automático), alcançável por qualquer cliente. Nos três microsserviços, o health check gRPC responde a todos, mas cada método de negócio (inclusive o stream de tempo real) e a reflection exigem a chave interna, que só o Gateway e o Pedidos recebem do Secret Manager. Assim continua valendo a regra do Trabalho 2: o navegador só fala com o Gateway, e ninguém usa o gRPC sem passar pela validação do JWT (<code>scripts/testar_acesso_direto.py</code> comprova as duas metades).</p>
 
 <figure>
 <!-- inicio do diagrama (gerado de docs/arquitetura-cloud-run.svg) -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 72 1000 754" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos serviços públicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, com ID token, com os microsserviços privados Usuários, Catálogo e Pedidos, também no Cloud Run; Pedidos consulta o Catálogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vêm do Secret Manager, logs e traces vão para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Trabalho 2 ficam paradas ou excluídas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 72 1000 754" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos serviços públicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, levando a chave interna, com os microsserviços Usuários, Catálogo e Pedidos, também públicos no Cloud Run mas com o negócio restrito a quem tem a chave; Pedidos consulta o Catálogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vêm do Secret Manager, logs e traces vão para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Compute Engine foram excluídas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#1d2329"/>
@@ -194,24 +194,24 @@
   <circle cx="490" cy="426" r="4" fill="#1d2329"/>
   <circle cx="334" cy="426" r="4" fill="#1d2329"/>
   <text x="56" y="392" font-size="12" font-weight="700" fill="#1d2329">gRPC sobre HTTP/2 e TLS (porta 443)</text>
-  <text x="56" y="409" font-size="12" fill="#4a5560">ID token do Gateway · roles/run.invoker</text>
+  <text x="56" y="409" font-size="12" fill="#4a5560">chave interna (Secret Manager)</text>
 
   <!-- microsservicos -->
   <g>
     <rect x="48" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="60" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="60" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PÚBLICO · CHAVE INTERNA</text>
     <text x="60" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-usuarios</text>
     <text x="60" y="512" font-size="12.5" fill="#4a5560">cadastro e login</text>
     <text x="60" y="530" font-size="12.5" fill="#4a5560">bcrypt, dados da conta</text>
 
     <rect x="244" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="256" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="256" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PÚBLICO · CHAVE INTERNA</text>
     <text x="256" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-catalogo</text>
     <text x="256" y="512" font-size="12.5" fill="#4a5560">cardápio, opções, fotos</text>
     <text x="256" y="530" font-size="12.5" fill="#4a5560">disponibilidade do dia</text>
 
     <rect x="484" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="496" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="496" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PÚBLICO · CHAVE INTERNA</text>
     <text x="496" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-pedidos</text>
     <text x="496" y="512" font-size="12.5" fill="#4a5560">pedidos e etapas</text>
     <text x="496" y="530" font-size="12.5" fill="#4a5560">stream LISTEN/NOTIFY</text>
@@ -275,9 +275,10 @@
     <text x="750" y="368" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">SEGREDOS</text>
     <text x="750" y="390" font-size="15" font-weight="700" fill="#1d2329">Secret Manager</text>
     <g font-size="12" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#4a5560">
-      <text x="750" y="410">delivery-db-senha</text>
-      <text x="750" y="427">delivery-demo-senha</text>
-      <text x="750" y="444">delivery-jwt-segredo</text>
+      <text x="750" y="407">delivery-db-senha</text>
+      <text x="750" y="421">delivery-demo-senha</text>
+      <text x="750" y="435">delivery-jwt-segredo</text>
+      <text x="750" y="449">delivery-chave-interna</text>
     </g>
 
     <!-- observabilidade -->
@@ -298,8 +299,8 @@
     <!-- VMs do Trabalho 2 -->
     <rect x="736" y="694" width="232" height="70" rx="10" fill="#f4f6f8" stroke="#b8c0c8" stroke-width="1.5" stroke-dasharray="5 4"/>
     <text x="750" y="714" font-size="11" font-weight="700" fill="#8a96a2" letter-spacing="0.6">COMPUTE ENGINE</text>
-    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs do Trabalho 2</text>
-    <text x="750" y="754" fill="#8a96a2">paradas ou excluídas</text>
+    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs (Trabalho 2 e aulas)</text>
+    <text x="750" y="754" fill="#8a96a2">excluídas em 27/11/2026</text>
     <circle cx="938" cy="730" r="13" fill="none" stroke="#b42318" stroke-width="2.2"/>
     <line x1="929" y1="721" x2="947" y2="739" stroke="#b42318" stroke-width="2.2"/>
   </g>
@@ -319,8 +320,8 @@
   <text x="708" y="642" font-size="11" font-weight="700" fill="#1d2329" text-anchor="middle">SQL</text>
 
   <!-- legenda -->
-  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · região us-central1 · nenhuma VM ligada</text>
-  <text x="32" y="803" font-size="12" fill="#4a5560">PÚBLICO: HTTPS aberto na internet · PRIVADO: só contas de serviço com roles/run.invoker (o Gateway; o Pedidos, para o Catálogo)</text>
+  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · região us-central1 · nenhuma VM no Compute Engine</text>
+  <text x="32" y="803" font-size="12" fill="#4a5560">Todos com HTTPS público · CHAVE INTERNA: negócio só para o Gateway (e o Pedidos, no Catálogo); health check aberto</text>
 </svg>
 <!-- fim do diagrama -->
   <figcaption><b>Figura 1.</b> Arquitetura implantada no GCP. A seta vermelha é o caminho de uma requisição de dados do navegador; as setas tracejadas ligam os serviços de apoio (imagens, segredos e telemetria) ao Cloud Run. Fonte editável em <code>docs/arquitetura-cloud-run.svg</code>.</figcaption>
@@ -335,10 +336,10 @@
     <tr><td class="forte">Cloud SQL</td><td><code>delivery-postgres</code> (PostgreSQL 16, <code>db-f1-micro</code>), banco <code>delivery</code></td><td>Persistência real dos dados; conexão pelo conector do Cloud Run (socket <code>/cloudsql</code>), com o papel <code>roles/cloudsql.client</code> e sem IP autorizado</td></tr>
     <tr><td class="forte">Artifact Registry</td><td>repositório Docker <code>delivery</code> (<code>us-central1</code>)</td><td>Guarda as seis imagens, etiquetadas com o commit implantado</td></tr>
     <tr><td class="forte">Cloud Build</td><td><code>cloudbuild.yaml</code></td><td>Constrói as seis imagens em paralelo (BuildKit) e publica no Artifact Registry</td></tr>
-    <tr><td class="forte">Secret Manager</td><td><code>delivery-db-senha</code>, <code>delivery-demo-senha</code>, <code>delivery-jwt-segredo</code></td><td>Segredos entregues ao contêiner como variáveis de ambiente (<code>--set-secrets</code>); cada conta de serviço lê só os seus</td></tr>
-    <tr><td class="forte">IAM</td><td>contas <code>delivery-gateway</code>, <code>delivery-servicos</code>, <code>delivery-frontend</code></td><td>Menor privilégio por papel; <code>roles/run.invoker</code> define quem pode chamar cada microsserviço</td></tr>
+    <tr><td class="forte">Secret Manager</td><td><code>delivery-db-senha</code>, <code>delivery-demo-senha</code>, <code>delivery-jwt-segredo</code>, <code>delivery-chave-interna</code></td><td>Segredos entregues ao contêiner como variáveis de ambiente (<code>--set-secrets</code>); cada conta de serviço lê só os seus</td></tr>
+    <tr><td class="forte">IAM</td><td>contas <code>delivery-gateway</code>, <code>delivery-servicos</code>, <code>delivery-frontend</code></td><td>Menor privilégio por papel: cada conta lê só os seus segredos (a chave interna só chega ao Gateway e aos microsserviços)</td></tr>
     <tr><td class="forte">Logging e Trace</td><td>Cloud Logging, Cloud Trace</td><td>Logs em JSON com o id da requisição; spans OpenTelemetry do Gateway até o banco, um por tentativa de retry</td></tr>
-    <tr><td class="forte">Compute Engine</td><td>VMs do Trabalho 2</td><td>Paradas ou excluídas por <code>desligar.sh</code>; <code>status.sh</code> lista as instâncias para comprovar</td></tr>
+    <tr><td class="forte">Compute Engine</td><td>nenhuma VM</td><td>As três VMs do Trabalho 2 e a das primeiras aulas foram excluídas em 27/11/2026 (com os IPs fixos); <code>status.sh</code> e o console comprovam a lista vazia</td></tr>
   </tbody>
 </table>
 
@@ -390,40 +391,40 @@
     <tr><td class="forte">Prazo propagado</td><td>O Pedidos chama o Catálogo com o tempo que resta da chamada do Gateway e, se o Catálogo falhar, avisa no metadado <code>x-falha-dependencia</code>: o Gateway não repete o <code>CriarPedido</code> (evita tempestade de retries) nem conta a falha contra o Pedidos.</td><td>automático</td></tr>
     <tr><td class="forte">Banco indisponível</td><td>O interceptador converte erro de conexão com o PostgreSQL em <code>UNAVAILABLE</code>, que o cliente pode repetir, e o pool testa cada conexão antes de usar, reabrindo sozinho quando o Cloud SQL volta.</td><td><code>DB_POOL_MAX=3</code> por instância</td></tr>
     <tr><td class="forte">Tempo real</td><td>Se o stream gRPC <code>AcompanharPedidos</code> cair, o Gateway reabre com espera de 1 a 15 s e os navegadores veem "Reconectando..."; o <code>LISTEN</code> do PostgreSQL também reconecta e a tela segue consultando periodicamente.</td><td><code>--timeout 3600</code> no Gateway e no Pedidos</td></tr>
-    <tr><td class="forte">Plataforma</td><td>O Cloud Run substitui instâncias com falha e só manda tráfego a uma revisão nova depois que ela sobe; no <code>SIGTERM</code> o serviço marca o health check como <code>NOT_SERVING</code> e termina as chamadas em andamento.</td><td><code>--min-instances 0</code>, <code>--max-instances 2</code>, <code>--cpu-boost</code></td></tr>
+    <tr><td class="forte">Plataforma</td><td>O Cloud Run substitui instâncias com falha e só manda tráfego a uma revisão nova depois que ela sobe; no <code>SIGTERM</code> o serviço marca o health check como <code>NOT_SERVING</code> e termina as chamadas em andamento.</td><td><code>--min-instances 0</code>, <code>--max-instances 2</code>, <code>--cpu-boost</code>; Gateway com 1 instância fixa enquanto ligado</td></tr>
   </tbody>
 </table>
 
 <p><b>O que o usuário vê.</b> Indisponibilidade nunca vira erro 500 genérico: <code>UNAVAILABLE</code>, <code>DEADLINE_EXCEEDED</code>, <code>CANCELLED</code> e <code>RESOURCE_EXHAUSTED</code> viram 503 com <code>Retry-After</code> e uma mensagem que o frontend apresenta em linguagem clara; o cardápio entra em modo de segurança com a lista salva; e a aba Saúde da cozinha mostra o health check de cada microsserviço e o estado de cada circuito.</p>
 
 <div class="bloco">
-<div class="legenda-tabela"><b>Tabela 5.</b> Roteiro automático <code>scripts/testar_resiliencia.py</code>, medido com docker compose derrubando o contêiner do Catálogo.</div>
+<div class="legenda-tabela"><b>Tabela 5.</b> Roteiro automático <code>scripts/testar_resiliencia.py</code> contra a URL pública do Gateway no Cloud Run, em 27/11/2026, derrubando o Catálogo com <code>FALHA_PERCENTUAL=100</code>. Os tempos são vistos do cliente, no Brasil, e incluem a ida e volta até <code>us-central1</code>.</div>
 <table>
   <thead><tr><th style="width:36%">Situação</th><th>Resultado medido</th></tr></thead>
   <tbody>
-    <tr><td>Catálogo fora: <code>GET /cardapio</code></td><td>200 com a lista salva (<code>origem: cache</code>) em 2,4 s, depois de esgotar o retry</td></tr>
-    <tr><td>Catálogo fora: <code>POST /pedidos</code></td><td>503 em 0,5 s com <code>Retry-After: 5</code>; nada gravado</td></tr>
+    <tr><td>Catálogo fora: <code>GET /cardapio</code></td><td>200 com a lista salva (<code>origem: cache</code>) em 1,5 s, depois de esgotar as 3 tentativas</td></tr>
+    <tr><td>Catálogo fora: <code>POST /pedidos</code></td><td>503 em 0,8 s com <code>Retry-After: 5</code>; nada gravado</td></tr>
     <tr><td>Isolamento: <code>GET /pedidos</code></td><td>200 normal: Pedidos e Usuários continuam no ar</td></tr>
-    <tr><td>Depois de 3 falhas seguidas</td><td>circuito do Catálogo aberto; 503 em 3 ms, sem chamar o serviço</td></tr>
-    <tr><td>Catálogo religado</td><td>em ~16 s o circuito fecha, o cardápio volta a vir do Catálogo e <code>POST /pedidos</code> responde 201</td></tr>
+    <tr><td>Depois de 3 falhas seguidas</td><td>circuito do Catálogo aberto; 503 em 0,3 s (só a rede), sem chamar o serviço</td></tr>
+    <tr><td>Catálogo religado (<code>FALHA_PERCENTUAL=0</code>)</td><td>em ~16 s o circuito fecha, o cardápio volta a vir do Catálogo e <code>POST /pedidos</code> responde 201</td></tr>
   </tbody>
 </table>
 </div>
 
-<p><b>Demonstração no Cloud Run.</b> A falha é provocada pelo painel do GCP, sem mudar código: em <i>Cloud Run › delivery-catalogo › Editar e implantar nova revisão › Variáveis e secrets</i>, define-se <code>FALHA_PERCENTUAL=100</code>, e o interceptador passa a responder <code>UNAVAILABLE</code> como um serviço fora do ar. Ao vivo se observa o cardápio servido do cache, o pedido recusado com 503, o circuito aberto na aba Saúde e, no Cloud Logging, cada tentativa do retry (<code>repetindo em ... ms</code>) com o id da requisição. Com <code>FALHA_PERCENTUAL=50</code> o retry absorve as falhas sem o usuário perceber; com <code>FALHA_ATRASO_MS=12000</code> é o timeout que corta a espera. Voltando para 0, tudo se recupera em cerca de 15 s. Os 84 cenários de <code>scripts/testar_gateway.py</code> (status HTTP, autenticação e regras de negócio) passaram contra a URL pública do Gateway em 11/11/2026, e o roteiro da Tabela 5 também roda contra a nuvem (<code>testar_resiliencia.py --url</code>, com os comandos <code>gcloud run services update</code> de derrubar e religar).</p>
+<p><b>Demonstração no Cloud Run.</b> A falha é provocada pelo painel do GCP, sem mudar código: em <i>Cloud Run › delivery-catalogo › Editar e implantar nova revisão › Variáveis e secrets</i>, define-se <code>FALHA_PERCENTUAL=100</code>, e o interceptador passa a responder <code>UNAVAILABLE</code> como um serviço fora do ar. Ao vivo se observa o cardápio servido do cache, o pedido recusado com 503, o circuito aberto na aba Saúde e, no Cloud Logging, cada tentativa do retry (<code>repetindo em ... ms</code>) com o id da requisição. Com <code>FALHA_PERCENTUAL=50</code> o retry absorve as falhas sem o usuário perceber; com <code>FALHA_ATRASO_MS=12000</code> é o timeout que corta a espera. Voltando para 0, tudo se recupera em cerca de 15 s. Em 27/11/2026, contra as URLs públicas, passaram os 84 cenários de <code>scripts/testar_gateway.py</code> (status HTTP, autenticação e regras de negócio) e o <code>scripts/testar_acesso_direto.py</code>: o health check de cada microsserviço responde <code>SERVING</code> e as chamadas de negócio e a reflection sem a chave interna voltam <code>UNAUTHENTICATED</code>. No Cloud Logging, um mesmo trace liga o <code>POST /pedidos</code> do Gateway ao <code>CriarPedido</code> do Pedidos e ao <code>ConsultarItens</code> do Catálogo.</p>
 
 <h2><span class="num">5</span>Links públicos HTTPS e configuração no Cloud Run</h2>
 
 <div class="bloco">
-<div class="legenda-tabela"><b>Tabela 6.</b> Serviços implantados em 11/11/2026 no Cloud Run (região <code>us-central1</code>). A tabela é impressa no fim de <code>scripts/gcp/cloud-run/implantar.sh</code> e por <code>status.sh</code>.</div>
+<div class="legenda-tabela"><b>Tabela 6.</b> Serviços implantados no Cloud Run (região <code>us-central1</code>). A tabela é impressa no fim de <code>scripts/gcp/cloud-run/implantar.sh</code> e por <code>status.sh</code>.</div>
 <table>
   <thead><tr><th style="width:31%">Serviço</th><th style="width:13%">Acesso</th><th>URL</th></tr></thead>
   <tbody>
     <tr><td><code>delivery-frontend</code><span class="funcao">interface do cliente e da cozinha</span></td><td class="acesso-publico">público</td><td class="url"><a href="https://delivery-frontend-j76gmjruwa-uc.a.run.app">https://delivery-frontend-j76gmjruwa-uc.a.run.app</a></td></tr>
     <tr><td><code>delivery-gateway</code><span class="funcao">API HTTP/JSON, documentação em <code>/docs</code></span></td><td class="acesso-publico">público</td><td class="url"><a href="https://delivery-gateway-j76gmjruwa-uc.a.run.app">https://delivery-gateway-j76gmjruwa-uc.a.run.app</a></td></tr>
-    <tr><td><code>delivery-usuarios</code><span class="funcao">gRPC: contas e login</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><a href="https://delivery-usuarios-j76gmjruwa-uc.a.run.app">https://delivery-usuarios-j76gmjruwa-uc.a.run.app</a></td></tr>
-    <tr><td><code>delivery-catalogo</code><span class="funcao">gRPC: cardápio, opções e fotos</span></td><td class="acesso-iam">IAM: Gateway e Pedidos</td><td class="url"><a href="https://delivery-catalogo-j76gmjruwa-uc.a.run.app">https://delivery-catalogo-j76gmjruwa-uc.a.run.app</a></td></tr>
-    <tr><td><code>delivery-pedidos</code><span class="funcao">gRPC: pedidos e tempo real</span></td><td class="acesso-iam">IAM: Gateway</td><td class="url"><a href="https://delivery-pedidos-j76gmjruwa-uc.a.run.app">https://delivery-pedidos-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-usuarios</code><span class="funcao">gRPC: contas e login</span></td><td class="acesso-publico">público, chave interna</td><td class="url"><a href="https://delivery-usuarios-j76gmjruwa-uc.a.run.app">https://delivery-usuarios-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-catalogo</code><span class="funcao">gRPC: cardápio, opções e fotos</span></td><td class="acesso-publico">público, chave interna</td><td class="url"><a href="https://delivery-catalogo-j76gmjruwa-uc.a.run.app">https://delivery-catalogo-j76gmjruwa-uc.a.run.app</a></td></tr>
+    <tr><td><code>delivery-pedidos</code><span class="funcao">gRPC: pedidos e tempo real</span></td><td class="acesso-publico">público, chave interna</td><td class="url"><a href="https://delivery-pedidos-j76gmjruwa-uc.a.run.app">https://delivery-pedidos-j76gmjruwa-uc.a.run.app</a></td></tr>
   </tbody>
 </table>
 </div>
@@ -435,9 +436,9 @@
 <table>
   <thead><tr><th style="width:21%">Serviço</th><th>Variáveis de ambiente</th><th style="width:19%">Segredos</th></tr></thead>
   <tbody>
-    <tr><td><code>delivery-gateway</code></td><td><code>USUARIOS_HOST</code>, <code>CATALOGO_HOST</code> e <code>PEDIDOS_HOST</code> (endereços <code>run.app</code>) com <code>*_PORTA=443</code>, que liga TLS e ID token; <code>CORS_ORIGENS</code> (URL do frontend); <code>GRPC_TIMEOUT</code> e <code>GRPC_PRAZO_TOTAL</code>; <code>LOG_JSON=1</code>; <code>RASTREAMENTO=gcp</code></td><td><code>JWT_SEGREDO</code></td></tr>
-    <tr><td><code>delivery-usuarios</code>, <code>delivery-catalogo</code></td><td><code>DB_HOST=/cloudsql/&lt;conexão&gt;</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>DB_POOL_MAX=3</code>, <code>MAX_WORKERS=20</code>, tempos do gRPC, <code>LOG_JSON=1</code>, <code>RASTREAMENTO=gcp</code>; na demonstração, <code>FALHA_PERCENTUAL</code> e <code>FALHA_ATRASO_MS</code></td><td><code>DB_PASSWORD</code></td></tr>
-    <tr><td><code>delivery-pedidos</code></td><td>as mesmas, mais <code>CATALOGO_HOST</code> e <code>CATALOGO_PORTA=443</code></td><td><code>DB_PASSWORD</code></td></tr>
+    <tr><td><code>delivery-gateway</code></td><td><code>USUARIOS_HOST</code>, <code>CATALOGO_HOST</code> e <code>PEDIDOS_HOST</code> (endereços <code>run.app</code>) com <code>*_PORTA=443</code>, que liga o TLS; <code>CORS_ORIGENS</code> (URL do frontend); <code>GRPC_TIMEOUT</code> e <code>GRPC_PRAZO_TOTAL</code>; <code>LOG_JSON=1</code>; <code>RASTREAMENTO=gcp</code></td><td><code>JWT_SEGREDO</code>, <code>CHAVE_INTERNA</code></td></tr>
+    <tr><td><code>delivery-usuarios</code>, <code>delivery-catalogo</code></td><td><code>DB_HOST=/cloudsql/&lt;conexão&gt;</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>DB_POOL_MAX=3</code>, <code>MAX_WORKERS=20</code>, tempos do gRPC, <code>LOG_JSON=1</code>, <code>RASTREAMENTO=gcp</code>; na demonstração, <code>FALHA_PERCENTUAL</code> e <code>FALHA_ATRASO_MS</code></td><td><code>DB_PASSWORD</code>, <code>CHAVE_INTERNA</code></td></tr>
+    <tr><td><code>delivery-pedidos</code></td><td>as mesmas, mais <code>CATALOGO_HOST</code> e <code>CATALOGO_PORTA=443</code></td><td><code>DB_PASSWORD</code>, <code>CHAVE_INTERNA</code></td></tr>
     <tr><td><code>delivery-frontend</code></td><td><code>API_URL</code> (URL do Gateway, servida em <code>/config.js</code>)</td><td>nenhum</td></tr>
     <tr><td><code>delivery-migrador</code> (job)</td><td><code>DB_*</code> como acima e <code>DEMO_LOGIN=professor</code></td><td><code>DB_PASSWORD</code>, <code>DEMO_SENHA</code></td></tr>
   </tbody>

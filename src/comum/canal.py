@@ -5,10 +5,11 @@ Dois modos, escolhidos pela porta de destino:
 - Porta comum (9090-9092): canal sem TLS. E o caso do docker compose, onde os
   containers conversam pela rede interna do compose.
 - Porta 443 (Cloud Run): TLS + token de identidade (ID token) do Google no
-  metadado `authorization`. Os microsservicos no Cloud Run sao privados
-  (--no-allow-unauthenticated): o proprio Cloud Run recusa quem nao tem o papel
-  roles/run.invoker no servico, entao so o Gateway (e o Pedidos, no Catalogo)
-  conseguem chamar, mesmo o servico tendo URL HTTPS publica.
+  metadado `authorization`. Os microsservicos no Cloud Run tem endpoint HTTPS
+  publico; quem barra a chamada direta de fora e a chave interna
+  (chave_interna.py), que vai em toda chamada junto com o trace
+  (rastreamento.metadados). O ID token continua indo: se um servico voltar a ser
+  privado (--no-allow-unauthenticated), o Gateway segue chamando sem mudar nada.
 
 O ID token vem do metadata server do Cloud Run (conta de servico da revisao),
 com a URL do servico chamado como audiencia, e fica em cache ate perto de vencer.

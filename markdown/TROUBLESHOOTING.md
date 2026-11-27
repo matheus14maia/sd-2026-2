@@ -20,6 +20,89 @@
 
 ---
 
+## 2026-11-27
+
+### implantar.sh para na etapa 3 ligando o Cloud SQL
+
+**Sintoma:** com o banco desligado (`activation-policy NEVER`), o `implantar.sh`
+terminou com `ERROR: (gcloud.sql.instances.patch) Operation https://sqladmin.googleapis.com/...
+is taking longer than expected.` O estado da instancia ja era `RUNNABLE`, mas a
+operacao de `UPDATE` continuou `RUNNING` por uns 10 minutos.
+
+**Causa:** o `gcloud` espera a operacao do patch por um tempo fixo; ligar o
+`db-f1-micro` passou desse tempo (no Trabalho 2 levava de 2 a 5 minutos). O
+banco liga normalmente, so o comando desiste de esperar.
+
+**Solucao:** `implantar.sh` e `ligar.sh` mandam o patch com `--async` e quem
+espera e o `esperar_banco` do `comum.sh`, que consulta o estado por ate 10
+minutos. Se acontecer com uma copia antiga do script, basta rodar de novo
+(todas as etapas reaproveitam o que existe).
+
+**Arquivos:** `scripts/gcp/cloud-run/implantar.sh`, `ligar.sh`.
+
+### ligar.sh termina com o Cloud SQL em MAINTENANCE e o login da 503
+
+**Sintoma:** o `ligar.sh` terminou e o resumo mostrou `Cloud SQL delivery-postgres:
+MAINTENANCE`; o estado ficou assim por uns 6 minutos e, logo depois de virar
+`RUNNABLE`, `POST /auth/login` ainda respondeu 503 uma vez.
+`gcloud sql operations list` mostrava o `UPDATE` do patch como `RUNNING`.
+
+**Causa:** com o `patch --async`, o `esperar_banco` aceitava o primeiro
+`RUNNABLE` que via; a instancia ainda passou por `MAINTENANCE` aplicando a
+mudanca. So o estado nao diz que o banco esta pronto.
+
+**Solucao:** `esperar_banco` (`comum.sh`) espera `RUNNABLE` **e** nenhuma
+operacao pendente (`operacoes_pendentes`, `gcloud sql operations list
+--filter 'status!=DONE'`), por ate 15 minutos; se o tempo acabar com o banco
+`RUNNABLE`, segue com um aviso.
+
+**Arquivos:** `scripts/gcp/cloud-run/comum.sh`, `ligar.sh`, `implantar.sh` (comentarios).
+
+### Frontend quebrando conforme o tamanho da tela
+
+**Sintoma:** medido em 360, 768, 1024 e 1920 px: no celular o topo cortava o
+"Sair" e as abas ("Meus d..."), as abas mostravam barra de rolagem, a tabela de
+pedidos ficava cortada (5 a 7 colunas em 330px) e a tabela de saude espremida;
+em 1024px o topo da cozinha quebrava o usuario numa segunda linha solta e os
+filtros desalinhavam; em 1920px o subtitulo de Saude e Testes ficava ao lado do
+titulo. Ao corrigir, a tela de pedidos passou a ter duas colunas tambem no
+celular, e o endereco do Gateway encavalou nas abas da cozinha.
+
+**Causa:** o layout so tinha um ponto de quebra (960px) e as tabelas so rolavam
+de lado. O `.subtitulo` tinha `flex-basis: 100%` mas tambem `max-width: 70ch`,
+entao cabia ao lado do `<h1>`. A regra nova de colunas da `.pedidos` vinha
+depois do bloco de 960px no arquivo e o sobrescrevia; o topo com `nowrap` e sem
+`overflow` nas abas deixava os itens passarem um por cima do outro.
+
+**Solucao:** secao "Acabamento visual e layout fluido" no fim do `estilos.css`
+(pontos de quebra em 1100, 960, 720 e 560px, repetindo ali o que precisa valer
+em uma coluna); tabelas com `tabela-cartoes` + `data-rotulo` viram cartoes;
+abas com `overflow-x: auto` e barra escondida; endereco do Gateway so acima de
+1440px. Conferido no Chrome headless (prints pelo protocolo do DevTools) em
+360, 768, 1024, 1366 e 1920px com as duas contas: `scrollWidth` igual a largura
+da janela em todas as telas.
+
+**Arquivos:** `frontend/src/estilos.css`, `App.jsx`, `telas/Pedidos.jsx`,
+`telas/Saude.jsx`, `telas/Login.jsx`.
+
+### Microsservico publico subiria aberto sem CHAVE_INTERNA
+
+**Sintoma:** na revisao de seguranca da chave interna: `confere()` devolve `True`
+quando a variavel esta vazia. No Cloud Run, com o endpoint publico, um segredo
+esquecido ou com nome errado deixaria qualquer um chamar `ListarPedidos` direto.
+
+**Causa:** o "sem chave = nao exige" foi pensado para o compose local (portas so
+em 127.0.0.1), mas valia tambem no Cloud Run.
+
+**Solucao:** `src/comum/chave_interna.py` falha fechado no Cloud Run: com
+`K_SERVICE` definida (o Cloud Run sempre define) e sem `CHAVE_INTERNA`, o import
+levanta `RuntimeError` e o processo nao sobe; a revisao nova nao recebe trafego e
+a anterior continua. Local, sem `K_SERVICE`, nada muda.
+
+**Arquivos:** `src/comum/chave_interna.py`.
+
+---
+
 ## 2026-11-11
 
 ### 10 dos 84 cenarios falham contra o Cloud Run com 409

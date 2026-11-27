@@ -1,0 +1,18 @@
+
+== usuarios (delivery-usuarios-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   VerificarCredenciais sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+OK   Reflection (listar servicos) sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+== catalogo (delivery-catalogo-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   ListarItens sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+OK   Reflection (listar servicos) sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+== pedidos (delivery-pedidos-j76gmjruwa-uc.a.run.app:443)
+OK   health check sem chave: SERVING
+OK   ListarPedidos sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+OK   AcompanharPedidos (stream) sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+OK   Reflection (listar servicos) sem chave recusado: UNAUTHENTICATED (Chamada direta recusada: este servico so atende o Gateway (falta a chave interna).)
+
+Acesso direto OK: endpoint publico, negocio e reflection so com a chave interna.

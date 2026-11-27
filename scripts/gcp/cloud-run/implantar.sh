@@ -5,8 +5,8 @@
 #   senhas    Secret Manager (nunca no repositorio nem em variavel comum)
 #   banco     Cloud SQL (PostgreSQL), pelo conector do Cloud Run
 #   migrador  job do Cloud Run (cria as tabelas e o usuario da cozinha)
-#   servicos  Cloud Run: usuarios, catalogo e pedidos privados (gRPC + HTTP/2),
-#             gateway e frontend publicos (HTTPS)
+#   servicos  Cloud Run, todos com HTTPS publico: usuarios, catalogo e pedidos
+#             (gRPC + HTTP/2, negocio so com a chave interna), gateway e frontend
 #
 # No Cloud Shell, dentro da pasta do repositorio:
 #
@@ -18,7 +18,14 @@
 
 source "$(dirname "$0")/comum.sh"
 cd "$RAIZ"
-TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo manual)}"
+if [[ -z "${TAG:-}" ]]; then
+  TAG="$(git rev-parse --short HEAD 2>/dev/null || echo manual)"
+  # Codigo com alteracao ainda nao commitada nao leva a tag do commit puro: a
+  # imagem nao corresponderia ao que esta no repositorio com aquele hash.
+  if [[ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
+    TAG="$TAG-alterado"
+  fi
+fi
 
 echo "Projeto $PROJETO, regiao $REGIAO, imagens $IMAGENS:$TAG"
 simulando && echo "(SIMULAR=1: so mostra os comandos)"
@@ -45,7 +52,10 @@ if ! simulando && [[ "$(estado_do_banco)" == "INEXISTENTE" ]]; then
   g sql instances create "$BANCO" --database-version POSTGRES_16 --edition enterprise \
     --tier db-f1-micro --region "$REGIAO" --storage-size 10 --storage-auto-increase
 fi
-g sql instances patch "$BANCO" --activation-policy ALWAYS
+# --async: sem ele o gcloud desiste do patch ("is taking longer than
+# expected") enquanto o banco ainda liga e o script para; o esperar_banco
+# aguarda ate 15 minutos.
+g sql instances patch "$BANCO" --activation-policy ALWAYS --async >/dev/null
 esperar_banco
 CONEXAO="$(conexao_do_banco)"
 info "conexao: $CONEXAO"
@@ -102,6 +112,14 @@ else
   gravar_segredo delivery-jwt-segredo "$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 fi
 
+# Chave interna: os microsservicos tem endpoint HTTPS publico, mas o negocio so
+# atende quem traz esta chave (Gateway e Pedidos). Ver src/comum/chave_interna.py.
+if existe g secrets describe delivery-chave-interna; then
+  info "delivery-chave-interna ja existe (mantido)"
+else
+  gravar_segredo delivery-chave-interna "$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+fi
+
 # ------------------------------------------------- contas de servico e papeis
 etapa "5/9 Contas de servico (cada componente so com o que precisa)"
 criar_conta() {
@@ -131,6 +149,8 @@ acesso_ao_segredo() {
 acesso_ao_segredo delivery-db-senha "$SA_SERVICOS"
 acesso_ao_segredo delivery-demo-senha "$SA_SERVICOS"
 acesso_ao_segredo delivery-jwt-segredo "$SA_GATEWAY"
+acesso_ao_segredo delivery-chave-interna "$SA_SERVICOS"
+acesso_ao_segredo delivery-chave-interna "$SA_GATEWAY"
 
 # Conta que o Cloud Build usa. Em projeto de organizacao ela pode vir sem
 # permissao nenhuma; o build precisa ler o codigo enviado, escrever o log e
@@ -166,7 +186,21 @@ g run jobs deploy delivery-migrador --image "$IMAGENS/migrador:$TAG" --region "$
 g run jobs execute delivery-migrador --region "$REGIAO" --wait
 
 # ----------------------------------------------------------- microsservicos
-etapa "8/9 Microsservicos no Cloud Run (privados, gRPC com HTTP/2)"
+etapa "8/9 Microsservicos no Cloud Run (HTTPS publico, gRPC com HTTP/2, chave interna)"
+
+# Publico: allUsers com roles/run.invoker. Organizacao que proibe allUsers no
+# IAM (politica de compartilhamento restrito a dominio) recusa esse papel; ai a
+# checagem de invocador e desligada no proprio servico, que da o mesmo efeito.
+tornar_publico() {
+  if g run services add-iam-policy-binding "$1" --region "$REGIAO" --member allUsers \
+    --role roles/run.invoker >/dev/null 2>&1; then
+    info "$1 publico"
+  else
+    g run services update "$1" --region "$REGIAO" --no-invoker-iam-check >/dev/null
+    info "$1 publico (checagem de invocador desligada: a organizacao bloqueia allUsers)"
+  fi
+}
+
 # Tempo do gRPC maior que no computador (5 s por tentativa, 12 s no total): no
 # Cloud Run o servico chamado pode estar parado e leva alguns segundos para
 # subir (partida a frio) na primeira chamada.
@@ -175,16 +209,19 @@ COMUM_SERVICOS="$VARIAVEIS_BANCO,DB_POOL_MAX=3,MAX_WORKERS=20,$TEMPOS_GRPC,LOG_J
 
 implantar_microsservico() {
   local nome="$1" extra="${2:-}"
-  # --no-allow-unauthenticated: so quem tem roles/run.invoker chama (o
-  # Gateway e, no Catalogo, o Pedidos), com o token de identidade do Google.
+  # Endpoint HTTPS publico (tornar_publico): o health check gRPC responde a
+  # qualquer um, mas o negocio exige a CHAVE_INTERNA, que so o Gateway e o
+  # Pedidos tem (Secret Manager). O roles/run.invoker abaixo continua valendo se
+  # o servico voltar a ser privado.
   # --timeout 3600: o stream de tempo real (AcompanharPedidos) fica aberto.
   g run deploy "delivery-$nome" --image "$IMAGENS/$nome:$TAG" --region "$REGIAO" \
-    --service-account "$SA_SERVICOS" --no-allow-unauthenticated --use-http2 \
+    --service-account "$SA_SERVICOS" --use-http2 \
     --set-cloudsql-instances "$CONEXAO" \
     --set-env-vars "$COMUM_SERVICOS${extra:+,$extra}" \
-    --set-secrets "DB_PASSWORD=delivery-db-senha:latest" \
+    --set-secrets "DB_PASSWORD=delivery-db-senha:latest,CHAVE_INTERNA=delivery-chave-interna:latest" \
     --cpu 1 --cpu-boost --memory 512Mi --concurrency 20 --min-instances 0 --max-instances "$MAX_INSTANCIAS" \
     --timeout 3600
+  tornar_publico "delivery-$nome"
 }
 implantar_microsservico catalogo
 implantar_microsservico usuarios
@@ -205,25 +242,12 @@ info "Gateway pode chamar os tres; Pedidos pode chamar o Catalogo"
 # ------------------------------------------------------- gateway e frontend
 etapa "9/9 Gateway e frontend no Cloud Run (publicos, HTTPS)"
 
-# Publico: allUsers com roles/run.invoker. Organizacao que proibe allUsers no
-# IAM (politica de compartilhamento restrito a dominio) recusa esse papel; ai a
-# checagem de invocador e desligada no proprio servico, que da o mesmo efeito.
-tornar_publico() {
-  if g run services add-iam-policy-binding "$1" --region "$REGIAO" --member allUsers \
-    --role roles/run.invoker >/dev/null 2>&1; then
-    info "$1 publico"
-  else
-    g run services update "$1" --region "$REGIAO" --no-invoker-iam-check >/dev/null
-    info "$1 publico (checagem de invocador desligada: a organizacao bloqueia allUsers)"
-  fi
-}
-
 host_de() { local url; url="$(url_de "$1")"; echo "${url#https://}"; }
 URL_FRONTEND="$(url_de delivery-frontend)"
 g run deploy delivery-gateway --image "$IMAGENS/gateway:$TAG" --region "$REGIAO" \
   --service-account "$SA_GATEWAY" \
   --set-env-vars "USUARIOS_HOST=$(host_de delivery-usuarios),USUARIOS_PORTA=443,CATALOGO_HOST=$HOST_CATALOGO,CATALOGO_PORTA=443,PEDIDOS_HOST=$(host_de delivery-pedidos),PEDIDOS_PORTA=443,CORS_ORIGENS=${URL_FRONTEND:-*},$TEMPOS_GRPC,LOG_JSON=1,GOOGLE_CLOUD_PROJECT=$PROJETO,RASTREAMENTO=gcp" \
-  --set-secrets "JWT_SEGREDO=delivery-jwt-segredo:latest" \
+  --set-secrets "JWT_SEGREDO=delivery-jwt-segredo:latest,CHAVE_INTERNA=delivery-chave-interna:latest" \
   --cpu 1 --cpu-boost --memory 512Mi --min-instances 0 --max-instances "$MAX_INSTANCIAS" --timeout 3600
 tornar_publico delivery-gateway
 URL_GATEWAY="$(url_de delivery-gateway)"
@@ -246,7 +270,7 @@ echo "|---|---|---|"
 for servico in "${SERVICOS[@]}"; do
   case "$servico" in
     delivery-frontend|delivery-gateway) acesso="publico" ;;
-    *) acesso="privado (gRPC, IAM)" ;;
+    *) acesso="publico (gRPC; negocio so com a chave interna)" ;;
   esac
   echo "| $servico | $acesso | $(url_de "$servico") |"
 done

@@ -1,0 +1,7 @@
+delivery-usuarios	Up 5 minutes (healthy)	127.0.0.1:9092->9092/tcp
+delivery-catalogo	Up 20 seconds (healthy)	127.0.0.1:9091->9091/tcp
+delivery-pedidos	Up 5 minutes (healthy)	127.0.0.1:9090->9090/tcp
+delivery-postgres	Up 6 minutes (healthy)	5432/tcp
+delivery-frontend	Up 6 minutes (healthy)	0.0.0.0:80->8080/tcp
+delivery-gateway	Up 6 minutes (healthy)	0.0.0.0:8000->8000/tcp
+delivery-jaeger	Up 6 minutes	127.0.0.1:16686->16686/tcp

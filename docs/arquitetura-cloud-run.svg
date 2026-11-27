@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 826" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos servicos publicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, com ID token, com os microsservicos privados Usuarios, Catalogo e Pedidos, tambem no Cloud Run; Pedidos consulta o Catalogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vem do Secret Manager, logs e traces vao para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Trabalho 2 ficam paradas ou excluidas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 826" role="img" aria-label="Arquitetura do delivery no Trabalho 3: o navegador baixa o frontend e chama o API Gateway, ambos servicos publicos do Cloud Run com HTTPS gerenciado; o Gateway fala gRPC sobre HTTP/2 e TLS, levando a chave interna, com os microsservicos Usuarios, Catalogo e Pedidos, tambem publicos no Cloud Run mas com o negocio restrito a quem tem a chave; Pedidos consulta o Catalogo; os tres gravam no PostgreSQL do Cloud SQL pelo conector. Cloud Build gera as imagens no Artifact Registry, os segredos vem do Secret Manager, logs e traces vao para o Cloud Logging e o Cloud Trace, um job do Cloud Run aplica o schema, e as VMs do Compute Engine foram excluidas." font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
   <defs>
     <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#1d2329"/>
@@ -59,24 +59,24 @@
   <circle cx="490" cy="426" r="4" fill="#1d2329"/>
   <circle cx="334" cy="426" r="4" fill="#1d2329"/>
   <text x="56" y="392" font-size="12" font-weight="700" fill="#1d2329">gRPC sobre HTTP/2 e TLS (porta 443)</text>
-  <text x="56" y="409" font-size="12" fill="#4a5560">ID token do Gateway · roles/run.invoker</text>
+  <text x="56" y="409" font-size="12" fill="#4a5560">chave interna (Secret Manager)</text>
 
   <!-- microsservicos -->
   <g>
     <rect x="48" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="60" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="60" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PUBLICO · CHAVE INTERNA</text>
     <text x="60" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-usuarios</text>
     <text x="60" y="512" font-size="12.5" fill="#4a5560">cadastro e login</text>
     <text x="60" y="530" font-size="12.5" fill="#4a5560">bcrypt, dados da conta</text>
 
     <rect x="244" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="256" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="256" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PUBLICO · CHAVE INTERNA</text>
     <text x="256" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-catalogo</text>
     <text x="256" y="512" font-size="12.5" fill="#4a5560">cardapio, opcoes, fotos</text>
     <text x="256" y="530" font-size="12.5" fill="#4a5560">disponibilidade do dia</text>
 
     <rect x="484" y="448" width="180" height="108" rx="10" fill="#ffffff" stroke="#1d2329" stroke-width="1.8"/>
-    <text x="496" y="468" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">PRIVADO · IAM</text>
+    <text x="496" y="468" font-size="10" font-weight="700" fill="#4a5560" letter-spacing="0.3">PUBLICO · CHAVE INTERNA</text>
     <text x="496" y="490" font-size="15.5" font-weight="700" fill="#1d2329">delivery-pedidos</text>
     <text x="496" y="512" font-size="12.5" fill="#4a5560">pedidos e etapas</text>
     <text x="496" y="530" font-size="12.5" fill="#4a5560">stream LISTEN/NOTIFY</text>
@@ -140,9 +140,10 @@
     <text x="750" y="368" font-size="11" font-weight="700" fill="#4a5560" letter-spacing="0.6">SEGREDOS</text>
     <text x="750" y="390" font-size="15" font-weight="700" fill="#1d2329">Secret Manager</text>
     <g font-size="12" font-family="JetBrains Mono, Consolas, Menlo, monospace" fill="#4a5560">
-      <text x="750" y="410">delivery-db-senha</text>
-      <text x="750" y="427">delivery-demo-senha</text>
-      <text x="750" y="444">delivery-jwt-segredo</text>
+      <text x="750" y="407">delivery-db-senha</text>
+      <text x="750" y="421">delivery-demo-senha</text>
+      <text x="750" y="435">delivery-jwt-segredo</text>
+      <text x="750" y="449">delivery-chave-interna</text>
     </g>
 
     <!-- observabilidade -->
@@ -163,8 +164,8 @@
     <!-- VMs do Trabalho 2 -->
     <rect x="736" y="694" width="232" height="70" rx="10" fill="#f4f6f8" stroke="#b8c0c8" stroke-width="1.5" stroke-dasharray="5 4"/>
     <text x="750" y="714" font-size="11" font-weight="700" fill="#8a96a2" letter-spacing="0.6">COMPUTE ENGINE</text>
-    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs do Trabalho 2</text>
-    <text x="750" y="754" fill="#8a96a2">paradas ou excluidas</text>
+    <text x="750" y="736" font-size="14.5" font-weight="700" fill="#8a96a2">VMs (Trabalho 2 e aulas)</text>
+    <text x="750" y="754" fill="#8a96a2">excluidas em 27/11/2026</text>
     <circle cx="938" cy="730" r="13" fill="none" stroke="#b42318" stroke-width="2.2"/>
     <line x1="929" y1="721" x2="947" y2="739" stroke="#b42318" stroke-width="2.2"/>
   </g>
@@ -184,6 +185,6 @@
   <text x="708" y="642" font-size="11" font-weight="700" fill="#1d2329" text-anchor="middle">SQL</text>
 
   <!-- legenda -->
-  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · regiao us-central1 · nenhuma VM ligada</text>
-  <text x="32" y="803" font-size="12" fill="#4a5560">PUBLICO: HTTPS aberto na internet · PRIVADO: so contas de servico com roles/run.invoker (o Gateway; o Pedidos, para o Catalogo)</text>
+  <text x="32" y="786" font-size="12.5" font-weight="700" fill="#4a5560">Projeto GCP sistemas-distribuidos-505422 · regiao us-central1 · nenhuma VM no Compute Engine</text>
+  <text x="32" y="803" font-size="12" fill="#4a5560">Todos com HTTPS publico · CHAVE INTERNA: negocio so para o Gateway (e o Pedidos, no Catalogo); health check aberto</text>
 </svg>

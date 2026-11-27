@@ -1,0 +1,49 @@
+$ SELECT login, nome, papel, senha_hash FROM usuarios;  (senha so como hash bcrypt)
+      login      |       nome        |  papel  | senha_hash 
+-----------------+-------------------+---------+------------
+ cliente8846664  | Cliente de teste  | cliente | $2b$12$...
+ cliente8842803  | Cliente de teste  | cliente | $2b$12$...
+ maria.silva     | Maria Silva       | cliente | $2b$12$...
+ teste1795778657 | Cliente Renomeado | cliente | $2b$12$...
+ professor       | Professor         | cozinha | $2b$12$...
+(5 rows)
+
+
+$ SELECT codigo, nome, preco, disponivel FROM itens_cardapio;
+ codigo |          nome           | preco | disponivel 
+--------+-------------------------+-------+------------
+ BE01   | Refrigerante lata       |  7.00 | t
+ BE02   | Suco natural de laranja | 12.00 | t
+ BE03   | Água mineral            |  5.50 | t
+ EN01   | Bruschetta              | 18.90 | t
+ EN02   | Bolinho de bacalhau     | 32.00 | t
+ EN03   | Batata rústica          | 24.50 | t
+ PR01   | Filé à parmegiana       | 62.90 | t
+ PR02   | Risoto de camarão       | 74.00 | t
+ PR03   | Feijoada individual     | 54.00 | t
+ PR04   | Lasanha à bolonhesa     | 48.50 | t
+ PR05   | Moqueca de peixe        | 79.90 | f
+ SO01   | Pudim de leite          | 16.00 | t
+ SO02   | Petit gâteau            | 27.90 | t
+(13 rows)
+
+
+$ SELECT id, cliente, status, total, criado_em FROM pedidos ORDER BY criado_em DESC LIMIT 5;
+  pedido  |      cliente      |   status   | total |           criado_em           
+----------+-------------------+------------+-------+-------------------------------
+ 7b4aa381 | Professor         | RECEBIDO   | 62.90 | 2026-11-27 08:28:48.964146-03
+ 213251e7 | Maria Silva       | EM_PREPARO | 88.80 | 2026-11-27 08:25:51.538831-03
+ 1eca5793 | Cliente Renomeado | RECEBIDO   | 62.90 | 2026-11-27 08:24:23.200716-03
+ 905e3e68 | Usuario de Teste  | EM_PREPARO |  7.00 | 2026-11-27 08:24:19.608445-03
+ d1343f91 | Professor         | RECEBIDO   | 26.50 | 2026-11-27 08:24:19.467235-03
+(5 rows)
+
+
+$ SELECT * FROM itens_pedido (pedido da Maria Silva);
+ codigo |       nome        |     opcao      | quantidade | preco_unitario 
+--------+-------------------+----------------+------------+----------------
+ EN01   | Bruschetta        |                |          1 |          18.90
+ PR01   | Filé à parmegiana |                |          1 |          62.90
+ BE01   | Refrigerante lata | Coca-Cola Zero |          1 |           7.00
+(3 rows)
+
